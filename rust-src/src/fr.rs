@@ -179,6 +179,7 @@ impl Solvable for FRRL {
 
 #[cfg(test)]
 mod tests {
+    use std::str::FromStr;
     use super::*;
     use crate::Cube;
     use cubelib::algs::Algorithm as LibAlgorithm;

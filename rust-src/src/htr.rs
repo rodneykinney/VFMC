@@ -1,6 +1,6 @@
 use crate::solver::{solve_step_deduplicated, step_config};
 use crate::{
-    Algorithm, DrawableCorner, Solvable, CORNER_FB_FACELETS, CORNER_RL_FACELETS,
+    Algorithm, DrawableCorner, Solvable, StepInfo, CORNER_FB_FACELETS, CORNER_RL_FACELETS,
     CORNER_UD_FACELETS, EDGE_FB_FACELETS, EDGE_RL_FACELETS, EDGE_UD_FACELETS,
 };
 use cubelib::cube::turn::{ApplyAlgorithm, TransformableMut};
@@ -133,8 +133,10 @@ impl Solvable for HTRRL {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::Solvable;
     use cubelib::algs::Algorithm as LibAlgorithm;
     use cubelib::steps::htr::coords::HTRDRUDCoord;
+    use std::str::FromStr;
 
     #[test]
     fn test_unique_htr() {
@@ -173,6 +175,6 @@ mod tests {
     #[test]
     fn test_allowed() {
         let moves = "R L' U2 R' L U2";
-        assert_eq!(StepInfo(HTRUD).are_moves_allowed(moves).unwrap(), true);
+        assert_eq!(StepInfo::new("htr", "ud").unwrap().are_moves_allowed(moves).unwrap(), true);
     }
 }
