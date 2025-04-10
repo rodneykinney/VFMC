@@ -1,0 +1,53 @@
+<html>
+<body>
+<p>
+    VFMC is a virtual FMC attempt tool. Use it to refine your FMC strategy and practice case recognition.
+</p>
+<p>
+    Enter <b>scramble("...")</b> to load a scramble.<br>
+    Enter <b>scramble</b> to generate a new random scramble.
+</p>
+<h3>Solving Individual Steps</h3>
+<p>
+    Move from step to step by typing the name of the step you want to work on.<br>
+    The display will show the bad corners/edges for the cube in its current state.<br>
+    Available steps are: <b>eofb</b>,<b>eorl</b>,<b>eoud</b>,<b>drud</b>,<b>drrl</b>,<b>drfb</b>,<b>htr</b>,<b>fb</b>,<b>slice</b>,<b>finish</b>
+</p>
+<p>
+    When starting a step, the cube will reset its orientation to put the DR axis on top and the EO axis in front.<br>
+    Change the orientation by entering <b>x</b>, <b>y'</b>, <b>z2</b>, etc.<br>
+    Fine-tune the orientation by dragging the mouse in the display.
+</p>
+<p>
+    Enter moves (R, F', U2, etc.) to apply those moves to the cube.<br>
+    Enter <b>niss</b> to switch between normal and inverse scrambles. <br>
+    Enter <b>reset</b> to return to the beginning of the current step.
+</p>
+<p>
+    Enter <b>solve</b> at any point to find the shortest unknown solution to the current step.<br>
+    Enter <b>solve(n)</b> to find the next <b>n</b> solutions (up to 50 at at time)
+</p>
+<h3>Building a Full Solution</h3>
+<p>
+    Enter <b>save</b> to save the current cube to the list of solutions at the bottom.<br>
+    Enter <b>back</b> to return to the previous step.
+</p>
+<p>
+    Enter <b>comment("...")</b> to specify a comment for the current step<br>
+    Enter <b>done</b> to indicate you are finished checking the current step, marking it with a strike-through
+</p>
+<p>
+    Click on any step at the bottom to see the steps that precede or follow it.<br>
+    Double click or enter <b>check("name", #)</b> to load a step and start working on it.<br>
+    The steps that are active in the display are drawn in bold.
+</p>
+<h3>Saving/Loading Your Session</h3>
+<p>
+    Enter <b>save_session("...")</b> to save all of your activity so far to a log file.<br>
+    Enter <b>load_session("...")</b> to replay a saved session.
+</p>
+<hr>
+<h3>Credits</h3>
+VFMC by Rodney Kinney. Based on the cubelib library by Jonas Balsfulland.
+</body>
+</html>

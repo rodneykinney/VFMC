@@ -1,0 +1,17 @@
+[package]
+name = "py_cubelib"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "py_cubelib"
+# "cdylib" is necessary to produce a shared library for Python to import from.
+crate-type = ["cdylib"]
+
+[dependencies]
+pyo3 = { version = "0.18.0", features = ["extension-module"] }
+cubelib = { path = "cubelib/cubelib", features = ["serde_support", "fs"]}
+rand = "0.9.0"
+
+[package.metadata.maturin]
+python-source = "python"

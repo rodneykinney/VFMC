@@ -1,0 +1,32 @@
+[project]
+name = "vfmc"
+version = "0.1"
+
+dependencies = [
+  "black~=25.1",
+  "mypy~=1.15",
+  "pytest~=8.3",
+  "PyOpenGl~=3.1",
+  "pyquaternion~=0.9",
+  "PyQt5~=5.15.0",
+  "maturin~=1.8",
+]
+
+authors = [
+  { name="Rodney Kinney", email="rodney.m.kinney@gmail.com" },
+]
+description = "A virtual FMC attempt tool"
+readme = "README.md"
+requires-python = ">=3.9"
+classifiers = [
+  "Programming Language :: Python :: 3",
+]
+
+[license]
+file = ["LICENSE"]
+      
+[project.urls]
+Homepage = "https://github.com/rodneykinney/VFMC"
+
+[project.scripts]
+vfmc = "vfmc.app:main"

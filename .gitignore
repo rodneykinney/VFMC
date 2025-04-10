@@ -1,0 +1,6 @@
+__pycache__/
+.idea/
+rust-src/target/
+Cargo.lock
+vfmc.log
+

@@ -1,0 +1,11 @@
+click
+pydantic
+PyOpenGL
+pygame
+pyquaternion
+# numpy
+PyQt5~=5.15.0
+
+# dev
+maturin
+

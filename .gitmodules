@@ -1,0 +1,3 @@
+[submodule "rust-src/cubelib"]
+	path = rust-src/cubelib
+	url = git@github.com:Jobarion/cubelib.git
