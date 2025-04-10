@@ -194,7 +194,7 @@ impl Cube {
 
 // The Python module definition
 #[pymodule]
-fn py_cubelib(_py: Python, m: &PyModule) -> PyResult<()> {
+fn vfmc_core(_py: Python, m: &PyModule) -> PyResult<()> {
     // Register the classes
     m.add_class::<Cube>()?;
     m.add_class::<Algorithm>()?;

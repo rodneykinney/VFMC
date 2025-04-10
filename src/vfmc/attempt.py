@@ -2,7 +2,7 @@ import math
 from typing import Optional, Dict, List, Callable
 from collections import defaultdict
 
-from py_cubelib import Algorithm, StepInfo, debug, Cube
+from vfmc_core import Algorithm, StepInfo, debug, Cube
 
 
 class PartialSolution:

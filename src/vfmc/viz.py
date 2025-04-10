@@ -8,7 +8,7 @@ import math
 import numpy as np
 
 from vfmc.attempt import PartialSolution, Attempt, Orientation, AXIS_ROTATIONS
-from py_cubelib import (Cube, StepInfo)
+from vfmc_core import (Cube, StepInfo)
 from pyquaternion import Quaternion
 
 # U + L + F + R + B + D

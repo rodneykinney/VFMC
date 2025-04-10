@@ -17,7 +17,7 @@ from PyQt5.QtGui import QSurfaceFormat, QColor, QKeySequence
 
 from vfmc.attempt import PartialSolution, Attempt
 from vfmc.viz import facelet_x, facelet_y, facelet_z, axis, BACKGROUND, CubeViz
-from py_cubelib import Cube, Algorithm, StepInfo, scramble as gen_scramble
+from vfmc_core import Cube, Algorithm, StepInfo, scramble as gen_scramble
 
 # Basic set of cube moves
 MOVES = {
