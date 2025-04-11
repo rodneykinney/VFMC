@@ -6,17 +6,17 @@ import sys
 from PyInstaller.utils.hooks import collect_all, collect_data_files, collect_submodules
 
 # Add "src" to Python path for correct imports and collection
-sys.path.insert(0, os.path.join(os.getcwd(), 'src'))
+#sys.path.insert(0, os.path.join(os.getcwd(), 'src'))
 
 vfmc_datas = []
 vfmc_binaries = []
 vfmc_hiddenimports = []
 
 # Collect all modules and data for pyquaternion
-pyquaternion_datas, pyquaternion_binaries, pyquaternion_hiddenimports = collect_all('pyquaternion')
-vfmc_datas.extend(pyquaternion_datas)
-vfmc_binaries.extend(pyquaternion_binaries)
-vfmc_hiddenimports.extend(pyquaternion_hiddenimports)
+# pyquaternion_datas, pyquaternion_binaries, pyquaternion_hiddenimports = collect_all('pyquaternion')
+# vfmc_datas.extend(pyquaternion_datas)
+# vfmc_binaries.extend(pyquaternion_binaries)
+# vfmc_hiddenimports.extend(pyquaternion_hiddenimports)
 
 # Collect all modules and data for PyOpenGL
 pyopengl_datas, pyopengl_binaries, pyopengl_hiddenimports = collect_all('PyOpenGL')
@@ -28,7 +28,7 @@ vfmc_hiddenimports.extend(pyopengl_hiddenimports)
 vfmc_hiddenimports.extend(collect_submodules('vfmc'))
 
 a = Analysis(
-    ['launcher.py'],
+    ['launcher.py'],  # Use launcher.py as the entry point
     pathex=['src'],
     binaries=[
         ('rust-src/target/aarch64-apple-darwin/release/libvfmc_core.dylib', 'vfmc_core'),
@@ -47,7 +47,7 @@ a = Analysis(
     ],
     hookspath=[],
     hooksconfig={},
-    runtime_hooks=['debug_hook.py'],
+    runtime_hooks=[],
     excludes=[],
     noarchive=False,
     optimize=0,
@@ -66,7 +66,7 @@ exe = EXE(
     upx=True,
     console=False,
     disable_windowed_traceback=False,
-    argv_emulation=True,
+    argv_emulation=True,  # Should be true for Mac apps
     target_arch='arm64',
     codesign_identity=None,
     entitlements_file=None,
@@ -89,5 +89,14 @@ app = BUNDLE(
         'NSHighResolutionCapable': 'True',
         'CFBundleShortVersionString': '0.1.0',
         'CFBundleDisplayName': 'VFMC',
+        'CFBundleDocumentTypes': [],  # Add document types if needed
+        'NSPrincipalClass': 'NSApplication',
+        'NSAppleScriptEnabled': False,
+        'LSRequiresCarbon': False,
+        'LSEnvironment': {
+            'PATH': '/usr/bin:/bin:/usr/sbin:/sbin',
+        },
+        'LSBackgroundOnly': False,
+        'LSUIElement': False,  # Set to True for menubar-only apps with no dock icon
     },
 )
