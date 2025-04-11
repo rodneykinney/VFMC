@@ -10,6 +10,7 @@ dependencies = [
   "pyquaternion~=0.9",
   "PyQt5~=5.15.0",
   "maturin~=1.8",
+  "pyinstaller~=6.12",
 ]
 
 authors = [
