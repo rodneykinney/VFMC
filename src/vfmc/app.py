@@ -63,9 +63,9 @@ AXIS_ORIENTATIONS = {
     ("rl", "ud"): (0, -math.pi / 2, math.pi / 2),
 }
 
-IS_ACTIVE_MARKER = Qt.UserRole
-IS_DONE_MARKER = Qt.UserRole + 1
-SOLUTION = Qt.UserRole + 2
+SOLUTION = Qt.UserRole
+BOLD = Qt.UserRole + 1
+STRIKETHROUGH = Qt.UserRole + 2
 
 
 class CubeGLWidget(QOpenGLWidget):
@@ -131,8 +131,7 @@ class AppWindow(QMainWindow):
 
         self.attempt = Attempt()
         self.attempt.add_cube_listener(self.refresh_current_solution)
-        self.attempt.add_cube_listener(self.mark_active_solution)
-        self.attempt.add_solution_listener(self.refresh_saved_solutions)
+        self.attempt.add_solution_listener(self.populate_saved_solutions)
         self.previous_solution = self.attempt.solution
 
         self.commands = Commands(self)
@@ -337,13 +336,13 @@ class AppWindow(QMainWindow):
         self.current_solution.addItem(self.attempt.scramble)
         self.current_solution.addItem("")
         for step in self.attempt.solution.substeps():
-            item = f"{step.alg}"
+            line = f"{step.alg}"
             if step.kind != "":
                 if step.step_info.is_solved(self.attempt.cube):
-                    item = f"{step}"
+                    line = f"{self.attempt.to_str(step)}"
                 else:
-                    item = f"{item}{' ( )' if self.attempt.inverse else ''} // {step.kind}{step.variant}-{step.step_info.case_name(self.attempt.cube)} ({step.full_alg().len()})"
-            self.current_solution.addItem(item)
+                    line = f"{line}{' ( )' if self.attempt.inverse else ''} // {step.kind}{step.variant}-{step.step_info.case_name(self.attempt.cube)} ({step.full_alg().len()})"
+            self.current_solution.addItem(line)
 
         # Update step name
         sol = self.attempt.solution
@@ -360,40 +359,42 @@ class AppWindow(QMainWindow):
         else:
             self.case_label.setText("")
 
-    def mark_active_solution(self):
-        sol = self.attempt.solution
-        active_items = []
-        for k in self.step_order:
-            w = self.solution_widgets[k]
-            w.clearSelection()
-            w.setCurrentItem(None)
-            for i in range(w.count()):
-                item = w.item(i)
-                active = item.data(SOLUTION) in sol.substeps()
-                item.setData(IS_ACTIVE_MARKER, active)
-                if active:
-                    active_items.append(item)
-        if active_items:
-            w = self.solution_widgets[active_items[-1].data(SOLUTION).kind]
-            w.setCurrentItem(active_items[-1])
 
-
-    def refresh_saved_solutions(self):
+    def populate_saved_solutions(self):
         solutions = self.attempt.solutions_by_kind()
 
-        active_item = None
         for kind,list in self.solution_widgets.items():
             list.clear()
             for i, sol in enumerate(solutions.get(kind, [])):
                 padding = "   " if i < 9 else ("  " if i < 99 else " ")
-                list.addItem(f"{i + 1}.{padding}{sol}")
+                list.addItem(f"{i + 1}.{padding}{self.attempt.to_str(sol)}")
                 item = list.item(list.count()-1)
                 item.setData(SOLUTION, sol)
-                item.setData(IS_ACTIVE_MARKER, sol in self.attempt.solution.substeps())
-                if sol == self.attempt.solution:
-                    active_item = item
-        if active_item:
-            active_item.setSelected(True)
+
+        self.format_saved_solutions()
+
+    def format_saved_solutions(self):
+        active = self.attempt.solution.substeps()
+        active_list_item = None
+
+        for kind in reversed(self.step_order):
+            list = self.solution_widgets[kind]
+            matched = False
+            for i in range(list.count()):
+                item = list.item(i)
+                sol = item.data(SOLUTION)
+                item.setData(BOLD, sol in active and not matched)
+                matched = matched or item.data(BOLD)
+                item.setData(STRIKETHROUGH, self.attempt.is_done(sol))
+                item.setSelected(False)
+                if item.data(BOLD):
+                    active_list_item = list, item
+            list.update()
+        if active_list_item:
+            list, item = active_list_item
+            item.setSelected(True)
+            list.setCurrentItem(item)
+
 
     def set_scramble(self, scramble: str):
         """Set the cube to a specific scramble"""
@@ -547,7 +548,7 @@ class AppWindow(QMainWindow):
                         widget.setCurrentItem(None)
                         selection = 0
                         for i in range(0, widget.count()):
-                            if widget.item(i).data(IS_ACTIVE_MARKER):
+                            if widget.item(i).data(SOLUTION) in self.attempt.solution.substeps():
                                 selection = i
                                 break
                         widget.setCurrentItem(widget.item(selection))
@@ -561,7 +562,7 @@ class AppWindow(QMainWindow):
                     for k in reversed(self.step_order):
                         w = self.solution_widgets[k]
                         for i in range(0,w.count()):
-                            if w.item(i).data(IS_ACTIVE_MARKER):
+                            if w.item(i).data(SOLUTION) in self.attempt.solution.substeps():
                                 return select_widget(w)
                     return select_widget(self.solution_widgets["eo"])
                 index = self.step_order.index(obj.property("kind"))
@@ -582,6 +583,7 @@ class AppWindow(QMainWindow):
         if next_steps:
             self.attempt.advance_to(*next_steps[0])
         self.command_input.setFocus()
+        self.format_saved_solutions()
 
     def show_help(self):
         """Show help popup with commands organized by section"""
@@ -769,29 +771,26 @@ class Commands:
 
     def comment(self, s: str):
         sol = self.attempt.solution
-        if not sol.alg.len():
+        if sol.alg.len() == 0:
             sol = sol.previous
-        sol.comment = s
-        widget = self.window.solution_widgets[sol.kind]
-        for i in range(widget.count()):
-            item = widget.item(i)
-            if item.data(SOLUTION) == sol:
-                padding = "   " if i < 9 else ("  " if i < 99 else " ")
-                item.setText(f"{i + 1}.{padding}{sol}")
-        widget.update()
+        if not sol:
+            return
+        self.attempt.set_comment(sol, s)
+        for kind in reversed(self.window.step_order):
+            widget = self.window.solution_widgets[kind]
+            for i in range(widget.count()):
+                item = widget.item(i)
+                if item.data(SOLUTION) == sol:
+                    padding = "   " if i < 9 else ("  " if i < 99 else " ")
+                    item.setText(f"{i + 1}.{padding}{self.attempt.to_str(sol)}")
+                    return
 
 
     def done(self):
         sol = self.attempt.solution
-        if not sol.alg.len() and sol.previous:
-            sol = sol.previous
-        sol.is_done = not sol.is_done
-        widget = self.window.solution_widgets[sol.kind]
-        for i in range(widget.count()):
-            item = widget.item(i)
-            if item.data(SOLUTION) == sol:
-                item.setData(IS_DONE_MARKER, sol.is_done)
-        widget.update()
+        self.attempt.toggle_done(sol)
+        self.window.format_saved_solutions()
+
 
     def save(self):
         """Save this algorithm and start a new one"""
@@ -808,9 +807,10 @@ class Commands:
             )
             options = NEXT_STEPS.get((partial.kind, partial.variant), [])
             case = sol.step_info.case_name(self.attempt.cube)
-            partial.comment = f"{sol.kind}{sol.variant}-{case}" if len(options) > 1 else case
+            comment = f"{sol.kind}{sol.variant}-{case}" if len(options) > 1 else case
             self.attempt.save_solution(partial)
-            self.window.refresh_saved_solutions()
+            self.attempt.set_comment(partial, comment)
+            self.window.populate_saved_solutions()
             return
         self.attempt.save()
         next_steps = NEXT_STEPS.get((sol.kind, sol.variant))
@@ -826,6 +826,7 @@ class Commands:
     def back(self):
         """Go back to the previous step"""
         self.attempt.back()
+        self.window.format_saved_solutions()
 
     def check(self, kind: str, index: int):
         k = kind.lower()
@@ -875,14 +876,18 @@ class Commands:
 
 
 class SolutionItemRenderer(QStyledItemDelegate):
+    def __init__(self):
+        super(QStyledItemDelegate, self).__init__()
+
+
     def initStyleOption(self, option, index):
         # Override style for the active solution
         super().initStyleOption(option, index)
 
-        if index.data(IS_ACTIVE_MARKER):
-            option.font.setBold(True)
-        if index.data(IS_DONE_MARKER):
+        if index.data(STRIKETHROUGH):
             option.font.setStrikeOut(True)
+        if index.data(BOLD):
+            option.font.setBold(True)
 
 class CurrentSolutionWidget(QListWidget):
     # Override key event to copy all selected lines to the clipboard

@@ -1,6 +1,6 @@
 use crate::solver::{solve_step_deduplicated, step_config};
 use crate::{
-    Algorithm, DrawableCorner, Solvable, StepInfo, CORNER_FB_FACELETS, CORNER_RL_FACELETS,
+    Algorithm, DrawableCorner, Solvable, CORNER_FB_FACELETS, CORNER_RL_FACELETS,
     CORNER_UD_FACELETS, EDGE_FB_FACELETS, EDGE_RL_FACELETS, EDGE_UD_FACELETS,
 };
 use cubelib::cube::turn::{ApplyAlgorithm, TransformableMut};
@@ -133,7 +133,7 @@ impl Solvable for HTRRL {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::Solvable;
+    use crate::{Solvable, StepInfo};
     use cubelib::algs::Algorithm as LibAlgorithm;
     use cubelib::steps::htr::coords::HTRDRUDCoord;
     use std::str::FromStr;

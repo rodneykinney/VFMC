@@ -12,16 +12,12 @@ class PartialSolution:
             variant: str = "",
             alg: Algorithm = Algorithm(""),
             previous: Optional["PartialSolution"] = None,
-            is_done: bool = False,
-            comment="",
     ):
         self.kind = kind
         self.variant = variant
         self.step_info = StepInfo(kind, variant)
         self.previous = previous
         self.alg = alg
-        self.is_done = is_done
-        self.comment = comment or self.kind
         d = VARIANT_ORIENTATIONS.get(kind, VARIANT_ORIENTATIONS.get("*"))
         self.orientation = Orientation(*d.get(variant, d.get("*")))
         if self.previous is not None:
@@ -58,7 +54,16 @@ class PartialSolution:
         return val
 
     def __repr__(self):
-        return f"{self.alg} // {self.comment} ({self.full_alg().len()})"
+        return f"{self.alg} // ({self.full_alg().len()})"
+
+    def __eq__(self, other):
+        if self.__class__ == other.__class__:
+            return str(self.full_alg()) == str(other.full_alg())
+        else:
+            return False
+
+    def __hash__(self):
+        return str(self.full_alg()).__hash__()
 
 
 class Attempt:
@@ -68,6 +73,8 @@ class Attempt:
         self.inverse = False
         self.solution = PartialSolution()
         self._saved_by_kind: Dict[str, List[PartialSolution]] = defaultdict(list)
+        self._done: Set[PartialSolution] = set()
+        self._comments: Dict[PartialSolution, str] = {}
         self._cube_listeners = []
         self._solution_listeners = []
 
@@ -82,6 +89,24 @@ class Attempt:
     def niss(self):
         self.inverse = not self.inverse
         self.update_cube()
+
+    def toggle_done(self, sol: PartialSolution):
+        if sol in self._done:
+            self._done.remove(sol)
+        else:
+            self._done.add(sol)
+
+    def set_comment(self, sol: PartialSolution, s: str):
+        self._comments[sol] = s
+
+    def is_done(self, sol: PartialSolution):
+        return sol in self._done
+
+    def to_str(self, sol: PartialSolution) -> str:
+        comment = self._comments.get(sol)
+        if not comment:
+            comment = sol.kind
+        return f"{sol.alg} // {comment} ({sol.full_alg().len()})"
 
     def append_moves(self, moves: List[str], inverse: bool) -> bool:
         if not self.solution.allows_moves(" ".join(moves)):
@@ -137,7 +162,6 @@ class Attempt:
             self.solution.variant,
             previous=self.solution.previous,
             alg=alg,
-            comment=self.solution.comment
         )
         self.set_solution(new_solution)
 
