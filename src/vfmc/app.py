@@ -379,6 +379,7 @@ class AppWindow(QMainWindow):
 
         for kind in reversed(self.step_order):
             list = self.solution_widgets[kind]
+            list.blockSignals(True)
             matched = False
             for i in range(list.count()):
                 item = list.item(i)
@@ -387,13 +388,15 @@ class AppWindow(QMainWindow):
                 matched = matched or item.data(BOLD)
                 item.setData(STRIKETHROUGH, self.attempt.is_done(sol))
                 item.setSelected(False)
-                if item.data(BOLD):
+                if item.data(BOLD) and not active_list_item:
                     active_list_item = list, item
+            list.blockSignals(False)
             list.update()
         if active_list_item:
             list, item = active_list_item
             item.setSelected(True)
             list.setCurrentItem(item)
+            self.item_selected(list)
 
 
     def set_scramble(self, scramble: str):
@@ -566,12 +569,22 @@ class AppWindow(QMainWindow):
                                 return select_widget(w)
                     return select_widget(self.solution_widgets["eo"])
                 index = self.step_order.index(obj.property("kind"))
-                next_index = index
                 if key == Qt.Key_Backtab:
-                    next_index = (index - 1) % len(self.step_order)
+                    if index == 0:
+                        self.command_input.setFocus()
+                        return True
+                    else:
+                        next_index = (index - 1) % len(self.step_order)
+                        return select_widget(self.solution_widgets[self.step_order[next_index]])
                 else:
-                    next_index = (index + 1) % len(self.step_order)
-                return select_widget(self.solution_widgets[self.step_order[next_index]])
+                    if index == len(self.step_order) - 1:
+                        self.command_input.setFocus()
+                        return True
+                    else:
+                        next_index = (index + 1) % len(self.step_order)
+                        return select_widget(self.solution_widgets[self.step_order[next_index]])
+
+
 
         return super().eventFilter(obj, event)
 
@@ -599,7 +612,8 @@ class AppWindow(QMainWindow):
             if callable(attr):
                 commands.append((name, attr))
 
-        with open(os.path.join(os.path.dirname(__file__), "help.html"), "r") as f:
+        help_file = os.path.join(os.path.dirname(__file__), "help.html")
+        with open(help_file, "r") as f:
             help_dialog.setInformativeText(f.read())
 
         help_dialog.setText("Welcome to VFMC")
@@ -609,13 +623,6 @@ class AppWindow(QMainWindow):
 
 
 def main():
-    # Configure logging
-    logging.basicConfig(
-        filename="vfmc.log", filemode="w",
-        level=logging.DEBUG,
-        format='%(levelname)s - %(message)s'
-    )
-
     # Create the Qt Application
     app = QApplication(sys.argv)
     window = AppWindow()
@@ -906,4 +913,21 @@ class CommandResult:
     add_to_history: Optional[str] = None
 
 if __name__ == "__main__":
+    # Configure logging
+    logfile=os.path.expanduser("~/vfmc.log")
+    logging.basicConfig(
+        filename=logfile, filemode="w",
+        level=logging.DEBUG,
+        format='%(levelname)s - %(message)s'
+    )
+
+    # Figure out the application bundle path
+    if getattr(sys, 'frozen', False):
+        # We're running from a PyInstaller bundle
+        bundle_dir = os.path.dirname(sys.executable)
+        logging.debug(f"Running bundle from {bundle_dir}")
+        # For apps launched from Finder, we need to set the working directory
+        # to the bundle's MacOS directory (where the executable lives)
+        if os.path.basename(bundle_dir) == 'MacOS':
+            os.chdir(os.path.dirname(os.path.dirname(bundle_dir)))  # Go up to the .app level
     main()

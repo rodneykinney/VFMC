@@ -1,0 +1,1 @@
+To launch on MacOS, right-click on the icon while holding down the Ctrl key, then select "Open".
