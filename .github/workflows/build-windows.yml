@@ -1,0 +1,61 @@
+name: Windows Build
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.9'
+          
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+          
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "rust-src -> target"
+          
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+          
+      - name: Build Rust component
+        run: |
+          cd rust-src
+          pip install maturin
+          maturin develop --release --target x86_64-pc-windows-msvc
+          
+      - name: Build Windows executable
+        run: |
+          pip install pyinstaller
+          pyinstaller win-x86.spec
+          
+      - name: Create distribution package
+        run: |
+          cd dist/win-x86
+          $VERSION = (python -c "from importlib.metadata import version; print(version('vfmc'))")
+          Compress-Archive -Path ./VFMC.exe, -DestinationPath VFMC-v$VERSION-Windows.zip
+          
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: VFMC-Windows
+          path: dist/win-x86/*.zip
+          
+      - name: Create Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v1
+        with:
+          files: dist/win-x86/*.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
