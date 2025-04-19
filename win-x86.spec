@@ -52,10 +52,11 @@ import os
 from PyQt5.QtCore import QLibraryInfo
 qt_bin_path = QLibraryInfo.location(QLibraryInfo.BinariesPath)
 binaries = []
-for dll in ['libEGL.dll', 'libGLESv2.dll', 'd3dcompiler_47.dll']:
-    dll_path = os.path.join(qt_bin_path, dll)
-    if os.path.exists(dll_path):
-        binaries.append((dll_path, '.'))
+# Walk through the Qt bin directory and add all DLLs
+for file in os.listdir(qt_bin_path):
+    if file.lower().endswith('.dll'):
+        dll_path = os.path.join(qt_bin_path, file)
+        binaries.append((dll_path, '.', 'BINARY'))
 a.binaries += binaries
 
 pyz = PYZ(a.pure)
