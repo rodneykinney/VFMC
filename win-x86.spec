@@ -8,8 +8,24 @@ a = Analysis(
     datas=[
         ('src/vfmc/help.html', '.'),
     ],
-    hiddenimports=['vfmc_core'],
+    hiddenimports=[
+        'vfmc_core',
+        'OpenGL.platform.win32',
+        'OpenGL.arrays.ctypesarrays',
+        'OpenGL.arrays.numpymodule',
+        'OpenGL.arrays.lists',
+        'OpenGL.arrays.numbers',
+        'OpenGL.arrays.strings',
+    ],
+    binaries=[],
+    collect_submodules=['PyQt5.QtCore', 'PyQt5.QtGui', 'PyQt5.QtWidgets', 'PyQt5.QtOpenGL'],
 )
+
+# Fix for PyQt5 plugins on Windows
+from PyInstaller.utils.hooks import collect_data_files
+qt_plugins = collect_data_files('PyQt5', include_py_files=False, subdir='plugins')
+a.datas += qt_plugins
+
 pyz = PYZ(a.pure)
 
 exe = EXE(
@@ -26,7 +42,7 @@ exe = EXE(
     upx=True,
     upx_exclude=[],
     runtime_tmpdir=None,
-    console=False,
+    console=True,  # Change to True to see console output for debugging
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch='x86_64',
