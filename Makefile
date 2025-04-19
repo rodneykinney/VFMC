@@ -42,18 +42,4 @@ dist-macos-x86:
 	cp ../VFMC-Readme.txt . && \
 	zip VFMC-v$(VERSION)-Mac-X86.zip -r VFMC-Readme.txt vfmc.app
 
-dist-linux-x86:
-	rm -rf dist/linux-x86
-	. .venv-x86/bin/activate && \
-	arch -x86_64 pyinstaller linux-x86.spec
-	cd dist/linux-x86 && \
-	zip VFMC-v$(VERSION)-Linux-X86.zip -r .
-
-dist-win-x86:
-	rm -rf dist/win-x86
-	. .venv-x86/bin/activate && \
-	arch -x86_64 pyinstaller win-x86.spec
-	cd dist/win-x86 && \
-	zip VFMC-v$(VERSION)-Win-X86.zip -r .
-
 dist-all: dist-macos-arm dist-macos-x86 dist-linux-x86 dist-win-x86
