@@ -48,16 +48,16 @@ a.datas += qt_platforms
 a.datas += qt_egl
 a.datas += qt_xcbgl
 
-import os
-from PyQt5.QtCore import QLibraryInfo
-qt_bin_path = QLibraryInfo.location(QLibraryInfo.BinariesPath)
-binaries = []
-# Walk through the Qt bin directory and add all DLLs
-for file in os.listdir(qt_bin_path):
-    if file.lower().endswith('.dll'):
-        dll_path = os.path.join(qt_bin_path, file)
-        binaries.append((dll_path, '.', 'BINARY'))
-a.binaries += binaries
+# import os
+# from PyQt5.QtCore import QLibraryInfo
+# qt_bin_path = QLibraryInfo.location(QLibraryInfo.BinariesPath)
+# binaries = []
+# # Walk through the Qt bin directory and add all DLLs
+# for file in os.listdir(qt_bin_path):
+#     if file.lower().endswith('.dll'):
+#         dll_path = os.path.join(qt_bin_path, file)
+#         binaries.append((dll_path, file, 'BINARY'))
+# a.binaries += binaries
 
 pyz = PYZ(a.pure)
 
