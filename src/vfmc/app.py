@@ -2,8 +2,6 @@ import dataclasses
 import os
 import sys
 import math
-import threading
-import io
 import logging
 import traceback
 import functools
@@ -11,9 +9,9 @@ from typing import Optional, List, Tuple
 
 from PyQt5.QtWidgets import (QApplication, QMainWindow, QVBoxLayout, QHBoxLayout, QWidget,
                              QLabel, QOpenGLWidget, QLineEdit, QPushButton,
-                             QListWidget, QSplitter, QMessageBox, QSizePolicy, QStyledItemDelegate)
+                             QListWidget, QMessageBox, QSizePolicy, QStyledItemDelegate)
 from PyQt5.QtCore import Qt, QTimer, QEvent
-from PyQt5.QtGui import QSurfaceFormat, QColor, QKeySequence
+from PyQt5.QtGui import QSurfaceFormat, QKeySequence, QOpenGLContext
 
 from vfmc.attempt import PartialSolution, Attempt
 from vfmc.viz import facelet_x, facelet_y, facelet_z, axis, BACKGROUND, CubeViz
@@ -95,6 +93,12 @@ class CubeGLWidget(QOpenGLWidget):
 
     def initializeGL(self):
         """Initialize OpenGL settings"""
+        ctx = QOpenGLContext.currentContext()
+        print("Is context valid?", ctx is not None)
+        if ctx:
+            fmt = ctx.format()
+            print(f"Context version: {fmt.majorVersion()}.{fmt.minorVersion()}")
+            print("Profile:", fmt.profile())
         self.viz.initializeGL(self.width(), self.height())
 
     def resizeGL(self, width, height):
@@ -916,24 +920,83 @@ class CommandResult:
     error: Optional[Exception] = None
     add_to_history: Optional[str] = None
 
+# Diagnostic start
+
+import os
+import sys
+
+# Force software rendering (must come before importing Qt)
+os.environ["QT_OPENGL"] = "software"
+
+from PyQt5.QtWidgets import QApplication, QOpenGLWidget
+from PyQt5.QtGui import QSurfaceFormat, QOpenGLContext
+from PyQt5.QtCore import Qt
+import OpenGL.GL as gl
+
+
+class TestGLWidget(QOpenGLWidget):
+    def initializeGL(self):
+        print("initializeGL called")
+
+        ctx = QOpenGLContext.currentContext()
+        if ctx is None:
+            print("ERROR: No current OpenGL context!")
+        else:
+            fmt = ctx.format()
+            print(f"OpenGL Context Version: {fmt.majorVersion()}.{fmt.minorVersion()}")
+            print("Renderable Type:", fmt.renderableType())
+            print("Profile:", fmt.profile())
+
+        try:
+            version = gl.glGetString(gl.GL_VERSION)
+            renderer = gl.glGetString(gl.GL_RENDERER)
+            print("GL_VERSION:", version)
+            print("GL_RENDERER:", renderer)
+
+            # The problematic call in your app
+            gl.glClearColor(0.3, 0.3, 0.3, 1.0)
+            gl.glClear(gl.GL_COLOR_BUFFER_BIT)
+        except Exception as e:
+            print("GL ERROR:", e)
+
+    def paintGL(self):
+        pass
+
+    def resizeGL(self, w, h):
+        pass
+
+
 if __name__ == "__main__":
-    os.environ["QT_OPENGL"] = "software"
+    fmt = QSurfaceFormat()
+    fmt.setVersion(2, 0)
+    fmt.setProfile(QSurfaceFormat.NoProfile)
+    fmt.setRenderableType(QSurfaceFormat.OpenGL)
+    QSurfaceFormat.setDefaultFormat(fmt)
 
-# Configure logging
-    logfile=os.path.expanduser("~/vfmc.log")
-    logging.basicConfig(
-        filename=logfile, filemode="w",
-        level=logging.DEBUG,
-        format='%(levelname)s - %(message)s'
-    )
+    app = QApplication(sys.argv)
+    w = TestGLWidget()
+    w.resize(400, 300)
+    w.show()
+    sys.exit(app.exec_())
 
-    # Figure out the application bundle path
-    if getattr(sys, 'frozen', False):
-        # We're running from a PyInstaller bundle
-        bundle_dir = os.path.dirname(sys.executable)
-        logging.debug(f"Running bundle from {bundle_dir}")
-        # For apps launched from Finder, we need to set the working directory
-        # to the bundle's MacOS directory (where the executable lives)
-        if os.path.basename(bundle_dir) == 'MacOS':
-            os.chdir(os.path.dirname(os.path.dirname(bundle_dir)))  # Go up to the .app level
-    main()
+# if __name__ == "__main__":
+#     os.environ["QT_OPENGL"] = "software"
+#
+# # Configure logging
+#     logfile=os.path.expanduser("~/vfmc.log")
+#     logging.basicConfig(
+#         filename=logfile, filemode="w",
+#         level=logging.DEBUG,
+#         format='%(levelname)s - %(message)s'
+#     )
+#
+#     # Figure out the application bundle path
+#     if getattr(sys, 'frozen', False):
+#         # We're running from a PyInstaller bundle
+#         bundle_dir = os.path.dirname(sys.executable)
+#         logging.debug(f"Running bundle from {bundle_dir}")
+#         # For apps launched from Finder, we need to set the working directory
+#         # to the bundle's MacOS directory (where the executable lives)
+#         if os.path.basename(bundle_dir) == 'MacOS':
+#             os.chdir(os.path.dirname(os.path.dirname(bundle_dir)))  # Go up to the .app level
+#     main()
