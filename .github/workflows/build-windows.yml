@@ -46,9 +46,6 @@ jobs:
           dir .venv\Lib
           dir .venv\Lib\site-packages
           dir .venv\Lib\site-packages\PyQt5
-#          pip install wheel numpy
-#          pip install "PyOpenGL==3.1.6"
-#          pip install "PyOpenGL_accelerate==3.1.6"
           pyinstaller win-x86.spec
           
       - name: Create distribution package
