@@ -44,9 +44,21 @@ a = Analysis(
 
 pyz = PYZ(a.pure)
 
-coll = COLLECT(
+exe = EXE(
     pyz,
     a.scripts,
+    [],
+    exclude_binaries=True,
+    name='VFMC',
+    debug=False,
+    bootloader_ignore_signals=False,
+    strip=False,
+    upx=True,
+    console=True,
+)
+
+coll = COLLECT(
+    exe,
     a.binaries,
     a.zipfiles,
     a.datas,
