@@ -9,16 +9,18 @@ pyqt_path = os.path.join(os.environ['VIRTUAL_ENV'], 'Lib', 'site-packages', 'PyQ
 qt_plugins = collect_data_files('PyQt5', include_py_files=False, subdir='plugins')
 
 # Collect required Qt DLLs for OpenGL rendering
-qt_dlls = [
-    (os.path.join(pyqt_path, 'Qt', 'bin', 'libEGL.dll'), '.'),
-    (os.path.join(pyqt_path, 'Qt', 'bin', 'libGLESv2.dll'), '.'),
-    (os.path.join(pyqt_path, 'Qt', 'bin', 'd3dcompiler_47.dll'), '.'),
-]
+qt_dlls = []
+for dll in ['libEGL.dll', 'libGLESv2.dll', 'd3dcompiler_47.dll']:
+    dll_path = os.path.join(pyqt_path, 'Qt', 'bin', dll)
+    if os.path.exists(dll_path):
+        qt_dlls.append((dll_path, '.'))
 
+print(f"qt_dlls = {qt_dlls}")
 # Optional: Add platform plugin manually if collect_data_files doesn't find it
 qt_plugins += [
     (os.path.join(pyqt_path, 'Qt', 'plugins', 'platforms', 'qwindows.dll'), 'PyQt5/Qt/plugins/platforms')
 ]
+print(f"qt_plugins = {qt_plugins}")
 
 a = Analysis(
     ['src/vfmc/app.py'],
