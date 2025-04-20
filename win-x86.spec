@@ -1,6 +1,9 @@
 # -*- mode: python ; coding: utf-8 -*-
 import os
+import PyInstaller.config
 from PyInstaller.utils.hooks import collect_data_files
+
+PyInstaller.config.CONF['distpath'] = "dist/linux-x86"
 
 # Adjust this to match your actual Python site-packages path
 pyqt_path = os.path.join(os.environ['VIRTUAL_ENV'], 'Lib', 'site-packages', 'PyQt5')

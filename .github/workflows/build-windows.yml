@@ -43,10 +43,11 @@ jobs:
       - name: Build Windows executable
         run: |
           .\.venv\Scripts\Activate.ps1
+          pip install "PyOpenGL_accelerate==3.1.6"
           dir .venv\Lib
           dir .venv\Lib\site-packages
           dir .venv\Lib\site-packages\PyQt5
-          pip install "PyOpenGL_accelerate==3.1.6"
+          python -c "from PyQt5.QtGui import QOpenGLContext ; print('OpenGL backend:', QOpenGLContext().format().renderer())"
           pyinstaller win-x86.spec
           
       - name: Create distribution package
