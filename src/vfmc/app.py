@@ -136,16 +136,6 @@ class AppWindow(QMainWindow):
 
         self.commands = Commands(self)
 
-        # Set up the OpenGL format
-        gl_format = QSurfaceFormat()
-        gl_format.setVersion(2, 1)
-        gl_format.setProfile(QSurfaceFormat.NoProfile)  # More compatible with various drivers
-        # gl_format.setRenderableType(QSurfaceFormat.OpenGL)  # Works on Mac
-        # gl_format.setRenderableType(QSurfaceFormat.OpenGLES)  # Try for Windows
-        gl_format.setRenderableType(QSurfaceFormat.DefaultRenderableType) # Maybe works for both?
-        gl_format.setSwapBehavior(QSurfaceFormat.DoubleBuffer)
-        QSurfaceFormat.setDefaultFormat(gl_format)
-
         # Create central widget and main layout
         central_widget = QWidget()
         main_layout = QVBoxLayout(central_widget)
@@ -628,6 +618,16 @@ class AppWindow(QMainWindow):
 
 def main():
     # Create the Qt Application
+    # Set up the OpenGL format
+    gl_format = QSurfaceFormat()
+    gl_format.setVersion(2, 0)
+    gl_format.setProfile(QSurfaceFormat.NoProfile)  # More compatible with various drivers
+    # gl_format.setRenderableType(QSurfaceFormat.OpenGL)  # Works on Mac
+    gl_format.setRenderableType(QSurfaceFormat.OpenGLES)  # Try for Windows
+    # gl_format.setRenderableType(QSurfaceFormat.DefaultRenderableType) # Maybe works for both?
+    gl_format.setSwapBehavior(QSurfaceFormat.DoubleBuffer)
+    QSurfaceFormat.setDefaultFormat(gl_format)
+
     app = QApplication(sys.argv)
     window = AppWindow()
     window.show()
