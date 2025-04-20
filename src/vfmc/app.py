@@ -623,8 +623,8 @@ def main():
     gl_format.setVersion(2, 0)
     gl_format.setProfile(QSurfaceFormat.NoProfile)  # More compatible with various drivers
     # gl_format.setRenderableType(QSurfaceFormat.OpenGL)  # Works on Mac
-    gl_format.setRenderableType(QSurfaceFormat.OpenGLES)  # Try for Windows
-    # gl_format.setRenderableType(QSurfaceFormat.DefaultRenderableType) # Maybe works for both?
+    # gl_format.setRenderableType(QSurfaceFormat.OpenGLES)  # Try for Windows
+    gl_format.setRenderableType(QSurfaceFormat.DefaultRenderableType) # Maybe works for both?
     gl_format.setSwapBehavior(QSurfaceFormat.DoubleBuffer)
     QSurfaceFormat.setDefaultFormat(gl_format)
 
