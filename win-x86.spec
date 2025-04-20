@@ -17,9 +17,9 @@ for dll in ['libEGL.dll', 'libGLESv2.dll', 'd3dcompiler_47.dll']:
 
 print(f"qt_dlls = {qt_dlls}")
 # Optional: Add platform plugin manually if collect_data_files doesn't find it
-qt_plugins += [
-    (os.path.join(pyqt_path, 'Qt', 'plugins', 'platforms', 'qwindows.dll'), 'PyQt5/Qt/plugins/platforms')
-]
+# qt_plugins += [
+#     (os.path.join(pyqt_path, 'Qt', 'plugins', 'platforms', 'qwindows.dll'), 'PyQt5/Qt/plugins/platforms')
+# ]
 print(f"qt_plugins = {qt_plugins}")
 
 a = Analysis(
