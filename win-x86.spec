@@ -11,7 +11,9 @@ bin_path = os.path.join(pyqt_path, 'Qt5', 'bin')
 
 # Collect Qt plugin files (e.g. qwindows.dll)
 qt_plugins_path = os.path.join(pyqt_path, 'Qt5', 'plugins')
-qt_plugins = collect_data_files('PyQt5', include_py_files=False, subdir='Qt5/plugins/platforms')
+qt_plugins = collect_data_files("PyQt5", subdir="Qt5/plugins/platforms")
+qt_plugins += collect_data_files("PyQt5", subdir="Qt5/plugins/imageformats")
+qt_plugins += collect_data_files("PyQt5", subdir="Qt5/plugins/renderers")
 print(f"qt_plugins = {qt_plugins}")
 
 # Collect required Qt DLLs for OpenGL rendering
