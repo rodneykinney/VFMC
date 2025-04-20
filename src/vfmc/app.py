@@ -139,7 +139,9 @@ class AppWindow(QMainWindow):
         # Set up the OpenGL format
         gl_format = QSurfaceFormat()
         gl_format.setVersion(2, 1)
-        gl_format.setProfile(QSurfaceFormat.CompatibilityProfile)
+        gl_format.setProfile(QSurfaceFormat.NoProfile)  # More compatible with various drivers
+        gl_format.setRenderableType(QSurfaceFormat.OpenGL)  # Try standard OpenGL first
+        gl_format.setSwapBehavior(QSurfaceFormat.DoubleBuffer)
         QSurfaceFormat.setDefaultFormat(gl_format)
 
         # Create central widget and main layout
