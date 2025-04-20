@@ -10,7 +10,7 @@ a = Analysis(
     pathex=['src'],
     datas=[
         ('src/vfmc/help.html', '.'),
-    ]
+    ],
     binaries=[],
     hiddenimports=[
         'vfmc_core',
