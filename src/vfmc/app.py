@@ -12,7 +12,7 @@ from typing import Optional, List, Tuple
 from PyQt5.QtWidgets import (QApplication, QMainWindow, QVBoxLayout, QHBoxLayout, QWidget,
                              QLabel, QOpenGLWidget, QLineEdit, QPushButton,
                              QListWidget, QSplitter, QMessageBox, QSizePolicy, QStyledItemDelegate)
-from PyQt5.QtCore import Qt, QTimer, QEvent
+from PyQt5.QtCore import Qt, QTimer, QEvent, QCoreApplication
 from PyQt5.QtGui import QSurfaceFormat, QColor, QKeySequence
 
 from vfmc.attempt import PartialSolution, Attempt
@@ -913,6 +913,8 @@ class CommandResult:
     add_to_history: Optional[str] = None
 
 if __name__ == "__main__":
+    QCoreApplication.setAttribute(Qt.AA_UseSoftwareOpenGL)
+
     # Configure logging
     logfile=os.path.expanduser("~/vfmc.log")
     logging.basicConfig(
