@@ -38,6 +38,10 @@ a = Analysis(
         'OpenGL.arrays.lists',
         'OpenGL.arrays.numbers',
         'OpenGL.arrays.strings',
+        'PyQt5.QtOpenGL',
+        'PyQt5.Qt',
+        'sip',
+        'PyQt5.sip',
     ],
     collect_submodules=['PyQt5.QtCore', 'PyQt5.QtGui', 'PyQt5.QtWidgets', 'PyQt5.QtOpenGL'],
 )
