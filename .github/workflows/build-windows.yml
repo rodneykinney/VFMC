@@ -43,13 +43,10 @@ jobs:
       - name: Build Windows executable
         run: |
           .\.venv\Scripts\Activate.ps1
-          dir .venv\Lib\site-packages\PyQt5\Qt5
-          dir .venv\Lib\site-packages\PyQt5\Qt5\bin || echo Qt5\bin does not exist
-          dir .venv\Lib\site-packages\PyQt5\Qt5\plugins || echo Qt5\plugins does not exist
-          pip install pyqt5-tools
-          dir .venv\Lib\site-packages\PyQt5\Qt5
-          dir .venv\Lib\site-packages\PyQt5\Qt5\bin || echo Qt5\bin does not exist
-          dir .venv\Lib\site-packages\PyQt5\Qt5\plugins || echo Qt5\plugins does not exist
+          dir .venv\Lib\site-packages\PyQt5 -ErrorAction SilentlyContinue
+          dir .venv\Lib\site-packages\PyQt5\Qt5 -ErrorAction SilentlyContinue
+          dir .venv\Lib\site-packages\PyQt5\Qt5\bin -ErrorAction SilentlyContinue
+          dir .venv\Lib\site-packages\PyQt5\Qt5\plugins -ErrorAction SilentlyContinue
           python -c "from PyQt5.QtGui import QOpenGLContext ; print('OpenGL backend:', QOpenGLContext().format())"
           pyinstaller win-x86.spec
           

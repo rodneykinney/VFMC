@@ -7,22 +7,24 @@ PyInstaller.config.CONF['distpath'] = "dist/win-x86"
 
 # Adjust this to match your actual Python site-packages path
 pyqt_path = os.path.join(os.environ['VIRTUAL_ENV'], 'Lib', 'site-packages', 'PyQt5')
+bin_path = os.path.join(pyqt_path, 'Qt5', 'bin')
 
 # Collect Qt plugin files (e.g. qwindows.dll)
-qt_plugins = collect_data_files('PyQt5', include_py_files=False, subdir='plugins')
+qt_plugins_path = os.path.join(pyqt_path, 'Qt5', 'plugins')
+qt_plugins = collect_data_files('PyQt5', include_py_files=False, subdir='Qt5/plugins/platforms')
 
 # Collect required Qt DLLs for OpenGL rendering
 qt_dlls = []
 for dll in ['libEGL.dll', 'libGLESv2.dll', 'd3dcompiler_47.dll']:
-    dll_path = os.path.join(pyqt_path, 'Qt', 'bin', dll)
+    dll_path = os.path.join(bin_path, dll)
     if os.path.exists(dll_path):
-        qt_dlls.append((dll_path, '.'))
+        qt_dlls.append((dll_path, '.', 'BINARY'))
 
 print(f"qt_dlls = {qt_dlls}")
 # Optional: Add platform plugin manually if collect_data_files doesn't find it
-# qt_plugins += [
-#     (os.path.join(pyqt_path, 'Qt', 'plugins', 'platforms', 'qwindows.dll'), 'PyQt5/Qt/plugins/platforms')
-# ]
+qt_plugins += [
+    (os.path.join(qt_plugins_path, 'platforms', 'qwindows.dll'), 'PyQt5/Qt5/plugins/platforms')
+]
 print(f"qt_plugins = {qt_plugins}")
 
 a = Analysis(
