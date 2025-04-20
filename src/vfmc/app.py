@@ -140,7 +140,9 @@ class AppWindow(QMainWindow):
         gl_format = QSurfaceFormat()
         gl_format.setVersion(2, 1)
         gl_format.setProfile(QSurfaceFormat.NoProfile)  # More compatible with various drivers
-        gl_format.setRenderableType(QSurfaceFormat.OpenGL)  # Try standard OpenGL first
+        # gl_format.setRenderableType(QSurfaceFormat.OpenGL)  # Works on Mac
+        # gl_format.setRenderableType(QSurfaceFormat.OpenGLES)  # Try for Windows
+        gl_format.setRenderableType(QSurfaceFormat.DefaultRenderableType) # Maybe works for both?
         gl_format.setSwapBehavior(QSurfaceFormat.DoubleBuffer)
         QSurfaceFormat.setDefaultFormat(gl_format)
 
@@ -915,7 +917,9 @@ class CommandResult:
     add_to_history: Optional[str] = None
 
 if __name__ == "__main__":
-    # Configure logging
+    os.environ["QT_OPENGL"] = "software"
+
+# Configure logging
     logfile=os.path.expanduser("~/vfmc.log")
     logging.basicConfig(
         filename=logfile, filemode="w",
