@@ -3,11 +3,14 @@ import logging
 import os
 from enum import Enum
 
+from OpenGL.GL import *
+from OpenGL.GLU import *
 import math
 import numpy as np
-from PyQt5.QtCore import QTimer, Qt
-from PyQt5.QtWidgets import QWidget
-from PyQt5.QtGui import QPainter, QColor, QPen, QBrush, QPolygon
+from PyQt5 import Qt
+from PyQt5.QtCore import QTimer
+from PyQt5.QtGui import QSurfaceFormat
+from PyQt5.QtWidgets import QOpenGLWidget
 
 from vfmc.attempt import PartialSolution, Attempt, Orientation, AXIS_ROTATIONS
 from vfmc_core import (Cube, StepInfo)
@@ -35,27 +38,6 @@ facelet_z = \
     + [1, 1, 1, 0, 0, 0, -1, -1, -1] \
     + [1, 1, 1, 0, 0, 0, -1, -1, -1] \
     + [-1.5, -1.5, -1.5, -1.5, -1.5, -1.5, -1.5, -1.5, -1.5]
-
-FACELET_VERTICES = {
-    'xy': [
-        np.array([-0.48, -0.48, 0.0]),
-        np.array([0.48, -0.48, 0.0]),
-        np.array([0.48, 0.48, 0.0]),
-        np.array([-0.48, 0.48, 0.0])
-    ],
-    'xz': [
-        np.array([-0.48, 0.0, -0.48]),
-        np.array([0.48, 0.0, -0.48]),
-        np.array([0.48, 0.0, 0.48]),
-        np.array([-0.48, 0.0, 0.48]),
-    ],
-    'yz': [
-        np.array([0.0, -0.48, -0.48]),
-        np.array([0.0, 0.48, -0.48]),
-        np.array([0.0, 0.48, 0.48]),
-        np.array([0.0, -0.48, 0.48]),
-    ]
-}
 
 axis = ["xy"] * 9 \
        + ["yz"] * 9 \
@@ -135,7 +117,6 @@ default_orientation = [
     1,  # E <-> S
 ]
 
-
 class DisplayOption(Enum):
     ALL = 1
     NONE = 2
@@ -143,7 +124,8 @@ class DisplayOption(Enum):
 
 
 class CubeViz():
-    """Cube visualizer"""
+    """Visualize a cube in 3D space using pygame and OpenGL"""
+
     def __init__(
             self,
             attempt: Attempt,
@@ -156,7 +138,9 @@ class CubeViz():
         self.attempt.add_cube_listener(self.refresh)
 
         # Initial camera position
-        self.init_camera(0, -10, 6)
+        self.camera_x = 0.0
+        self.camera_y = -10.0
+        self.camera_z = 6.0
         self.view_angle = -math.pi / 6
 
         self.corner_display = DisplayOption.BAD
@@ -165,14 +149,24 @@ class CubeViz():
 
         self.colors = [(1, 1, 1, .2)] * 54
 
-    def init_camera(self, x, y, z):
-        self.camera = np.array([x, y, z])
+    def initializeGL(self, width, height):
+        """Initialize OpenGL settings"""
+        glClearColor(BACKGROUND, BACKGROUND, BACKGROUND, 1)
+        glEnable(GL_DEPTH_TEST)
 
-        z_axis = np.array([0, 0, 1])
-        screen_x_dir = np.cross(-self.camera, z_axis)
-        self.screen_x_dir = screen_x_dir / np.linalg.norm(screen_x_dir)
-        screen_y_dir = np.cross(self.camera, self.screen_x_dir)
-        self.screen_y_dir = screen_y_dir / np.linalg.norm(screen_y_dir)
+        # Enable alpha blending
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
+        glEnable(GL_BLEND)
+
+        # Set up the perspective
+        self.resize(width, height)
+
+    def resize(self, width, height):
+        """Handle widget resize events"""
+        glViewport(0, 0, width, height)
+        glMatrixMode(GL_PROJECTION)
+        glLoadIdentity()
+        gluPerspective(25, (width / height), 0.1, 50.0)
 
     def should_draw_edge(self, pos_id, face):
         if self.edge_display == DisplayOption.ALL:
@@ -185,11 +179,10 @@ class CubeViz():
     def should_draw_corner(self, pos_id, face):
         if self.corner_display == DisplayOption.ALL:
             return True
-        elif self.corner_display == DisplayOption.NONE:
+        elif self.corner_display ==DisplayOption.NONE:
             return False
         else:
-            return self.attempt.solution.step_info.should_draw_corner(self.attempt.cube, pos_id,
-                                                                      face)
+            return self.attempt.solution.step_info.should_draw_corner(self.attempt.cube, pos_id, face)
 
     def refresh(self):
         self.colors = [(1, 1, 1, .2)] * 54
@@ -222,34 +215,52 @@ class CubeViz():
                                                                    (side + flipped) % 2] + (
                                                                    self.opacity,)
 
-    def draw_facelet(self, painter, w, h, rotation_matrix, x, y, z, color, axis):
-        # Define the vertices of the square face based on axis
+    def draw_facelet(self, x, y, z, color, axis):
+        glPushMatrix()
+        glTranslatef(x, y, z)
+        draw_grid = False
 
-        vertex_center = np.array([x, y, z])
-        # Transform vertices to world coordinates
-        transformed_vertices = [rotation_matrix @ (v + vertex_center) for v in FACELET_VERTICES[axis]]
+        # Draw a square face
+        glBegin(GL_QUADS)
+        if axis == 'xy':
+            if draw_grid:
+                glColor4f(0, 0, 0, color[3])
+                glVertex3f(-0.5, -0.5, 0.0)
+                glVertex3f(0.5, -0.5, 0.0)
+                glVertex3f(0.5, 0.5, 0.0)
+                glVertex3f(-0.5, 0.5, 0.0)
+            glColor4fv(color)
+            glVertex3f(-0.48, -0.48, 0.0)
+            glVertex3f(0.48, -0.48, 0.0)
+            glVertex3f(0.48, 0.48, 0.0)
+            glVertex3f(-0.48, 0.48, 0.0)
+        elif axis == 'xz':
+            if draw_grid:
+                glColor4f(0, 0, 0, color[3])
+                glVertex3f(-0.5, 0.0, -0.5)
+                glVertex3f(0.5, 0.0, -0.5)
+                glVertex3f(0.5, 0.0, 0.5)
+                glVertex3f(-0.5, 0.0, 0.5)
+            glColor4fv(color)
+            glVertex3f(-0.48, 0.0, -0.48)
+            glVertex3f(0.48, 0.0, -0.48)
+            glVertex3f(0.48, 0.0, 0.48)
+            glVertex3f(-0.48, 0.0, 0.48)
+        elif axis == 'yz':
+            if draw_grid:
+                glColor4f(0, 0, 0, color[3])
+                glVertex3f(0.0, -0.5, -0.5)
+                glVertex3f(0.0, 0.5, -0.5)
+                glVertex3f(0.0, 0.5, 0.5)
+                glVertex3f(0.0, -0.5, 0.5)
+            glColor4fv(color)
+            glVertex3f(0.0, -0.48, -0.48)
+            glVertex3f(0.0, 0.48, -0.48)
+            glVertex3f(0.0, 0.48, 0.48)
+            glVertex3f(0.0, -0.48, 0.48)
+        glEnd()
 
-        scale_factor = min(w, h) * np.linalg.norm(self.camera) / 5
-        screen_vertices = [
-            (w / 2 + scale_factor * np.dot(v, self.screen_x_dir) / np.linalg.norm(v-self.camera) ,
-             h / 2 - scale_factor * np.dot(v, self.screen_y_dir) / np.linalg.norm(v-self.camera) )
-            for v in transformed_vertices
-        ]
-
-        # Enable antialiasing for smoother edges
-        painter.setRenderHint(QPainter.Antialiasing)
-
-        # Create a semi-transparent pen with alpha channel (RGBA)
-        qcol = QColor(int(color[0] * 255), int(color[1] * 255), int(color[2] * 255), int(color[3] * 255))
-        pen = QPen(QColor(255,255,255, int(255 * .1)), 1)
-        painter.setPen(pen)
-
-        # Create a semi-transparent brush with alpha channel
-        brush = QBrush(qcol)
-        painter.setBrush(brush)
-        from PyQt5 import QtCore
-        polygon = QPolygon([QtCore.QPoint(*v) for v in screen_vertices])
-        painter.drawPolygon(polygon)
+        glPopMatrix()
 
     def set_inverse(self, inverse: bool):
         self.inverse = inverse
@@ -257,9 +268,18 @@ class CubeViz():
     def update(self):
         self.refresh()
 
-    def draw(self, painter, w, h):
-        # Clear the screen with the background color
-        painter.fillRect(0, 0, w, h, QColor(int(BACKGROUND * 255), int(BACKGROUND * 255), int(BACKGROUND * 255)))
+    def draw(self):
+        # Clear the screen
+        glClearColor(BACKGROUND, BACKGROUND, BACKGROUND, 1)
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
+
+        # Set camera position
+        glMatrixMode(GL_MODELVIEW)
+        glLoadIdentity()
+        gluLookAt(self.camera_x, self.camera_y, self.camera_z,  # Camera position
+                  0, 0, 0,  # Look at point
+                  0, 1, 0)  # Up vector
+
         # Apply rotation
         qview = Quaternion(axis=[0, 0, 1], angle=self.view_angle)
         q = qview * rotation_for(self.attempt.solution.orientation)
@@ -268,7 +288,9 @@ class CubeViz():
         # Order faces from back to front
         def distance(i):
             v_rotated = q.rotate([facelet_x[i], facelet_y[i], facelet_z[i]])
-            return np.linalg.norm(v_rotated - self.camera)
+            return (v_rotated[0] - self.camera_x) ** 2 + \
+                (v_rotated[1] - self.camera_y) ** 2 + \
+                (v_rotated[2] - self.camera_z) ** 2
 
         faces = [
             (range(9 * i, 9 * (i + 1)), distance(9 * i + 4)) for i in range(0, 6)
@@ -276,19 +298,27 @@ class CubeViz():
         faces.sort(key=lambda x: -x[1])
         faces = [f for f, d in faces]
 
+        # Update the GL matrix with the new rotation
+        m = np.identity(4)
+        m[:3, :3] = rotation_matrix
+
+        # Convert to OpenGL format (column-major) and apply
+        glPushMatrix()
+        glMultMatrixf(m.T.flatten())
+
         for face in faces:
             for i in face:
-                self.draw_facelet(painter, w, h, rotation_matrix, facelet_x[i], facelet_y[i],
-                                  facelet_z[i],
+                self.draw_facelet(facelet_x[i], facelet_y[i], facelet_z[i],
                                   self.colors[i], axis[i])
+
+        glPopMatrix()
 
     def rotate(self, dx, dy=0):
         self.view_angle += dx * .005
 
-
 def rotation_for(o: Orientation) -> Quaternion:
     # Return the quaternion that brings a default cube into the given orientation
-    base = Orientation("u", "f")
+    base = Orientation("u","f")
     if o.top in "fb":
         ticks = AXIS_ROTATIONS["r"].index(o.top)
         base.x(ticks)
@@ -298,27 +328,30 @@ def rotation_for(o: Orientation) -> Quaternion:
         q = Quaternion(axis=[0, 1, 0], angle=math.pi / 2 * ticks)
         base.z(ticks)
     ticks = AXIS_ROTATIONS[base.top].index(o.front) - AXIS_ROTATIONS[base.top].index(base.front) + 4
-    q = Quaternion(axis=[0, 0, 1], angle=-math.pi / 2 * ticks) * q
+    q = Quaternion(axis=[0,0,1], angle=-math.pi / 2 * ticks) * q
     return q
 
-
-class CubeWidget(QWidget):
+class CubeWidget(QOpenGLWidget):
     """OpenGL widget that uses the CubeViz drawing methods"""
 
     def __init__(self, viz: CubeViz, parent=None):
         super(CubeWidget, self).__init__(parent)
-        self.setAttribute(Qt.WA_TranslucentBackground)
-
-        # Timer for update loop
-        self.timer = QTimer(self)
-        self.timer.timeout.connect(self.update_surface)
-        self.timer.start(30)  # ~60 FPS
-
         self.setMinimumSize(400, 400)
+
+        # Set up the OpenGL format
+        gl_format = QSurfaceFormat()
+        gl_format.setVersion(2, 1)
+        gl_format.setProfile(QSurfaceFormat.CompatibilityProfile)
+        QSurfaceFormat.setDefaultFormat(gl_format)
 
         self.viz = viz
         self.viz.attempt.add_cube_listener(self.refresh)
         self.previous_solution = self.viz.attempt.solution
+
+        # Set up a timer for animation/updates
+        self.timer = QTimer(self)
+        self.timer.timeout.connect(self.update)
+        self.timer.start(30)  # 30ms refresh rate (approx 33 fps)
 
         # Mouse tracking
         self.setMouseTracking(True)
@@ -329,12 +362,17 @@ class CubeWidget(QWidget):
         # Repaint
         self.update()
 
-    def update_surface(self):
-        self.update()
+    def initializeGL(self):
+        """Initialize OpenGL settings"""
+        self.viz.initializeGL(self.width(), self.height())
 
-    def paintEvent(self, event):
-        painter = QPainter(self)
-        self.viz.draw(painter, self.width(), self.height())
+    def resizeGL(self, width, height):
+        """Handle widget resize events"""
+        self.viz.resize(width, height)
+
+    def paintGL(self):
+        """Render the OpenGL scene"""
+        self.viz.draw()
 
     def mousePressEvent(self, event):
         if event.button() == Qt.LeftButton:
@@ -350,3 +388,5 @@ class CubeWidget(QWidget):
             dx = event.x() - self.last_mouse_pos.x()
             self.viz.rotate(dx)
             self.last_mouse_pos = event.pos()
+
+

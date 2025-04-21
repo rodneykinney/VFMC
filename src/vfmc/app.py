@@ -11,13 +11,13 @@ from typing import Optional, List, Tuple
 from importlib.metadata import version
 
 from PyQt5.QtWidgets import (QApplication, QMainWindow, QVBoxLayout, QHBoxLayout, QWidget,
-                             QLabel, QOpenGLWidget, QLineEdit, QPushButton,
-                             QListWidget, QSplitter, QMessageBox, QSizePolicy, QStyledItemDelegate)
-from PyQt5.QtCore import Qt, QTimer, QEvent
-from PyQt5.QtGui import QSurfaceFormat, QColor, QKeySequence
+                             QLabel, QLineEdit, QPushButton,
+                             QListWidget, QMessageBox, QSizePolicy, QStyledItemDelegate)
+from PyQt5.QtCore import Qt, QEvent
+from PyQt5.QtGui import QKeySequence
 
 from vfmc.attempt import PartialSolution, Attempt
-from vfmc.viz import facelet_x, facelet_y, facelet_z, axis, BACKGROUND, CubeViz, DisplayOption
+from vfmc.viz import CubeViz, DisplayOption, CubeWidget
 from vfmc_core import Cube, Algorithm, StepInfo, scramble as gen_scramble
 
 # Basic set of cube moves
@@ -69,59 +69,6 @@ BOLD = Qt.UserRole + 1
 STRIKETHROUGH = Qt.UserRole + 2
 
 
-class CubeGLWidget(QOpenGLWidget):
-    """OpenGL widget that uses the CubeViz drawing methods"""
-
-    def __init__(self, viz: CubeViz, parent=None):
-        super(CubeGLWidget, self).__init__(parent)
-        self.setMinimumSize(400, 400)
-
-        self.viz = viz
-        self.viz.attempt.add_cube_listener(self.refresh)
-        self.previous_solution = self.viz.attempt.solution
-
-        # Set up a timer for animation/updates
-        self.timer = QTimer(self)
-        self.timer.timeout.connect(self.update)
-        self.timer.start(30)  # 30ms refresh rate (approx 33 fps)
-
-        # Mouse tracking
-        self.setMouseTracking(True)
-        self.last_mouse_pos = None
-        self.dragging = False
-
-    def refresh(self):
-        # Repaint
-        self.update()
-
-    def initializeGL(self):
-        """Initialize OpenGL settings"""
-        self.viz.initializeGL(self.width(), self.height())
-
-    def resizeGL(self, width, height):
-        """Handle widget resize events"""
-        self.viz.resize(width, height)
-
-    def paintGL(self):
-        """Render the OpenGL scene"""
-        self.viz.draw()
-
-    def mousePressEvent(self, event):
-        if event.button() == Qt.LeftButton:
-            self.dragging = True
-            self.last_mouse_pos = event.pos()
-
-    def mouseReleaseEvent(self, event):
-        if event.button() == Qt.LeftButton:
-            self.dragging = False
-
-    def mouseMoveEvent(self, event):
-        if self.dragging and self.last_mouse_pos:
-            dx = event.x() - self.last_mouse_pos.x()
-            self.viz.rotate(dx)
-            self.last_mouse_pos = event.pos()
-
-
 class AppWindow(QMainWindow):
     """Main window for cube exploration with PyQt"""
 
@@ -140,12 +87,6 @@ class AppWindow(QMainWindow):
         self.command_history = [] # As entered by the user
         self.history_pointer = -1 # For traversing command history via up/down keys
 
-        # Set up the OpenGL format
-        gl_format = QSurfaceFormat()
-        gl_format.setVersion(2, 1)
-        gl_format.setProfile(QSurfaceFormat.CompatibilityProfile)
-        QSurfaceFormat.setDefaultFormat(gl_format)
-
         # Create central widget and main layout
         central_widget = QWidget()
         main_layout = QVBoxLayout(central_widget)
@@ -153,7 +94,7 @@ class AppWindow(QMainWindow):
         main_layout.setContentsMargins(4, 4, 4, 4)  # Minimize margins 
         self.setCentralWidget(central_widget)
 
-        # Top section: GL widget + scramble/step info
+        # Top section: cube widget + scramble/step info
         top_panel = QWidget()
         top_layout = QHBoxLayout(top_panel)
         main_layout.addWidget(top_panel)
@@ -166,7 +107,7 @@ class AppWindow(QMainWindow):
 
         # OpenGL widget
         self.viz = CubeViz(self.attempt)
-        self.gl_widget = CubeGLWidget(self.viz)
+        self.gl_widget = CubeWidget(self.viz)
         gl_layout.addWidget(self.gl_widget)
 
         # Status labels below GL widget
