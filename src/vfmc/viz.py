@@ -1,6 +1,7 @@
 import sys
 import logging
 import os
+from enum import Enum
 
 from OpenGL.GL import *
 from OpenGL.GLU import *
@@ -112,6 +113,11 @@ default_orientation = [
     1,  # E <-> S
 ]
 
+class DisplayOption(Enum):
+    ALL = 1
+    NONE = 2
+    BAD = 3
+
 
 class CubeViz():
     """Visualize a cube in 3D space using pygame and OpenGL"""
@@ -133,9 +139,9 @@ class CubeViz():
         self.camera_z = 6.0
         self.view_angle = -math.pi / 6
 
-        self.hide_corners = False
-        self.hide_edges = False
-        self.show_all = False
+        self.corner_display = DisplayOption.BAD
+        self.edge_display = DisplayOption.BAD
+        self.center_display = DisplayOption.ALL
 
         self.colors = [(1, 1, 1, .2)] * 54
 
@@ -159,27 +165,32 @@ class CubeViz():
         gluPerspective(25, (width / height), 0.1, 50.0)
 
     def should_draw_edge(self, pos_id, face):
-        if self.show_all:
-            return True
-        if self.hide_edges:
-            return False
-        return self.attempt.solution.step_info.should_draw_edge(self.attempt.cube, pos_id, face)
+        match self.edge_display:
+            case DisplayOption.ALL:
+                return True
+            case DisplayOption.NONE:
+                return False
+            case _:
+                return self.attempt.solution.step_info.should_draw_edge(self.attempt.cube, pos_id, face)
 
     def should_draw_corner(self, pos_id, face):
-        if self.show_all:
-            return True
-        if self.hide_corners:
-            return False
-        return self.attempt.solution.step_info.should_draw_corner(self.attempt.cube, pos_id, face)
+        match self.corner_display:
+            case DisplayOption.ALL:
+                return True
+            case DisplayOption.NONE:
+                return False
+            case _:
+                return self.attempt.solution.step_info.should_draw_corner(self.attempt.cube, pos_id, face)
 
     def refresh(self):
         self.colors = [(1, 1, 1, .2)] * 54
-        self.colors[4] = WHITE + (self.opacity,)
-        self.colors[13] = ORANGE + (self.opacity,)
-        self.colors[22] = GREEN + (self.opacity,)
-        self.colors[31] = RED + (self.opacity,)
-        self.colors[40] = BLUE + (self.opacity,)
-        self.colors[49] = YELLOW + (self.opacity,)
+        if self.center_display != DisplayOption.NONE:
+            self.colors[4] = WHITE + (self.opacity,)
+            self.colors[13] = ORANGE + (self.opacity,)
+            self.colors[22] = GREEN + (self.opacity,)
+            self.colors[31] = RED + (self.opacity,)
+            self.colors[40] = BLUE + (self.opacity,)
+            self.colors[49] = YELLOW + (self.opacity,)
         corners = self.attempt.cube.corners()
         for i in range(0, 8):
             piece_id, orientation = corners[i]

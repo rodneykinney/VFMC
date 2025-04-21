@@ -13,16 +13,26 @@
     The display will show the bad corners/edges for the cube in its current state.<br>
     Available steps are: <b>eofb</b>,<b>eorl</b>,<b>eoud</b>,<b>drud</b>,<b>drrl</b>,<b>drfb</b>,<b>htr</b>,<b>fb</b>,<b>slice</b>,<b>finish</b>
 </p>
+<h4>Display</h4>
 <p>
-    When starting a step, the cube will reset its orientation to put the DR axis on top and the EO axis in front.<br>
+    When starting a step, the cube will reset its orientation <br>
+    putting the DR axis on top and the EO axis in front.<br>
     Change the orientation by entering <b>x</b>, <b>y'</b>, <b>z2</b>, etc.<br>
     Fine-tune the orientation by dragging the mouse in the display.
 </p>
 <p>
-    Enter moves (R, F', U2, etc.) to apply those moves to the cube.<br>
+    By default, only the bad edges and corners are drawn in the display. <br>
+    Enter <b>display(corners="...", edges="...")</b> to change what is drawn in the display<br>
+    where "..." is either "all", "none", or "bad"
+</p>
+<h4>Moves</h4>
+<p>
+    Enter moves (<b>r</b>, <b>f'</b>, <b>u2</b>, etc.) to apply those moves to the cube.<br>
+    Enter moves individually or as sequences. Hit ctrl/cmd-Z to undo.<br>
     Enter <b>niss</b> to switch between normal and inverse scrambles. <br>
     Enter <b>reset</b> to return to the beginning of the current step.
 </p>
+<h4>Solver</h4>
 <p>
     Enter <b>solve</b> at any point to find the shortest unknown solution to the current step.<br>
     Enter <b>solve(n)</b> to find the next <b>n</b> solutions (up to 50 at at time)
