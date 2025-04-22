@@ -8,6 +8,7 @@ import logging
 import traceback
 import functools
 from typing import Optional, List, Tuple
+from importlib.metadata import version
 
 from PyQt5.QtWidgets import (QApplication, QMainWindow, QVBoxLayout, QHBoxLayout, QWidget,
                              QLabel, QOpenGLWidget, QLineEdit, QPushButton,
@@ -16,7 +17,7 @@ from PyQt5.QtCore import Qt, QTimer, QEvent
 from PyQt5.QtGui import QSurfaceFormat, QColor, QKeySequence
 
 from vfmc.attempt import PartialSolution, Attempt
-from vfmc.viz import facelet_x, facelet_y, facelet_z, axis, BACKGROUND, CubeViz
+from vfmc.viz import facelet_x, facelet_y, facelet_z, axis, BACKGROUND, CubeViz, DisplayOption
 from vfmc_core import Cube, Algorithm, StepInfo, scramble as gen_scramble
 
 # Basic set of cube moves
@@ -120,6 +121,7 @@ class CubeGLWidget(QOpenGLWidget):
             self.viz.rotate(dx)
             self.last_mouse_pos = event.pos()
 
+
 class AppWindow(QMainWindow):
     """Main window for cube exploration with PyQt"""
 
@@ -135,6 +137,8 @@ class AppWindow(QMainWindow):
         self.previous_solution = self.attempt.solution
 
         self.commands = Commands(self)
+        self.command_history = [] # As entered by the user
+        self.history_pointer = -1 # For traversing command history via up/down keys
 
         # Set up the OpenGL format
         gl_format = QSurfaceFormat()
@@ -218,8 +222,7 @@ class AppWindow(QMainWindow):
 
         command_label = QLabel("Command:")
         self.command_input = QLineEdit()
-        self.command_input.returnPressed.connect(
-            lambda: self.commands.execute(self.command_input.text().strip()))
+        self.command_input.returnPressed.connect(self.execute_command)
         self.command_input.installEventFilter(self)
         help_button = QPushButton("Help")
         help_button.clicked.connect(self.show_help)
@@ -284,7 +287,7 @@ class AppWindow(QMainWindow):
             container = QWidget()
             container.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
             layout = QVBoxLayout(container)
-            layout.setContentsMargins(0,0,10,10)
+            layout.setContentsMargins(0, 0, 10, 10)
             layout.setSpacing(2)
             label = label or kind.upper()
             layout.addWidget(QLabel(f"{label}:"))
@@ -309,14 +312,14 @@ class AppWindow(QMainWindow):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(3)
         layout.addWidget(build_solution_widget("htr"))
-        layout.addWidget(build_solution_widget("slice","Slice"))
+        layout.addWidget(build_solution_widget("slice", "Slice"))
         solution_lists_layout.addWidget(container)
         container = QWidget()
         layout = QVBoxLayout(container)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(3)
         layout.addWidget(build_solution_widget("fr"))
-        layout.addWidget(build_solution_widget("finish","Finish"))
+        layout.addWidget(build_solution_widget("finish", "Finish"))
         solution_lists_layout.addWidget(container)
 
         self.current_solution.installEventFilter(self)
@@ -359,16 +362,15 @@ class AppWindow(QMainWindow):
         else:
             self.case_label.setText("")
 
-
     def populate_saved_solutions(self):
         solutions = self.attempt.solutions_by_kind()
 
-        for kind,list in self.solution_widgets.items():
+        for kind, list in self.solution_widgets.items():
             list.clear()
             for i, sol in enumerate(solutions.get(kind, [])):
                 padding = "   " if i < 9 else ("  " if i < 99 else " ")
                 list.addItem(f"{i + 1}.{padding}{self.attempt.to_str(sol)}")
-                item = list.item(list.count()-1)
+                item = list.item(list.count() - 1)
                 item.setData(SOLUTION, sol)
 
         self.format_saved_solutions()
@@ -397,7 +399,6 @@ class AppWindow(QMainWindow):
             item.setSelected(True)
             list.setCurrentItem(item)
             self.item_selected(list)
-
 
     def set_scramble(self, scramble: str):
         """Set the cube to a specific scramble"""
@@ -519,13 +520,20 @@ class AppWindow(QMainWindow):
             if len(solutions) >= num_solutions:
                 break
         if solutions:
-            self.set_status(f"Found {len(solutions)} solution{'' if len(solutions)==1 else 's'}")
+            self.set_status(f"Found {len(solutions)} solution{'' if len(solutions) == 1 else 's'}")
             self.attempt.save_solutions(solutions)
             self.check_solution(solutions[-1])
         else:
             self.set_status(f"No solutions found for {sol.kind}{sol.variant}")
         if on_inverse:
             self.attempt.niss()
+
+    def execute_command(self):
+        cmd = self.command_input.text().strip()
+        self.command_history.append(cmd)
+        self.history_pointer = len(self.command_history) - 1
+        self.commands.execute(cmd)
+        self.command_input.clear()
 
     def eventFilter(self, obj, event):
         """Handle keyboard events for navigating between solution lists"""
@@ -545,6 +553,7 @@ class AppWindow(QMainWindow):
                 # Handle Tab and Shift+Tab to move between solution lists
                 if obj not in self.solution_widgets.values() and obj != self.command_input:
                     return False
+
                 def select_widget(widget):
                     if widget.count():
                         widget.clearSelection()
@@ -561,10 +570,11 @@ class AppWindow(QMainWindow):
                     else:
                         self.command_input.setFocus()
                         return True
+
                 if obj == self.command_input:
                     for k in reversed(self.step_order):
                         w = self.solution_widgets[k]
-                        for i in range(0,w.count()):
+                        for i in range(0, w.count()):
                             if w.item(i).data(SOLUTION) in self.attempt.solution.substeps():
                                 return select_widget(w)
                     return select_widget(self.solution_widgets["eo"])
@@ -583,8 +593,24 @@ class AppWindow(QMainWindow):
                     else:
                         next_index = (index + 1) % len(self.step_order)
                         return select_widget(self.solution_widgets[self.step_order[next_index]])
-
-
+            elif (obj == self.command_input and key == Qt.Key_Up):
+                if self.history_pointer < 0:
+                    return True
+                previous_command = self.command_history[self.history_pointer]
+                self.command_input.setText(previous_command)
+                self.history_pointer = max(0, self.history_pointer - 1)
+                return True
+            elif (obj == self.command_input and key == Qt.Key_Down):
+                self.history_pointer = min(self.history_pointer+1, len(self.command_history))
+                previous_command = ""
+                if self.history_pointer < len(self.command_history)-1:
+                    previous_command = self.command_history[self.history_pointer+1]
+                self.command_input.setText(previous_command)
+                self.history_pointer = min(self.history_pointer, len(self.command_history)-1)
+                return True
+            elif (obj == self.command_input and (event.modifiers() & Qt.ControlModifier or event.modifiers() & Qt.MetaModifier) and key == Qt.Key_Z):
+                self.commands.undo()
+                return True
 
         return super().eventFilter(obj, event)
 
@@ -601,7 +627,7 @@ class AppWindow(QMainWindow):
     def show_help(self):
         """Show help popup with commands organized by section"""
         help_dialog = QMessageBox(self)
-        help_dialog.setWindowTitle("VFMC Help")
+        help_dialog.setWindowTitle("VFMC help")
 
         # Generate help text by inspecting Commands methods
         commands = []
@@ -616,7 +642,7 @@ class AppWindow(QMainWindow):
         with open(help_file, "r") as f:
             help_dialog.setInformativeText(f.read())
 
-        help_dialog.setText("Welcome to VFMC")
+        help_dialog.setText(f"Welcome to VFMC v{version('vfmc')}")
         help_dialog.setStandardButtons(QMessageBox.Ok)
         help_dialog.exec_()
         self.command_input.setFocus()
@@ -650,8 +676,8 @@ class Commands:
     def __init__(self, window: AppWindow):
         self.window = window
         self.attempt = window.attempt
-        self.history = []
-
+        self.command_history = []  # Commands that were executed
+        self.history_pointer = -1
 
     def execute(self, raw_command):
         """Execute a command from the command input"""
@@ -667,7 +693,7 @@ class Commands:
                 self.window._append_moves(cmd.upper())
             else:
                 if cmd.endswith("'"):
-                    cmd = cmd.replace("'","_prime")
+                    cmd = cmd.replace("'", "_prime")
                 # Assume it's a Python command
                 if cmd.find("(") < 0:
                     cmd = f"{cmd}()"
@@ -676,38 +702,80 @@ class Commands:
                 exec(f"result = self.{cmd}", globals(), local_vars)
                 result = local_vars.get("result")
             if result is None:
-                result = CommandResult(add_to_history = raw_command)
-            if result.error is None and result.add_to_history is not None:
-                self.history.append(result.add_to_history)
+                result = CommandResult(add_to_history=raw_command)
+            if result.error is not None:
+                self.window.set_status(f"Error: {result.error}")
+            elif result.add_to_history is not None:
+                self.command_history.append(result.add_to_history)
+                self.history_pointer = len(self.command_history)-1
         except Exception as e:
             logging.error(traceback.format_exc())
             logging.error(sys.exc_info())
             if sum((1 for n in dir(self) if cmd.startswith(n))) == 0:
                 self.window.set_status(f"No such command: {raw_command}")
             else:
-                self.window.set_status(f"Error: {str(e)}")
+                self.window.set_status(f"Error: {e}")
 
-        self.window.command_input.clear()
+    def undo(self):
+        if self.history_pointer < 0:
+            return
+        last_command = self.command_history[self.history_pointer]
+        next_undo = self.history_pointer - 1
+        if all(m in MOVES for m in last_command.upper().split()):
+            inverse = str(Algorithm(last_command).inverted())
+            self.execute(inverse)
+        elif last_command == "niss":
+            self.execute("niss")
+        else:
+            self.history_pointer = -1
+            return
+        self.history_pointer = max(0, next_undo)
 
+    def display(
+            self,
+            corners: Optional[str] = None,
+            edges: Optional[str] = None,
+            centers: Optional[str] = None,
+    ):
+        try:
+            display_corners = DisplayOption[corners.upper()] if corners else None
+            display_edges = DisplayOption[edges.upper()] if edges else None
+            display_centers = DisplayOption[centers.upper()] if centers else None
+            if display_corners:
+                self.window.viz.corner_display = display_corners
+            if display_edges:
+                self.window.viz.edge_display = display_edges
+            if display_centers:
+                self.window.viz.center_display = display_centers
+            self.attempt.notify_cube_listeners()
+            return CommandResult(add_to_history=None)
+        except:
+            return CommandResult(error=ValueError(f'Valid values for display are: "all", "none", or "bad"'),add_to_history=None)
 
     def x(self):
         self.attempt.solution.orientation.x(1)
+
     def x_prime(self):
         self.attempt.solution.orientation.x(3)
+
     def x2(self):
         self.attempt.solution.orientation.x(2)
 
     def y(self):
         self.attempt.solution.orientation.y(1)
+
     def y_prime(self):
         self.attempt.solution.orientation.y(3)
+
     def y2(self):
         self.attempt.solution.orientation.y(2)
 
     def z(self):
         self.attempt.solution.orientation.z(1)
+
     def z_prime(self):
         self.attempt.solution.orientation.z(3)
+
     def z2(self):
         self.attempt.solution.orientation.z(2)
 
@@ -757,7 +825,7 @@ class Commands:
             self.window.set_step("fr", variant)
         else:
             self.window.set_status("""No DR step found. Specify axis="..." to set the FR axis""")
-            
+
     def slice(self, axis=None):
         variant = next(s.variant for s in self.attempt.solution.substeps() if s.kind == "dr")
         if variant is not None:
@@ -792,12 +860,10 @@ class Commands:
                     item.setText(f"{i + 1}.{padding}{self.attempt.to_str(sol)}")
                     return
 
-
     def done(self):
         sol = self.attempt.solution
         self.attempt.toggle_done(sol)
         self.window.format_saved_solutions()
-
 
     def save(self):
         """Save this algorithm and start a new one"""
@@ -854,30 +920,29 @@ class Commands:
         if scramble is None:
             scramble = gen_scramble()
         self.window.set_scramble(scramble)
-        return CommandResult(add_to_history = f'scramble("{scramble}")')
+        return CommandResult(add_to_history=f'scramble("{scramble}")')
 
     def save_session(self, filename):
         try:
             with open(filename, "w") as f:
-                f.writelines("\n".join(self.history))
+                f.writelines("\n".join(self.command_history))
             self.window.set_status(f"Saved session to {filename}")
             return CommandResult(add_to_history=None)
         except Exception as e:
             self.window.set_status(f"Unable to save to {filename}: {e}")
-            return CommandResult(error = e, add_to_history=None)
-
+            return CommandResult(error=e, add_to_history=None)
 
     def load_session(self, filename):
-        h = self.history
+        h = self.command_history
         try:
-            self.history = []
+            self.command_history = []
             with open(filename, "r") as f:
                 for cmd in f.readlines():
                     self.execute(cmd.strip())
             self.window.set_status(f"Loaded '{filename}'")
             return CommandResult(add_to_history=None)
         except Exception as e:
-            self.history = h
+            self.command_history = h
             self.window.set_status(f"Unable to load '{filename}': {e}")
             return CommandResult(error=e, add_to_history=None)
 
@@ -885,7 +950,6 @@ class Commands:
 class SolutionItemRenderer(QStyledItemDelegate):
     def __init__(self):
         super(QStyledItemDelegate, self).__init__()
-
 
     def initStyleOption(self, option, index):
         # Override style for the active solution
@@ -895,6 +959,7 @@ class SolutionItemRenderer(QStyledItemDelegate):
             option.font.setStrikeOut(True)
         if index.data(BOLD):
             option.font.setBold(True)
+
 
 class CurrentSolutionWidget(QListWidget):
     # Override key event to copy all selected lines to the clipboard
@@ -907,14 +972,16 @@ class CurrentSolutionWidget(QListWidget):
         else:
             super().keyPressEvent(event)  # Default behavior for other keys
 
+
 @dataclasses.dataclass
 class CommandResult:
     error: Optional[Exception] = None
     add_to_history: Optional[str] = None
 
+
 if __name__ == "__main__":
     # Configure logging
-    logfile=os.path.expanduser("~/vfmc.log")
+    logfile = os.path.expanduser("~/vfmc.log")
     logging.basicConfig(
         filename=logfile, filemode="w",
         level=logging.DEBUG,
