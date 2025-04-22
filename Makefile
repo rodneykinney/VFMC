@@ -12,7 +12,7 @@ clean:
 
 venv:
 	if [ ! -d ".venv" ]; then \
-	    python3 -m venv .venv; \
+	    python3.9 -m venv .venv; \
 	fi
 	. .venv/bin/activate && \
 	pip install . && \
@@ -32,7 +32,7 @@ dist-macos-arm:
 	pyinstaller macos-arm.spec
 	cd dist/macos-arm && \
 	cp ../VFMC-Readme.txt . && \
-	zip VFMC-v$(VERSION)-Mac-ARM.zip -r VFMC-Readme.txt vfmc.app
+	zip -q VFMC-v$(VERSION)-Mac-ARM.zip -r VFMC-Readme.txt vfmc.app
 
 dist-macos-x86:
 	rm -rf dist/macos-x86
@@ -40,6 +40,6 @@ dist-macos-x86:
 	arch -x86_64 pyinstaller macos-x86.spec
 	cd dist/macos-x86 && \
 	cp ../VFMC-Readme.txt . && \
-	zip VFMC-v$(VERSION)-Mac-X86.zip -r VFMC-Readme.txt vfmc.app
+	zip -q VFMC-v$(VERSION)-Mac-X86.zip -r VFMC-Readme.txt vfmc.app
 
 dist-all: dist-macos-arm dist-macos-x86 dist-linux-x86 dist-win-x86

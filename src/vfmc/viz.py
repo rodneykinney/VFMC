@@ -165,22 +165,20 @@ class CubeViz():
         gluPerspective(25, (width / height), 0.1, 50.0)
 
     def should_draw_edge(self, pos_id, face):
-        match self.edge_display:
-            case DisplayOption.ALL:
-                return True
-            case DisplayOption.NONE:
-                return False
-            case _:
-                return self.attempt.solution.step_info.should_draw_edge(self.attempt.cube, pos_id, face)
+        if self.edge_display == DisplayOption.ALL:
+            return True
+        elif self.edge_display == DisplayOption.NONE:
+            return False
+        else:
+            return self.attempt.solution.step_info.should_draw_edge(self.attempt.cube, pos_id, face)
 
     def should_draw_corner(self, pos_id, face):
-        match self.corner_display:
-            case DisplayOption.ALL:
-                return True
-            case DisplayOption.NONE:
-                return False
-            case _:
-                return self.attempt.solution.step_info.should_draw_corner(self.attempt.cube, pos_id, face)
+        if self.corner_display == DisplayOption.ALL:
+            return True
+        elif self.corner_display ==DisplayOption.NONE:
+            return False
+        else:
+            return self.attempt.solution.step_info.should_draw_corner(self.attempt.cube, pos_id, face)
 
     def refresh(self):
         self.colors = [(1, 1, 1, .2)] * 54
