@@ -147,7 +147,7 @@ class CubeViz():
     def __init__(
             self,
             attempt: Attempt,
-            opacity=.8,  # Set the opacity for the colors
+            opacity=1.0,  # Set the opacity for the colors
     ):
         # Set up the display
         self.opacity = opacity
@@ -157,7 +157,8 @@ class CubeViz():
 
         # Initial camera position
         self.init_camera(0, -10, 6)
-        self.view_angle = -math.pi / 6
+        self.view_y = -math.pi / 6
+        self.view_x = 0
 
         self.corner_display = DisplayOption.BAD
         self.edge_display = DisplayOption.BAD
@@ -261,8 +262,9 @@ class CubeViz():
         # Clear the screen with the background color
         painter.fillRect(0, 0, w, h, QColor(int(BACKGROUND * 255), int(BACKGROUND * 255), int(BACKGROUND * 255)))
         # Apply rotation
-        qview = Quaternion(axis=[0, 0, 1], angle=self.view_angle)
-        q = qview * rotation_for(self.attempt.solution.orientation)
+        q = (Quaternion(axis=[1, 0, 0], angle=self.view_x) *
+             Quaternion(axis=[0, 0, 1], angle=self.view_y) *
+             rotation_for(self.attempt.solution.orientation))
         rotation_matrix = q.rotation_matrix
 
         # Order faces from back to front
@@ -283,7 +285,8 @@ class CubeViz():
                                   self.colors[i], axis[i])
 
     def rotate(self, dx, dy=0):
-        self.view_angle += dx * .005
+        self.view_y += dx * .005
+        self.view_x += dy * .005
 
 
 def rotation_for(o: Orientation) -> Quaternion:
@@ -348,5 +351,6 @@ class CubeWidget(QWidget):
     def mouseMoveEvent(self, event):
         if self.dragging and self.last_mouse_pos:
             dx = event.x() - self.last_mouse_pos.x()
-            self.viz.rotate(dx)
+            dy = event.y() - self.last_mouse_pos.y()
+            self.viz.rotate(dx, dy)
             self.last_mouse_pos = event.pos()

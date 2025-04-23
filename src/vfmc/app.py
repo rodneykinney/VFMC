@@ -2,8 +2,6 @@ import dataclasses
 import os
 import sys
 import math
-import threading
-import io
 import logging
 import traceback
 import functools
@@ -12,7 +10,8 @@ from importlib.metadata import version
 
 from PyQt5.QtWidgets import (QApplication, QMainWindow, QVBoxLayout, QHBoxLayout, QWidget,
                              QLabel, QLineEdit, QPushButton,
-                             QListWidget, QMessageBox, QSizePolicy, QStyledItemDelegate)
+                             QListWidget, QMessageBox, QSizePolicy, QStyledItemDelegate,
+                             QListWidgetItem)
 from PyQt5.QtCore import Qt, QEvent
 from PyQt5.QtGui import QKeySequence
 
@@ -67,6 +66,7 @@ AXIS_ORIENTATIONS = {
 SOLUTION = Qt.UserRole
 BOLD = Qt.UserRole + 1
 STRIKETHROUGH = Qt.UserRole + 2
+OLD_ALG = Qt.UserRole + 3
 
 
 class AppWindow(QMainWindow):
@@ -147,9 +147,7 @@ class AppWindow(QMainWindow):
 
         current_container = QWidget()
         current_layout = QVBoxLayout(current_container)
-        self.current_solution = CurrentSolutionWidget()
-        self.current_solution.setSelectionMode(QListWidget.ContiguousSelection)
-        self.current_solution.setStyleSheet("font-size: 16px;")
+        self.current_solution = CurrentSolutionWidget(self.attempt)
         current_layout.addWidget(self.current_solution)
         info_layout.addWidget(current_container)
 
@@ -276,17 +274,7 @@ class AppWindow(QMainWindow):
         self.command_input.setFocus()
 
     def refresh_current_solution(self):
-        self.current_solution.clear()
-        self.current_solution.addItem(self.attempt.scramble)
-        self.current_solution.addItem("")
-        for step in self.attempt.solution.substeps():
-            line = f"{step.alg}"
-            if step.kind != "":
-                if step.step_info.is_solved(self.attempt.cube):
-                    line = f"{self.attempt.to_str(step)}"
-                else:
-                    line = f"{line}{' ( )' if self.attempt.inverse else ''} // {step.kind}{step.variant}-{step.step_info.case_name(self.attempt.cube)} ({step.full_alg().len()})"
-            self.current_solution.addItem(line)
+        self.current_solution.refresh()
 
         # Update step name
         sol = self.attempt.solution
@@ -410,6 +398,14 @@ class AppWindow(QMainWindow):
         # Execute via self.commands to get this into the history
         self.commands.execute(f'check("{sol.kind}",{index})')
 
+    def scroll_to(self, solution: PartialSolution):
+        w = self.solution_widgets[solution.kind]
+        for i in range(0,w.count()):
+            if w.item(i).data(SOLUTION) == solution:
+                w.item(i).setSelected(True)
+                w.setCurrentItem(w.item(i))
+                w.scrollToItem(w.item(i))
+
     def item_selected(self, list_widget):
         selected_item = list_widget.currentItem()
         if not selected_item:
@@ -513,6 +509,10 @@ class AppWindow(QMainWindow):
                         return True
 
                 if obj == self.command_input:
+                    if key == Qt.Key_Backtab:
+                        self.current_solution.setCurrentItem(self.current_solution.item(self.current_solution.count() - 1))
+                        self.current_solution.setFocus()
+                        return True
                     for k in reversed(self.step_order):
                         w = self.solution_widgets[k]
                         for i in range(0, w.count()):
@@ -525,8 +525,13 @@ class AppWindow(QMainWindow):
                         self.command_input.setFocus()
                         return True
                     else:
-                        next_index = (index - 1) % len(self.step_order)
-                        return select_widget(self.solution_widgets[self.step_order[next_index]])
+                        next_index = index
+                        while True:
+                            next_index = (next_index - 1) % len(self.step_order)
+                            widget = self.solution_widgets[self.step_order[next_index]]
+                            if next_index == 0 or widget.count() > 0:
+                                break
+                        return select_widget(widget)
                 else:
                     if index == len(self.step_order) - 1:
                         self.command_input.setFocus()
@@ -568,6 +573,7 @@ class AppWindow(QMainWindow):
     def show_help(self):
         """Show help popup with commands organized by section"""
         help_dialog = QMessageBox(self)
+        help_dialog.setWindowModality(Qt.NonModal)
         help_dialog.setWindowTitle("VFMC help")
 
         # Generate help text by inspecting Commands methods
@@ -585,7 +591,7 @@ class AppWindow(QMainWindow):
 
         help_dialog.setText(f"Welcome to VFMC v{version('vfmc')}")
         help_dialog.setStandardButtons(QMessageBox.Ok)
-        help_dialog.exec_()
+        help_dialog.show()
         self.command_input.setFocus()
 
 
@@ -825,6 +831,7 @@ class Commands:
             self.attempt.save_solution(partial)
             self.attempt.set_comment(partial, comment)
             self.window.populate_saved_solutions()
+            self.window.scroll_to(partial)
             return
         self.attempt.save()
         next_steps = NEXT_STEPS.get((sol.kind, sol.variant))
@@ -859,7 +866,8 @@ class Commands:
         <br>or omit the parentheses to generate a new random scramble
         """
         if scramble is None:
-            scramble = gen_scramble()
+            wrapper = Algorithm("R' U' F")
+            scramble = str(wrapper.merge(Algorithm(gen_scramble())).merge(wrapper))
         self.window.set_scramble(scramble)
         return CommandResult(add_to_history=f'scramble("{scramble}")')
 
@@ -892,24 +900,115 @@ class SolutionItemRenderer(QStyledItemDelegate):
     def __init__(self):
         super(QStyledItemDelegate, self).__init__()
 
-    def initStyleOption(self, option, index):
+    def initStyleOption(self, option, item):
         # Override style for the active solution
-        super().initStyleOption(option, index)
+        super().initStyleOption(option, item)
 
-        if index.data(STRIKETHROUGH):
+        if item.data(STRIKETHROUGH):
             option.font.setStrikeOut(True)
-        if index.data(BOLD):
+        if item.data(BOLD):
             option.font.setBold(True)
 
-
 class CurrentSolutionWidget(QListWidget):
-    # Override key event to copy all selected lines to the clipboard
+    def __init__(self, attempt: Attempt):
+        super().__init__()
+        self.attempt = attempt
+        self.ignore_updates = False
+        self.current_editor = None
+        self.originalKeyPress = None
+        self.original_alg = None
+        self.setSelectionMode(QListWidget.ContiguousSelection)
+        self.setStyleSheet("font-size: 16px;")
+        self.setEditTriggers(QListWidget.DoubleClicked)
+
+    def refresh(self):
+        if self.ignore_updates:
+            return
+        self.clear()
+        self.addItem(self.attempt.scramble)
+        self.addItem("")
+        for step in self.attempt.solution.substeps():
+            line = f"{step.alg}"
+            if step.kind != "":
+                if step.step_info.is_solved(self.attempt.cube):
+                    line = f"{self.attempt.to_str(step)}"
+                else:
+                    line = f"{line}{'( )' if step.alg.len() == 0 and self.attempt.inverse else ''} // {step.kind}{step.variant}-{step.step_info.case_name(self.attempt.cube)} ({step.full_alg().len()})"
+            item = QListWidgetItem(line)
+            self.addItem(item)
+        last_item = self.item(self.count()-1)
+        last_item.setFlags(last_item.flags() | Qt.ItemIsEditable)
+        last_item.setData(OLD_ALG, self.attempt.solution.alg)
+
+    def edit(self, index, trigger, event):
+        result = super().edit(index, trigger, event)
+        if result:
+            editor = self.indexWidget(index)
+            if editor:
+                self.current_editor = editor
+                text = editor.text().split("//")[0].strip()
+                editor.setText(text)
+                if ")" in text:
+                    editor.setCursorPosition(text.index(")"))
+                self.original_alg = self.attempt.solution.alg
+                self.current_editor.textEdited.connect(self.alg_updated)
+        return result
+
+    def alg_updated(self):
+        if not self.current_editor:
+            return
+        edited_text = self.current_editor.text().split("//")[0].strip()
+        if "(" in edited_text and ")" not in edited_text:
+            return
+        try:
+            alg = Algorithm(edited_text)
+            self.attempt.solution.alg = alg
+            self.ignore_updates = True
+            self.attempt.update_cube()
+            self.ignore_updates = False
+        except:
+            pass
+
+    def closeEditor(self, editor, hint):
+        # Called when editing is finished
+        if self.original_alg and self.parent() and self.parent().window():
+            self.blockSignals(True)
+            # Reset solution to original state, before we started editing
+            current_alg = self.attempt.solution.alg
+            self.attempt.solution.alg = self.original_alg
+
+            # To properly populate the history, execute the moves done in the editor
+            net_alg = self.original_alg.inverted().merge(current_alg)
+            commands = self.parent().window().commands
+            if net_alg.normal_moves():
+                if self.attempt.inverse:
+                    commands.execute("niss")
+                commands.execute(" ".join(net_alg.normal_moves()))
+            if net_alg.inverse_moves():
+                if not self.attempt.inverse:
+                    commands.execute("niss")
+                commands.execute(" ".join(net_alg.inverse_moves()))
+            self.parent().window().command_input.setFocus()
+            self.blockSignals(False)
+
+        self.current_editor = None
+        self.original_alg = None
+        super().closeEditor(editor, hint)
+        self.refresh()
+
+
+# Override key event to handle copy and editing
     def keyPressEvent(self, event):
         if event.matches(QKeySequence.Copy):
             selected_items = self.selectedItems()
             if selected_items:
                 clipboard_text = "\n".join(item.text() for item in selected_items)
                 QApplication.clipboard().setText(clipboard_text)
+        elif event.key() in {Qt.Key_Enter, Qt.Key_Return, Qt.Key_Delete, Qt.Key_Backspace}:
+            # Enter key starts editing the current item if any
+            current_item = self.currentItem()
+            if current_item:
+                self.editItem(current_item)
         else:
             super().keyPressEvent(event)  # Default behavior for other keys
 
