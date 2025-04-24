@@ -147,7 +147,7 @@ class CubeViz():
     def __init__(
             self,
             attempt: Attempt,
-            opacity=1.0,  # Set the opacity for the colors
+            opacity=.93,  # Set the opacity for the colors
     ):
         # Set up the display
         self.opacity = opacity
@@ -242,7 +242,7 @@ class CubeViz():
 
         # Create a semi-transparent pen with alpha channel (RGBA)
         qcol = QColor(int(color[0] * 255), int(color[1] * 255), int(color[2] * 255), int(color[3] * 255))
-        pen = QPen(QColor(255,255,255, int(255 * .1)), 1)
+        pen = QPen(QColor(255,255,255,16), 1)
         painter.setPen(pen)
 
         # Create a semi-transparent brush with alpha channel
