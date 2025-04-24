@@ -117,7 +117,7 @@ where
             step_config(StepKind::EO, ""),
             step_config(StepKind::DR, ""),
         ],
-        StepKind::FR | StepKind::FRLS | StepKind::FINLS => vec![
+        StepKind::FR | StepKind::FRLS | StepKind::FINLS | StepKind::FIN => vec![
             step_config(StepKind::EO, ""),
             step_config(StepKind::DR, ""),
             step_config(StepKind::HTR, ""),
@@ -133,7 +133,7 @@ where
     let algs = solve_steps(cube.clone(), &steps, &cancel_token)
         .map(Into::<LibAlgorithm>::into)
         .map(Algorithm);
-   let algs = algs.filter(|a| !require_canonical || is_canonical(a));
+    let algs = algs.filter(|a| !require_canonical || is_canonical(a));
     let mut seen_ids = std::collections::HashSet::new();
     let mut deduped_algs = Vec::new();
     let mut seen = 0;

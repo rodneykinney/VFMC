@@ -41,6 +41,20 @@ impl Solvable for Finish {
         true
     }
     fn solve(&self, cube: &Cube333, count: usize) -> PyResult<Vec<Algorithm>> {
-        solve_step(cube, step_config(StepKind::FIN, ""), count, false)
+        let mut cfg = step_config(StepKind::FIN, "");
+        cfg.max = Some(20);
+        solve_step(cube, cfg, count, false)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::Cube;
+    #[test]
+    fn htr_to_finish() {
+        let mut cube = Cube::new("U' F2 U2 L2 U' R2 U F2 L2 R' U' F B' R D2 U' F R2 F U R2 B2 U2 R2 L2 F2 R2 U2 R2 B R2 F' L' F' R' U' F B D' R' F L' U L B2 U R2 F2 L".to_string()).unwrap().0;
+        let finish = Finish;
+        let solutions = finish.solve(&cube, 2).unwrap();
+        assert!(solutions.len() > 0);
     }
 }
