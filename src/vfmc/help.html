@@ -11,7 +11,7 @@
 <p>
     Move from step to step by typing the name of the step you want to work on.<br>
     The display will show the bad corners/edges for the cube in its current state.<br>
-    Available steps are: <b>eofb</b>,<b>eorl</b>,<b>eoud</b>,<b>drud</b>,<b>drrl</b>,<b>drfb</b>,<b>htr</b>,<b>fb</b>,<b>slice</b>,<b>finish</b>
+    Available steps are: <b>eofb</b>,<b>eorl</b>,<b>eoud</b>,<b>drud</b>,<b>drrl</b>,<b>drfb</b>,<b>htr</b>,<b>fr</b>,<b>slice</b>,<b>finish</b>
 </p>
 <h4>Display</h4>
 <p>
@@ -22,13 +22,13 @@
 </p>
 <p>
     By default, only the bad edges and corners are drawn in the display. <br>
-    Enter <b>display(corners="...", edges="...")</b> to change what is drawn in the display<br>
-    where "..." is either "all", "none", or "bad"
+    Enter <b>display("...")</b> to change what is drawn in the display<br>
+    where "..." is either "all" or "bad"
 </p>
 <h4>Moves</h4>
 <p>
     Enter moves (e.g. <b>u' r2 f</b>) to apply them to the cube.<br>
-    Alternatively, double-click on the final set of moves to the right of the display to edit the moves directly.<br>
+    Alternatively, double-click on the final set of moves to the right of the display to edit the moves directly.
 </p>
 <p>
     Enter <b>reset</b> to return to the beginning of the current step.<br>
@@ -60,6 +60,6 @@
 </p>
 <hr>
 <h3>Credits</h3>
-VFMC by Rodney Kinney. Based on the cubelib library by Jonas Balsfulland.
+Developed by Rodney Kinney. Based on the cubelib library by Jonas Balsfulland.
 </body>
 </html>

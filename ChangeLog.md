@@ -1,5 +1,8 @@
 # VFMC Release History
 
+## v0.4
+ - GUI equivalents for all commands
+
 ## v0.3
  - Enter moves by directly editing the moves in the display
  - Drag to rotate along multiple axes
