@@ -1,11 +1,12 @@
 use crate::htr::HTRUD;
 use crate::solver::{solve_step, step_config};
-use crate::{Algorithm, Solvable};
+use crate::{Algorithm, Solvable, Visibility};
 use cubelib::cube::Cube333;
 use cubelib::defs::StepKind;
 use cubelib::steps::coord::Coord;
 use cubelib::steps::finish::coords::HTRFinishCoord;
 use pyo3::PyResult;
+use crate::Visibility::BadFace;
 
 pub struct Finish;
 impl Solvable for Finish {
@@ -33,12 +34,12 @@ impl Solvable for Finish {
         format!("{}{}", c_string, e_string)
     }
 
-    fn should_draw_edge(&self, _cube: &Cube333, _pos: usize, _facelet: u8) -> bool {
-        true
+    fn edge_visibility(&self, _cube: &Cube333, _pos: usize, _facelet: u8) -> Visibility {
+        BadFace
     }
 
-    fn should_draw_corner(&self, _cube: &Cube333, _pos: usize, _facelet: u8) -> bool {
-        true
+    fn corner_visibility(&self, _cube: &Cube333, _pos: usize, _facelet: u8) -> Visibility {
+        BadFace
     }
     fn solve(&self, cube: &Cube333, count: usize) -> PyResult<Vec<Algorithm>> {
         let mut cfg = step_config(StepKind::FIN, "");
@@ -49,7 +50,9 @@ impl Solvable for Finish {
 
 #[cfg(test)]
 mod tests {
-    use crate::Cube;
+    use crate::{Cube, Solvable};
+    use crate::finish::Finish;
+
     #[test]
     fn htr_to_finish() {
         let mut cube = Cube::new("U' F2 U2 L2 U' R2 U F2 L2 R' U' F B' R D2 U' F R2 F U R2 B2 U2 R2 L2 F2 R2 U2 R2 B R2 F' L' F' R' U' F B D' R' F L' U L B2 U R2 F2 L".to_string()).unwrap().0;

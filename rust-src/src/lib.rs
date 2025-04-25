@@ -21,6 +21,7 @@ use crate::solver::scramble;
 use cubelib::algs::Algorithm as LibAlgorithm;
 use cubelib::cube::turn::{ApplyAlgorithm, Direction, Invertible, InvertibleMut};
 use cubelib::cube::{Corner, Cube333, Turn333};
+use crate::Visibility::BadFace;
 
 #[pyclass]
 struct Algorithm(LibAlgorithm);
@@ -329,18 +330,33 @@ impl StepInfo {
             .case_name(&cube.0))
     }
 
-    fn should_draw_edge(&self, cube: &Cube, pos: usize, facelet: u8) -> PyResult<bool> {
-        Ok(self
+    fn edge_visibility(&self, cube: &Cube) -> PyResult<Vec<(u8, u8)>> {
+        let step = self
             .step()
-            .map_err(|e| PyValueError::new_err(e.to_string()))?
-            .should_draw_edge(&cube.0, pos, facelet))
+            .map_err(|e| PyValueError::new_err(e.to_string()))?;
+        let mut vec = vec![];
+        for i in 0..12 {
+            vec.push((
+                step.edge_visibility(&cube.0, i, 0) as u8,
+                step.edge_visibility(&cube.0, i, 1) as u8,
+            ));
+        }
+        Ok(vec)
     }
 
-    fn should_draw_corner(&self, cube: &Cube, pos: usize, facelet: u8) -> PyResult<bool> {
-        Ok(self
+    fn corner_visibility(&self, cube: &Cube) -> PyResult<Vec<(u8, u8, u8)>> {
+        let step = self
             .step()
-            .map_err(|e| PyValueError::new_err(e.to_string()))?
-            .should_draw_corner(&cube.0, pos, facelet))
+            .map_err(|e| PyValueError::new_err(e.to_string()))?;
+        let mut vec = vec![];
+        for i in 0..8 {
+            vec.push((
+                step.corner_visibility(&cube.0, i, 0) as u8,
+                step.corner_visibility(&cube.0, i, 1) as u8,
+                step.corner_visibility(&cube.0, i, 2) as u8,
+            ));
+        }
+        Ok(vec)
     }
 
     fn solve(&self, cube: &Cube, count: usize) -> PyResult<Vec<Algorithm>> {
@@ -358,12 +374,19 @@ impl StepInfo {
     }
 }
 
+pub enum Visibility {
+    GoodFace = 0,
+    BadFace = 1,
+    BadPieceGoodFace = 2,
+    UsedForCaseID = 3,
+}
+
 trait Solvable {
     fn is_solved(&self, cube: &Cube333) -> bool;
     fn is_eligible(&self, cube: &Cube333) -> bool;
     fn case_name(&self, cube: &Cube333) -> String;
-    fn should_draw_edge(&self, cube: &Cube333, pos: usize, facelet: u8) -> bool;
-    fn should_draw_corner(&self, cube: &Cube333, pos: usize, facelet: u8) -> bool;
+    fn edge_visibility(&self, cube: &Cube333, pos: usize, facelet: u8) -> Visibility;
+    fn corner_visibility(&self, cube: &Cube333, pos: usize, facelet: u8) -> Visibility;
     fn solve(&self, cube: &Cube333, count: usize) -> PyResult<Vec<Algorithm>>;
 }
 struct StepBuilder;
@@ -418,11 +441,11 @@ impl Solvable for SCRAMBLED {
     fn case_name(&self, _cube: &Cube333) -> String {
         "".to_string()
     }
-    fn should_draw_edge(&self, _cube: &Cube333, _pos: usize, _facelet: u8) -> bool {
-        true
+    fn edge_visibility(&self, _cube: &Cube333, _pos: usize, _facelet: u8) -> Visibility {
+        BadFace
     }
-    fn should_draw_corner(&self, _cube: &Cube333, _pos: usize, _facelet: u8) -> bool {
-        true
+    fn corner_visibility(&self, _cube: &Cube333, _pos: usize, _facelet: u8) -> Visibility {
+        BadFace
     }
     fn solve(&self, _cube: &Cube333, _count: usize) -> PyResult<Vec<Algorithm>> {
         Err(PyValueError::new_err("Direct solver is not implemented"))
@@ -486,6 +509,7 @@ const CORNER_OPPOSITE_M_SLICE: [u8; 8] = [1, 0, 3, 2, 5, 4, 7, 6];
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::Solvable;
 
     #[test]
     fn algorithm_append() {
@@ -522,5 +546,22 @@ mod tests {
     fn scramble_gen() {
         let s = scramble().unwrap();
         assert!(s.len() > 0);
+    }
+
+    #[test]
+    fn test_visibility() {
+        let cube = Cube::new("R U F".to_string()).unwrap();
+        let s = StepInfo {
+            kind: "eo".to_string(),
+            variant: "fb".to_string(),
+        };
+        let visibility = s.edge_visibility(&cube).unwrap();
+        assert!(visibility[2].0 == BadFace as u8);
+        let s = StepInfo {
+            kind: "htr".to_string(),
+            variant: "ud".to_string(),
+        };
+        let visibility = s.edge_visibility(&cube).unwrap();
+        assert!(visibility[0].0 == BadFace as u8);
     }
 }

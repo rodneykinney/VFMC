@@ -1,14 +1,12 @@
 use crate::solver::{solve_step_deduplicated, step_config};
-use crate::{
-    Algorithm, DrawableCorner, Solvable, CORNER_FB_FACELETS, CORNER_RL_FACELETS,
-    CORNER_UD_FACELETS, EDGE_FB_FACELETS, EDGE_RL_FACELETS, EDGE_UD_FACELETS,
-};
+use crate::{Algorithm, DrawableCorner, Solvable, Visibility, CORNER_FB_FACELETS, CORNER_RL_FACELETS, CORNER_UD_FACELETS, EDGE_FB_FACELETS, EDGE_RL_FACELETS, EDGE_UD_FACELETS};
 use cubelib::cube::turn::{ApplyAlgorithm, TransformableMut};
 use cubelib::cube::{Cube333, Transformation333};
 use cubelib::defs::StepKind;
 use cubelib::steps::coord::Coord;
 use cubelib::steps::fr::coords::FRUDNoSliceCoord;
 use pyo3::PyResult;
+use crate::Visibility::{GoodFace, BadFace, BadPieceGoodFace, UsedForCaseID};
 
 pub struct HTRUD;
 impl Solvable for HTRUD {
@@ -30,14 +28,31 @@ impl Solvable for HTRUD {
             _ => "".to_string(),
         }
     }
-    fn should_draw_edge(&self, cube: &Cube333, pos: usize, facelet: u8) -> bool {
+    fn edge_visibility(&self, cube: &Cube333, pos: usize, facelet: u8) -> Visibility {
         let e = cube.edges.get_edges()[pos];
-        !e.oriented_ud && Some(facelet) != EDGE_UD_FACELETS[pos]
+        if !e.oriented_ud {
+            if Some(facelet) != EDGE_UD_FACELETS[pos] {
+                BadFace
+            }
+            else {
+                BadPieceGoodFace
+            }
+        }
+        else {
+            GoodFace
+        }
     }
-    fn should_draw_corner(&self, cube: &Cube333, pos: usize, facelet: u8) -> bool {
+    fn corner_visibility(&self, cube: &Cube333, pos: usize, facelet: u8) -> Visibility {
         let c = cube.corners.get_corners()[pos];
-        (c.id / 4 == 1 && facelet == c.facelet_showing_ud()) || // D sticker
-            (!c.oriented_fb(pos as u8) && facelet != CORNER_UD_FACELETS[pos])
+        if c.id / 4 == 1 && facelet == c.facelet_showing_ud() { // D sticker
+            UsedForCaseID
+        }
+        else if !c.oriented_fb(pos as u8) && facelet != CORNER_UD_FACELETS[pos] {
+            BadFace
+        }
+        else {
+            GoodFace
+        }
     }
     fn solve(&self, cube: &Cube333, count: usize) -> PyResult<Vec<Algorithm>> {
         solve_step_deduplicated(
@@ -80,14 +95,31 @@ impl Solvable for HTRFB {
             _ => "".to_string(),
         }
     }
-    fn should_draw_edge(&self, cube: &Cube333, pos: usize, facelet: u8) -> bool {
+    fn edge_visibility(&self, cube: &Cube333, pos: usize, facelet: u8) -> Visibility {
         let e = cube.edges.get_edges()[pos];
-        !e.oriented_fb && Some(facelet) != EDGE_FB_FACELETS[pos]
+        if !e.oriented_fb {
+            if Some(facelet) != EDGE_FB_FACELETS[pos] {
+                BadFace
+            }
+            else {
+                BadPieceGoodFace
+            }
+        }
+        else {
+            GoodFace
+        }
     }
-    fn should_draw_corner(&self, cube: &Cube333, pos: usize, facelet: u8) -> bool {
+    fn corner_visibility(&self, cube: &Cube333, pos: usize, facelet: u8) -> Visibility {
         let c = cube.corners.get_corners()[pos];
-        (vec!(0, 1, 6, 7).contains(&c.id) && facelet == c.facelet_showing_fb()) || // B sticker
-            (!c.oriented_rl(pos as u8) && facelet != CORNER_FB_FACELETS[pos])
+        if vec!(0, 1, 6, 7).contains(&c.id) && facelet == c.facelet_showing_fb() { // B sticker
+            UsedForCaseID
+        }
+        else if !c.oriented_rl(pos as u8) && facelet != CORNER_FB_FACELETS[pos]{
+            BadFace
+        }
+        else {
+            GoodFace
+        }
     }
     fn solve(&self, cube: &Cube333, count: usize) -> PyResult<Vec<Algorithm>> {
         solve_step_deduplicated(
@@ -110,14 +142,31 @@ impl Solvable for HTRRL {
     fn case_name(&self, cube: &Cube333) -> String {
         HTRUD.case_name(cube)
     }
-    fn should_draw_edge(&self, cube: &Cube333, pos: usize, facelet: u8) -> bool {
+    fn edge_visibility(&self, cube: &Cube333, pos: usize, facelet: u8) -> Visibility {
         let e = cube.edges.get_edges()[pos];
-        !e.oriented_rl && Some(facelet) != EDGE_RL_FACELETS[pos]
+        if !e.oriented_rl {
+            if Some(facelet) != EDGE_RL_FACELETS[pos] {
+                BadFace
+            }
+            else {
+                BadPieceGoodFace
+            }
+        }
+        else {
+            GoodFace
+        }
     }
-    fn should_draw_corner(&self, cube: &Cube333, pos: usize, facelet: u8) -> bool {
+    fn corner_visibility(&self, cube: &Cube333, pos: usize, facelet: u8) -> Visibility {
         let c = cube.corners.get_corners()[pos];
-        (vec!(1, 2, 5, 6).contains(&c.id) && facelet == c.facelet_showing_rl()) || // L sticker
-            (!c.oriented_ud(pos as u8) && facelet != CORNER_RL_FACELETS[pos])
+        if vec!(1, 2, 5, 6).contains(&c.id) && facelet == c.facelet_showing_rl() { // L sticker
+            UsedForCaseID
+        }
+        else if !c.oriented_ud(pos as u8) && facelet != CORNER_RL_FACELETS[pos]{
+            BadFace
+        }
+        else {
+            GoodFace
+        }
     }
     fn solve(&self, cube: &Cube333, count: usize) -> PyResult<Vec<Algorithm>> {
         solve_step_deduplicated(

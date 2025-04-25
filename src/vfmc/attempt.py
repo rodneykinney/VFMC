@@ -1,17 +1,18 @@
 import math
-from typing import Optional, Dict, List, Callable, Set
+from typing import Optional, Dict, List, Callable, Set, Tuple
 from collections import defaultdict
 
+from vfmc.palette import Visibility
 from vfmc_core import Algorithm, StepInfo, debug, Cube
 
 
 class PartialSolution:
     def __init__(
-            self,
-            kind: str = "",
-            variant: str = "",
-            alg: Algorithm = Algorithm(""),
-            previous: Optional["PartialSolution"] = None,
+        self,
+        kind: str = "",
+        variant: str = "",
+        alg: Algorithm = Algorithm(""),
+        previous: Optional["PartialSolution"] = None,
     ):
         self.kind = kind
         self.variant = variant
@@ -25,8 +26,9 @@ class PartialSolution:
                 if self.orientation.front not in self.previous.variant:
                     self.orientation.y(1)
             else:
-                self.orientation = Orientation(self.previous.orientation.top,
-                                               self.previous.orientation.front)
+                self.orientation = Orientation(
+                    self.previous.orientation.top, self.previous.orientation.front
+                )
 
     def append_move(self, move: str, inverse: bool):
         self.alg = self.alg.append(move, inverse)
@@ -139,7 +141,11 @@ class Attempt:
             self.advance_to(previous.kind, previous.variant)
 
     def advance_to(self, kind: str, variant: str):
-        previous = self.solution if not self.solution.alg.is_empty() else self.solution.previous
+        previous = (
+            self.solution
+            if not self.solution.alg.is_empty()
+            else self.solution.previous
+        )
         if previous:
             if not previous.alg.inverse_moves():
                 self.inverse = False
@@ -152,6 +158,18 @@ class Attempt:
 
     def solutions_for_step(self, kind: str, variant: str) -> List[PartialSolution]:
         return [s for s in self._saved_by_kind.get(kind, []) if s.variant == s.variant]
+
+    def corner_visibility(self) -> List[Tuple[Visibility, Visibility, Visibility]]:
+        return [
+            (Visibility(t[0]), Visibility(t[1]), Visibility(t[2]))
+            for t in self.solution.step_info.corner_visibility(self.cube)
+        ]
+
+    def edge_visibility(self) -> List[Tuple[Visibility, Visibility]]:
+        return [
+            (Visibility(t[0]), Visibility(t[1]))
+            for t in self.solution.step_info.edge_visibility(self.cube)
+        ]
 
     def last_solved_step(self) -> Optional[PartialSolution]:
         for step in reversed(self.solution.substeps()):
@@ -192,7 +210,9 @@ class Attempt:
         for kind, sols_for_kind in new_sols_by_key.items():
             existing = self._saved_by_kind[kind]
             existing_algs = set(str(s.full_alg()) for s in existing)
-            existing += [s for s in sols_for_kind if not str(s.full_alg()) in existing_algs]
+            existing += [
+                s for s in sols_for_kind if not str(s.full_alg()) in existing_algs
+            ]
             existing.sort(key=lambda s: (s.alg.len(), s.variant))
         self.notify_saved_solution_listeners()
 
@@ -226,7 +246,7 @@ class Attempt:
 
 
 VARIANT_ORIENTATIONS = {
-    "" : {"": ("u","f")},
+    "": {"": ("u", "f")},
     "eo": {
         "ud": ("b", "u"),
         "fb": ("u", "f"),
@@ -237,7 +257,7 @@ VARIANT_ORIENTATIONS = {
         "fb": ("b", "u"),
         "rl": ("r", "f"),
         "*": ("u", "f"),
-    }
+    },
 }
 
 AXIS_ROTATIONS = {
