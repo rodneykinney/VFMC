@@ -30,13 +30,14 @@ coll = COLLECT(
 )
 app = BUNDLE(
     coll,
-    name='vfmc.app',
+    name='VFMC.app',
     icon=None,
     bundle_identifier='com.rodneykinney.vfmc',
     info_plist={
         'NSHighResolutionCapable': 'True',
         'CFBundleShortVersionString': '0.1.0',
         'CFBundleDisplayName': 'VFMC',
+        'CFBundleName': 'VFMC',
         'NSPrincipalClass': 'NSApplication',
     },
 )

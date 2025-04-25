@@ -1,5 +1,5 @@
 import math
-from typing import Optional, Dict, List, Callable
+from typing import Optional, Dict, List, Callable, Set
 from collections import defaultdict
 
 from vfmc_core import Algorithm, StepInfo, debug, Cube
@@ -76,15 +76,16 @@ class Attempt:
         self._done: Set[PartialSolution] = set()
         self._comments: Dict[PartialSolution, str] = {}
         self._cube_listeners = []
-        self._solution_listeners = []
+        self._saved_solution_listeners = []
+        self._solution_attribute_listeners = []
 
     def set_scramble(self, s):
         self._saved_by_kind.clear()
+        self.notify_saved_solution_listeners()
         self.scramble = s
         self.inverse = False
         self.set_solution(PartialSolution("", "", previous=None))
         self.update_cube()
-        self.notify_solution_listeners()
 
     def niss(self):
         self.inverse = not self.inverse
@@ -95,9 +96,11 @@ class Attempt:
             self._done.remove(sol)
         else:
             self._done.add(sol)
+        self.notify_solution_attribute_listeners()
 
     def set_comment(self, sol: PartialSolution, s: str):
         self._comments[sol] = s
+        self.notify_solution_attribute_listeners()
 
     def is_done(self, sol: PartialSolution):
         return sol in self._done
@@ -150,6 +153,12 @@ class Attempt:
     def solutions_for_step(self, kind: str, variant: str) -> List[PartialSolution]:
         return [s for s in self._saved_by_kind.get(kind, []) if s.variant == s.variant]
 
+    def last_solved_step(self) -> Optional[PartialSolution]:
+        for step in reversed(self.solution.substeps()):
+            if step.step_info.is_solved(self.cube):
+                return step
+        return None
+
     def reset(self):
         alg = self.solution.alg
         # Clear only the moves for the current side
@@ -168,6 +177,7 @@ class Attempt:
     def set_solution(self, sol: PartialSolution):
         self.solution = sol
         self.update_cube()
+        self.notify_solution_attribute_listeners()
 
     def save(self):
         self.save_solution(self.solution)
@@ -184,10 +194,13 @@ class Attempt:
             existing_algs = set(str(s.full_alg()) for s in existing)
             existing += [s for s in sols_for_kind if not str(s.full_alg()) in existing_algs]
             existing.sort(key=lambda s: (s.alg.len(), s.variant))
-        self.notify_solution_listeners()
+        self.notify_saved_solution_listeners()
 
-    def add_solution_listener(self, callback: Callable):
-        self._solution_listeners.append(callback)
+    def add_saved_solution_listener(self, callback: Callable):
+        self._saved_solution_listeners.append(callback)
+
+    def add_solution_attribute_listener(self, callback: Callable):
+        self._solution_attribute_listeners.append(callback)
 
     def add_cube_listener(self, callback: Callable):
         self._cube_listeners.append(callback)
@@ -199,8 +212,12 @@ class Attempt:
             self.cube.invert()
         self.notify_cube_listeners()
 
-    def notify_solution_listeners(self):
-        for l in self._solution_listeners:
+    def notify_saved_solution_listeners(self):
+        for l in self._saved_solution_listeners:
+            l()
+
+    def notify_solution_attribute_listeners(self):
+        for l in self._solution_attribute_listeners:
             l()
 
     def notify_cube_listeners(self):
