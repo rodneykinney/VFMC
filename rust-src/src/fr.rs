@@ -1,9 +1,10 @@
 use crate::solver::{solve_step, step_config};
+use crate::Visibility::{GoodFace, BadFace, BadPieceGoodFace};
 use crate::{
-    Algorithm, Solvable, CORNER_FB_FACELETS, CORNER_OPPOSITE_E_SLICE, CORNER_OPPOSITE_M_SLICE,
-    CORNER_OPPOSITE_S_SLICE, CORNER_RL_FACELETS, CORNER_UD_FACELETS, EDGE_FB_FACELETS,
-    EDGE_OPPOSITE_E_SLICE, EDGE_OPPOSITE_M_SLICE, EDGE_OPPOSITE_S_SLICE, EDGE_RL_FACELETS,
-    EDGE_UD_FACELETS, HTRFB, HTRRL, HTRUD,
+    Algorithm, Solvable, Visibility, CORNER_FB_FACELETS, CORNER_OPPOSITE_E_SLICE,
+    CORNER_OPPOSITE_M_SLICE, CORNER_OPPOSITE_S_SLICE, CORNER_RL_FACELETS, CORNER_UD_FACELETS,
+    EDGE_FB_FACELETS, EDGE_OPPOSITE_E_SLICE, EDGE_OPPOSITE_M_SLICE, EDGE_OPPOSITE_S_SLICE,
+    EDGE_RL_FACELETS, EDGE_UD_FACELETS, HTRFB, HTRRL, HTRUD,
 };
 use cubelib::cube::turn::TransformableMut;
 use cubelib::cube::{Cube333, Transformation333};
@@ -48,23 +49,39 @@ impl Solvable for FRUD {
         format!("{} {}e", corner_case, bad_edge_count).to_string()
     }
 
-    fn should_draw_edge(&self, cube: &Cube333, pos: usize, facelet: u8) -> bool {
+    fn edge_visibility(&self, cube: &Cube333, pos: usize, facelet: u8) -> Visibility {
         let e = cube.edges.get_edges()[pos];
-        pos as u8 != EDGE_OPPOSITE_E_SLICE[pos]
+        if pos as u8 != EDGE_OPPOSITE_E_SLICE[pos]
             && e.id != pos as u8
             && e.id != EDGE_OPPOSITE_E_SLICE[pos]
-            && Some(facelet) != EDGE_UD_FACELETS[pos]
+        {
+            if Some(facelet) != EDGE_UD_FACELETS[pos] {
+                BadFace
+            } else {
+                BadPieceGoodFace
+            }
+        } else {
+            GoodFace
+        }
     }
 
-    fn should_draw_corner(&self, cube: &Cube333, pos: usize, facelet: u8) -> bool {
+    fn corner_visibility(&self, cube: &Cube333, pos: usize, facelet: u8) -> Visibility {
         let c = cube.corners.get_corners()[pos];
         let c_opp = cube.corners.get_corners()[CORNER_OPPOSITE_E_SLICE[pos] as usize];
         match c.id {
             2 | 5 => {
-                c_opp.id != CORNER_OPPOSITE_E_SLICE[c.id as usize]
-                    && facelet != CORNER_UD_FACELETS[pos]
+                if c_opp.id != CORNER_OPPOSITE_E_SLICE[c.id as usize] {
+                    if facelet != CORNER_UD_FACELETS[pos] {
+                        BadFace
+                    } else {
+                        BadPieceGoodFace
+                    }
+                }
+                else {
+                    GoodFace
+                }
             }
-            _ => false,
+            _ => GoodFace,
         }
     }
     fn solve(&self, cube: &Cube333, count: usize) -> PyResult<Vec<Algorithm>> {
@@ -87,47 +104,41 @@ impl Solvable for FRFB {
         let mut ud_cube = cube.clone();
         ud_cube.transform(Transformation333::X);
         FRUD.case_name(&ud_cube)
-        // let parity = FROrbitParityCoord::from(&ud_cube).val() == 1;
-        // let corner_case = match (FRCPOrbitCoord::from(&ud_cube.corners).val(), parity) {
-        //     (0, true) => "0c3",
-        //     (0, false) => "0c0",
-        //     (3, true) => "4c1",
-        //     (3, false) => "4c2",
-        //     (_, true) => "6c1",
-        //     (_, false) => "6c2",
-        // };
-        // let bad_edge_count = cube
-        //     .edges
-        //     .get_edges()
-        //     .iter()
-        //     .enumerate()
-        //     .filter(|(pos, e)|
-        //         *pos as u8 != EDGE_OPPOSITE_S_SLICE[*pos]
-        //             && e.id != *pos as u8
-        //             && e.id != EDGE_OPPOSITE_S_SLICE[*pos])
-        //     .count() as u8;
-        // let bad_edge_count = bad_edge_count.min(8 - bad_edge_count);
-        //
-        // format!("{} {}e", corner_case, bad_edge_count).to_string()
     }
 
-    fn should_draw_edge(&self, cube: &Cube333, pos: usize, facelet: u8) -> bool {
+    fn edge_visibility(&self, cube: &Cube333, pos: usize, facelet: u8) -> Visibility {
         let e = cube.edges.get_edges()[pos];
-        pos as u8 != EDGE_OPPOSITE_S_SLICE[pos]
+        if pos as u8 != EDGE_OPPOSITE_S_SLICE[pos]
             && e.id != pos as u8
             && e.id != EDGE_OPPOSITE_S_SLICE[pos]
-            && Some(facelet) != EDGE_FB_FACELETS[pos]
+        {
+            if Some(facelet) != EDGE_FB_FACELETS[pos] {
+                BadFace
+            } else {
+                BadPieceGoodFace
+            }
+        } else {
+            GoodFace
+        }
     }
 
-    fn should_draw_corner(&self, cube: &Cube333, pos: usize, facelet: u8) -> bool {
+    fn corner_visibility(&self, cube: &Cube333, pos: usize, facelet: u8) -> Visibility {
         let c = cube.corners.get_corners()[pos];
         let c_opp = cube.corners.get_corners()[CORNER_OPPOSITE_S_SLICE[pos] as usize];
         match c.id {
             1 | 2 => {
-                c_opp.id != CORNER_OPPOSITE_S_SLICE[c.id as usize]
-                    && facelet != CORNER_FB_FACELETS[pos]
+                if c_opp.id != CORNER_OPPOSITE_S_SLICE[c.id as usize] {
+                    if facelet != CORNER_FB_FACELETS[pos] {
+                        BadFace
+                    } else {
+                        BadPieceGoodFace
+                    }
+                }
+                else {
+                    GoodFace
+                }
             }
-            _ => false,
+            _ => GoodFace,
         }
     }
     fn solve(&self, cube: &Cube333, count: usize) -> PyResult<Vec<Algorithm>> {
@@ -153,23 +164,39 @@ impl Solvable for FRRL {
         FRUD.case_name(&ud_cube)
     }
 
-    fn should_draw_edge(&self, cube: &Cube333, pos: usize, facelet: u8) -> bool {
+    fn edge_visibility(&self, cube: &Cube333, pos: usize, facelet: u8) -> Visibility {
         let e = cube.edges.get_edges()[pos];
-        pos as u8 != EDGE_OPPOSITE_M_SLICE[pos]
+        if pos as u8 != EDGE_OPPOSITE_M_SLICE[pos]
             && e.id != pos as u8
             && e.id != EDGE_OPPOSITE_M_SLICE[pos]
-            && Some(facelet) != EDGE_RL_FACELETS[pos]
+        {
+            if Some(facelet) != EDGE_RL_FACELETS[pos] {
+                BadFace
+            } else {
+                BadPieceGoodFace
+            }
+        } else {
+            GoodFace
+        }
     }
 
-    fn should_draw_corner(&self, cube: &Cube333, pos: usize, facelet: u8) -> bool {
+    fn corner_visibility(&self, cube: &Cube333, pos: usize, facelet: u8) -> Visibility {
         let c = cube.corners.get_corners()[pos];
         let c_opp = cube.corners.get_corners()[CORNER_OPPOSITE_M_SLICE[pos] as usize];
         match c.id {
             2 | 3 => {
-                c_opp.id != CORNER_OPPOSITE_M_SLICE[c.id as usize]
-                    && facelet != CORNER_RL_FACELETS[pos]
+                if c_opp.id != CORNER_OPPOSITE_M_SLICE[c.id as usize] {
+                    if facelet != CORNER_RL_FACELETS[pos] {
+                        BadFace
+                    } else {
+                        BadPieceGoodFace
+                    }
+                }
+                else {
+                    GoodFace
+                }
             }
-            _ => false,
+            _ => GoodFace,
         }
     }
     fn solve(&self, cube: &Cube333, count: usize) -> PyResult<Vec<Algorithm>> {
@@ -179,11 +206,11 @@ impl Solvable for FRRL {
 
 #[cfg(test)]
 mod tests {
-    use std::str::FromStr;
     use super::*;
     use crate::Cube;
     use cubelib::algs::Algorithm as LibAlgorithm;
     use cubelib::cube::turn::ApplyAlgorithm;
+    use std::str::FromStr;
 
     #[test]
     fn test_8e() {

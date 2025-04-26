@@ -1,6 +1,3 @@
-import sys
-import logging
-import os
 from enum import Enum
 
 import math
@@ -10,79 +7,68 @@ from PyQt5.QtWidgets import QWidget
 from PyQt5.QtGui import QPainter, QColor, QPen, QBrush, QPolygon
 
 from vfmc.attempt import PartialSolution, Attempt, Orientation, AXIS_ROTATIONS
-from vfmc_core import (Cube, StepInfo)
+from vfmc.palette import FaceletColors, Visibility, Palette
+from vfmc_core import Cube, StepInfo
 from pyquaternion import Quaternion
 
 # U + L + F + R + B + D
-facelet_x = \
-    [-1, 0, 1, -1, 0, 1, -1, 0, 1] \
-    + [-1.5, -1.5, -1.5, -1.5, -1.5, -1.5, -1.5, -1.5, -1.5] \
-    + [-1, 0, 1, -1, 0, 1, -1, 0, 1] \
-    + [1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5] \
-    + [1, 0, -1, 1, 0, -1, 1, 0, -1] \
-    + [-1, 0, 1, -1, 0, 1, -1, 0, 1]
-facelet_y = \
-    [1, 1, 1, 0, 0, 0, -1, -1, -1] \
-    + [1, 0, -1, 1, 0, -1, 1, 0, -1] \
-    + [-1.5, -1.5, -1.5, -1.5, -1.5, -1.5, -1.5, -1.5, -1.5] \
-    + [-1, 0, 1, -1, 0, 1, -1, 0, 1] \
-    + [1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5] \
-    + [-1, -1, -1, 0, 0, 0, 1, 1, 1]
-facelet_z = \
-    [1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5] \
-    + [1, 1, 1, 0, 0, 0, -1, -1, -1] \
-    + [1, 1, 1, 0, 0, 0, -1, -1, -1] \
-    + [1, 1, 1, 0, 0, 0, -1, -1, -1] \
-    + [1, 1, 1, 0, 0, 0, -1, -1, -1] \
+facelet_x = (
+    [-1, 0, 1, -1, 0, 1, -1, 0, 1]
     + [-1.5, -1.5, -1.5, -1.5, -1.5, -1.5, -1.5, -1.5, -1.5]
+    + [-1, 0, 1, -1, 0, 1, -1, 0, 1]
+    + [1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5]
+    + [1, 0, -1, 1, 0, -1, 1, 0, -1]
+    + [-1, 0, 1, -1, 0, 1, -1, 0, 1]
+)
+facelet_y = (
+    [1, 1, 1, 0, 0, 0, -1, -1, -1]
+    + [1, 0, -1, 1, 0, -1, 1, 0, -1]
+    + [-1.5, -1.5, -1.5, -1.5, -1.5, -1.5, -1.5, -1.5, -1.5]
+    + [-1, 0, 1, -1, 0, 1, -1, 0, 1]
+    + [1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5]
+    + [-1, -1, -1, 0, 0, 0, 1, 1, 1]
+)
+facelet_z = (
+    [1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5]
+    + [1, 1, 1, 0, 0, 0, -1, -1, -1]
+    + [1, 1, 1, 0, 0, 0, -1, -1, -1]
+    + [1, 1, 1, 0, 0, 0, -1, -1, -1]
+    + [1, 1, 1, 0, 0, 0, -1, -1, -1]
+    + [-1.5, -1.5, -1.5, -1.5, -1.5, -1.5, -1.5, -1.5, -1.5]
+)
 
 FACELET_VERTICES = {
-    'xy': [
+    "xy": [
         np.array([-0.48, -0.48, 0.0]),
         np.array([0.48, -0.48, 0.0]),
         np.array([0.48, 0.48, 0.0]),
-        np.array([-0.48, 0.48, 0.0])
+        np.array([-0.48, 0.48, 0.0]),
     ],
-    'xz': [
+    "xz": [
         np.array([-0.48, 0.0, -0.48]),
         np.array([0.48, 0.0, -0.48]),
         np.array([0.48, 0.0, 0.48]),
         np.array([-0.48, 0.0, 0.48]),
     ],
-    'yz': [
+    "yz": [
         np.array([0.0, -0.48, -0.48]),
         np.array([0.0, 0.48, -0.48]),
         np.array([0.0, 0.48, 0.48]),
         np.array([0.0, -0.48, 0.48]),
-    ]
+    ],
 }
 
-axis = ["xy"] * 9 \
-       + ["yz"] * 9 \
-       + ["xz"] * 9 \
-       + ["yz"] * 9 \
-       + ["xz"] * 9 \
-       + ["xy"] * 9
-
-WHITE = (1, 1, 1)
-YELLOW = (1, 1, 0)
-GREEN = (0, .6, 0)
-BLUE = (0, 0, 1)
-RED = (1, 0, 0)
-# ORANGE = (1, .8, .1)
-ORANGE = (1, .37, .2)
-GREY = (0.75, 0.75, 0.75)
-BACKGROUND = .3
+axis = ["xy"] * 9 + ["yz"] * 9 + ["xz"] * 9 + ["yz"] * 9 + ["xz"] * 9 + ["xy"] * 9
 
 corner_piece_colors = [
-    (WHITE, ORANGE, BLUE),
-    (WHITE, BLUE, RED),
-    (WHITE, RED, GREEN),
-    (WHITE, GREEN, ORANGE),
-    (YELLOW, ORANGE, GREEN),
-    (YELLOW, GREEN, RED),
-    (YELLOW, RED, BLUE),
-    (YELLOW, BLUE, ORANGE),
+    (FaceletColors.WHITE, FaceletColors.ORANGE, FaceletColors.BLUE),
+    (FaceletColors.WHITE, FaceletColors.BLUE, FaceletColors.RED),
+    (FaceletColors.WHITE, FaceletColors.RED, FaceletColors.GREEN),
+    (FaceletColors.WHITE, FaceletColors.GREEN, FaceletColors.ORANGE),
+    (FaceletColors.YELLOW, FaceletColors.ORANGE, FaceletColors.GREEN),
+    (FaceletColors.YELLOW, FaceletColors.GREEN, FaceletColors.RED),
+    (FaceletColors.YELLOW, FaceletColors.RED, FaceletColors.BLUE),
+    (FaceletColors.YELLOW, FaceletColors.BLUE, FaceletColors.ORANGE),
 ]
 
 corner_position_facelets = [
@@ -97,18 +83,18 @@ corner_position_facelets = [
 ]
 
 edge_piece_colors = [
-    (WHITE, BLUE),
-    (WHITE, RED),
-    (WHITE, GREEN),
-    (WHITE, ORANGE),
-    (GREEN, RED),
-    (GREEN, ORANGE),
-    (BLUE, RED),
-    (BLUE, ORANGE),
-    (YELLOW, GREEN),
-    (YELLOW, RED),
-    (YELLOW, BLUE),
-    (YELLOW, ORANGE),
+    (FaceletColors.WHITE, FaceletColors.BLUE),
+    (FaceletColors.WHITE, FaceletColors.RED),
+    (FaceletColors.WHITE, FaceletColors.GREEN),
+    (FaceletColors.WHITE, FaceletColors.ORANGE),
+    (FaceletColors.GREEN, FaceletColors.RED),
+    (FaceletColors.GREEN, FaceletColors.ORANGE),
+    (FaceletColors.BLUE, FaceletColors.RED),
+    (FaceletColors.BLUE, FaceletColors.ORANGE),
+    (FaceletColors.YELLOW, FaceletColors.GREEN),
+    (FaceletColors.YELLOW, FaceletColors.RED),
+    (FaceletColors.YELLOW, FaceletColors.BLUE),
+    (FaceletColors.YELLOW, FaceletColors.ORANGE),
 ]
 
 edge_position_facelets = [
@@ -142,16 +128,13 @@ class DisplayOption(Enum):
     BAD = 3
 
 
-class CubeViz():
+class CubeViz:
     """Cube visualizer"""
-    def __init__(
-            self,
-            attempt: Attempt,
-            opacity=.93,  # Set the opacity for the colors
-    ):
-        # Set up the display
-        self.opacity = opacity
 
+    def __init__(
+        self,
+        attempt: Attempt,
+    ):
         self.attempt = attempt
         self.attempt.add_cube_listener(self.refresh)
 
@@ -160,11 +143,8 @@ class CubeViz():
         self.view_y = -math.pi / 6
         self.view_x = 0
 
-        self.corner_display = DisplayOption.BAD
-        self.edge_display = DisplayOption.BAD
-        self.center_display = DisplayOption.ALL
-
-        self.colors = [(1, 1, 1, .2)] * 54
+        self.colors = [(1, 1, 1, 0.2)] * 54
+        self.palette = Palette.by_name("bad")
 
     def init_camera(self, x, y, z):
         self.camera = np.array([x, y, z])
@@ -175,65 +155,63 @@ class CubeViz():
         screen_y_dir = np.cross(self.camera, self.screen_x_dir)
         self.screen_y_dir = screen_y_dir / np.linalg.norm(screen_y_dir)
 
-    def should_draw_edge(self, pos_id, face):
-        if self.edge_display == DisplayOption.ALL:
-            return True
-        elif self.edge_display == DisplayOption.NONE:
-            return False
-        else:
-            return self.attempt.solution.step_info.should_draw_edge(self.attempt.cube, pos_id, face)
-
-    def should_draw_corner(self, pos_id, face):
-        if self.corner_display == DisplayOption.ALL:
-            return True
-        elif self.corner_display == DisplayOption.NONE:
-            return False
-        else:
-            return self.attempt.solution.step_info.should_draw_corner(self.attempt.cube, pos_id,
-                                                                      face)
+    def set_palette(self, p: "Palette"):
+        self.palette = p
 
     def refresh(self):
-        self.colors = [(1, 1, 1, .2)] * 54
-        if self.center_display != DisplayOption.NONE:
-            self.colors[4] = WHITE + (self.opacity,)
-            self.colors[13] = ORANGE + (self.opacity,)
-            self.colors[22] = GREEN + (self.opacity,)
-            self.colors[31] = RED + (self.opacity,)
-            self.colors[40] = BLUE + (self.opacity,)
-            self.colors[49] = YELLOW + (self.opacity,)
+        self.colors = [self.palette.hidden_color] * 54
+        self.colors[4] = self.palette.color_of(FaceletColors.WHITE, Visibility.BadFace)
+        self.colors[13] = self.palette.color_of(
+            FaceletColors.ORANGE, Visibility.BadFace
+        )
+        self.colors[22] = self.palette.color_of(FaceletColors.GREEN, Visibility.BadFace)
+        self.colors[31] = self.palette.color_of(FaceletColors.RED, Visibility.BadFace)
+        self.colors[40] = self.palette.color_of(FaceletColors.BLUE, Visibility.BadFace)
+        self.colors[49] = self.palette.color_of(
+            FaceletColors.YELLOW, Visibility.BadFace
+        )
         corners = self.attempt.cube.corners()
+        corner_visibility = self.attempt.corner_visibility()
         for i in range(0, 8):
             piece_id, orientation = corners[i]
             for side in range(0, 3):
-                if not self.should_draw_corner(i, side):
-                    continue
                 face = (side + 3 - orientation) % 3
-                self.colors[corner_position_facelets[i][side]] = (
-                        corner_piece_colors[piece_id][face] +
-                        (self.opacity,))
+                self.colors[corner_position_facelets[i][side]] = self.palette.color_of(
+                    corner_piece_colors[piece_id][face], corner_visibility[i][side]
+                )
         edges = self.attempt.cube.edges()
+        edge_visibility = self.attempt.edge_visibility()
         for i in range(0, 12):
             piece_id, piece_orientation = edges[i]
             orientation = default_orientation[home_slice[piece_id] ^ home_slice[i]]
             flipped = 0 if piece_orientation == orientation else 1
             for side in range(0, 2):
-                if not self.should_draw_edge(i, side):
-                    continue
-                self.colors[edge_position_facelets[i][side]] = edge_piece_colors[edges[i][0]][
-                                                                   (side + flipped) % 2] + (
-                                                                   self.opacity,)
+                self.colors[edge_position_facelets[i][side]] = self.palette.color_of(
+                    edge_piece_colors[edges[i][0]][(side + flipped) % 2],
+                    edge_visibility[i][side],
+                )
 
     def draw_facelet(self, painter, w, h, rotation_matrix, x, y, z, color, axis):
         # Define the vertices of the square face based on axis
 
         vertex_center = np.array([x, y, z])
         # Transform vertices to world coordinates
-        transformed_vertices = [rotation_matrix @ (v + vertex_center) for v in FACELET_VERTICES[axis]]
+        transformed_vertices = [
+            rotation_matrix @ (v + vertex_center) for v in FACELET_VERTICES[axis]
+        ]
 
         scale_factor = min(w, h) * np.linalg.norm(self.camera) / 5
         screen_vertices = [
-            (w / 2 + scale_factor * np.dot(v, self.screen_x_dir) / np.linalg.norm(v-self.camera) ,
-             h / 2 - scale_factor * np.dot(v, self.screen_y_dir) / np.linalg.norm(v-self.camera) )
+            (
+                w / 2
+                + scale_factor
+                * np.dot(v, self.screen_x_dir)
+                / np.linalg.norm(v - self.camera),
+                h / 2
+                - scale_factor
+                * np.dot(v, self.screen_y_dir)
+                / np.linalg.norm(v - self.camera),
+            )
             for v in transformed_vertices
         ]
 
@@ -241,14 +219,15 @@ class CubeViz():
         painter.setRenderHint(QPainter.Antialiasing)
 
         # Create a semi-transparent pen with alpha channel (RGBA)
-        qcol = QColor(int(color[0] * 255), int(color[1] * 255), int(color[2] * 255), int(color[3] * 255))
-        pen = QPen(QColor(255,255,255,16), 1)
+        qcol = QColor(*color)
+        pen = QPen(QColor(255, 255, 255, 16), 1)
         painter.setPen(pen)
 
         # Create a semi-transparent brush with alpha channel
         brush = QBrush(qcol)
         painter.setBrush(brush)
         from PyQt5 import QtCore
+
         polygon = QPolygon([QtCore.QPoint(*v) for v in screen_vertices])
         painter.drawPolygon(polygon)
 
@@ -260,11 +239,13 @@ class CubeViz():
 
     def draw(self, painter, w, h):
         # Clear the screen with the background color
-        painter.fillRect(0, 0, w, h, QColor(int(BACKGROUND * 255), int(BACKGROUND * 255), int(BACKGROUND * 255)))
+        painter.fillRect(0, 0, w, h, QColor(0x4D, 0x4D, 0x4D))
         # Apply rotation
-        q = (Quaternion(axis=[1, 0, 0], angle=self.view_x) *
-             Quaternion(axis=[0, 0, 1], angle=self.view_y) *
-             rotation_for(self.attempt.solution.orientation))
+        q = (
+            Quaternion(axis=[1, 0, 0], angle=self.view_x)
+            * Quaternion(axis=[0, 0, 1], angle=self.view_y)
+            * rotation_for(self.attempt.solution.orientation)
+        )
         rotation_matrix = q.rotation_matrix
 
         # Order faces from back to front
@@ -272,21 +253,27 @@ class CubeViz():
             v_rotated = q.rotate([facelet_x[i], facelet_y[i], facelet_z[i]])
             return np.linalg.norm(v_rotated - self.camera)
 
-        faces = [
-            (range(9 * i, 9 * (i + 1)), distance(9 * i + 4)) for i in range(0, 6)
-        ]
+        faces = [(range(9 * i, 9 * (i + 1)), distance(9 * i + 4)) for i in range(0, 6)]
         faces.sort(key=lambda x: -x[1])
         faces = [f for f, d in faces]
 
         for face in faces:
             for i in face:
-                self.draw_facelet(painter, w, h, rotation_matrix, facelet_x[i], facelet_y[i],
-                                  facelet_z[i],
-                                  self.colors[i], axis[i])
+                self.draw_facelet(
+                    painter,
+                    w,
+                    h,
+                    rotation_matrix,
+                    facelet_x[i],
+                    facelet_y[i],
+                    facelet_z[i],
+                    self.colors[i],
+                    axis[i],
+                )
 
     def rotate(self, dx, dy=0):
-        self.view_y += dx * .005
-        self.view_x += dy * .005
+        self.view_y += dx * 0.005
+        self.view_x += dy * 0.005
 
 
 def rotation_for(o: Orientation) -> Quaternion:
@@ -300,7 +287,11 @@ def rotation_for(o: Orientation) -> Quaternion:
         ticks = AXIS_ROTATIONS["f"].index(o.top)
         q = Quaternion(axis=[0, 1, 0], angle=math.pi / 2 * ticks)
         base.z(ticks)
-    ticks = AXIS_ROTATIONS[base.top].index(o.front) - AXIS_ROTATIONS[base.top].index(base.front) + 4
+    ticks = (
+        AXIS_ROTATIONS[base.top].index(o.front)
+        - AXIS_ROTATIONS[base.top].index(base.front)
+        + 4
+    )
     q = Quaternion(axis=[0, 0, 1], angle=-math.pi / 2 * ticks) * q
     return q
 

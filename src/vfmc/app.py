@@ -9,23 +9,56 @@ from functools import cached_property
 from typing import Optional, List, Tuple, Dict, Set
 from importlib.metadata import version
 
-from PyQt5.QtWidgets import (QApplication, QMainWindow, QVBoxLayout, QHBoxLayout, QWidget,
-                             QLabel, QLineEdit, QPushButton, QComboBox, QLayout, QFrame,
-                             QListWidget, QMessageBox, QSizePolicy, QStyledItemDelegate,
-                             QListWidgetItem, QMenuBar, QMenu, QAction, QFileDialog)
+from PyQt5.QtWidgets import (
+    QApplication,
+    QMainWindow,
+    QVBoxLayout,
+    QHBoxLayout,
+    QWidget,
+    QLabel,
+    QLineEdit,
+    QPushButton,
+    QComboBox,
+    QLayout,
+    QFrame,
+    QListWidget,
+    QMessageBox,
+    QSizePolicy,
+    QStyledItemDelegate,
+    QListWidgetItem,
+    QMenuBar,
+    QMenu,
+    QAction,
+    QFileDialog,
+)
 from PyQt5.QtCore import Qt, QEvent
 from PyQt5.QtGui import QKeySequence
 from black.trans import defaultdict
 
 from vfmc.attempt import PartialSolution, Attempt
-from vfmc.viz import CubeViz, DisplayOption, CubeWidget
+from vfmc.viz import CubeViz, DisplayOption, CubeWidget, Palette
 from vfmc_core import Cube, Algorithm, StepInfo, scramble as gen_scramble
 
 # Basic set of cube moves
 MOVES = {
-    "R", "U", "F", "L", "D", "B",
-    "R'", "U'", "F'", "L'", "D'", "B'",
-    "R2", "U2", "F2", "L2", "D2", "B2",
+    "R",
+    "U",
+    "F",
+    "L",
+    "D",
+    "B",
+    "R'",
+    "U'",
+    "F'",
+    "L'",
+    "D'",
+    "B'",
+    "R2",
+    "U2",
+    "F2",
+    "L2",
+    "D2",
+    "B2",
 }
 
 NEXT_STEPS = {
@@ -36,12 +69,12 @@ NEXT_STEPS = {
     ("dr", "ud"): [("htr", "ud")],
     ("dr", "rl"): [("htr", "rl")],
     ("dr", "fb"): [("htr", "fb")],
-    ("htr", "ud"): [("fr", "ud")],
-    ("htr", "rl"): [("fr", "rl")],
-    ("htr", "fb"): [("fr", "fb")],
-    ("fr", "ud"): [("slice", "ud")],
-    ("fr", "fb"): [("slice", "fb")],
-    ("fr", "rl"): [("slice", "rl")],
+    ("htr", "ud"): [("fr", "ud"), ("slice", "ud"), ("finish", "")],
+    ("htr", "rl"): [("fr", "rl"), ("slice", "rl"), ("finish", "")],
+    ("htr", "fb"): [("fr", "fb"), ("slice", "rl"), ("finish", "")],
+    ("fr", "ud"): [("slice", "ud"), ("finish", "")],
+    ("fr", "fb"): [("slice", "fb"), ("finish", "")],
+    ("fr", "rl"): [("slice", "rl"), ("finish", "")],
     ("slice", "ud"): [("finish", "")],
     ("slice", "fb"): [("finish", "")],
     ("slice", "rl"): [("finish", "")],
@@ -195,7 +228,6 @@ class AppWindow(QMainWindow):
         w.layout().addWidget(self.gui_commands_widget, 0)
         return w
 
-
     def _empty_container(self, layout) -> QWidget:
         w = QWidget()
         w.setLayout(layout)
@@ -208,20 +240,30 @@ class AppWindow(QMainWindow):
         """Print geometry information for a widget and its children recursively."""
         indent = "  " * level
         geo = widget.geometry()
-        margins = widget.contentsMargins() if hasattr(widget, 'contentsMargins') else (0, 0, 0, 0)
+        margins = (
+            widget.contentsMargins()
+            if hasattr(widget, "contentsMargins")
+            else (0, 0, 0, 0)
+        )
 
         print(f"{indent}Widget: {widget.__class__.__name__}")
-        print(f"{indent}  Geometry: x={geo.x()}, y={geo.y()}, w={geo.width()}, h={geo.height()}")
         print(
-            f"{indent}  Margins: left={margins.left()}, top={margins.top()}, right={margins.right()}, bottom={margins.bottom()}")
+            f"{indent}  Geometry: x={geo.x()}, y={geo.y()}, w={geo.width()}, h={geo.height()}"
+        )
+        print(
+            f"{indent}  Margins: left={margins.left()}, top={margins.top()}, right={margins.right()}, bottom={margins.bottom()}"
+        )
 
         if widget.layout():
             layout_margins = widget.layout().contentsMargins()
-            layout_spacing = widget.layout().spacing() if hasattr(widget.layout(), 'spacing') else 0
+            layout_spacing = (
+                widget.layout().spacing() if hasattr(widget.layout(), "spacing") else 0
+            )
             print(f"{indent}  Layout: {widget.layout().__class__.__name__}")
             print(
                 f"{indent}  Layout margins: left={layout_margins.left()}, top={layout_margins.top()}, "
-                f"right={layout_margins.right()}, bottom={layout_margins.bottom()}")
+                f"right={layout_margins.right()}, bottom={layout_margins.bottom()}"
+            )
             print(f"{indent}  Layout spacing: {layout_spacing}")
 
         # Print children
@@ -242,19 +284,36 @@ class AppWindow(QMainWindow):
 
         step_selector = QComboBox()
         step_selector.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
-        step_selector.addItems(["","eofb","eorl","eoud","drud","drrl","drfb","htr","fr","slice","finish"])
+        step_selector.addItems(
+            [
+                "",
+                "eofb",
+                "eorl",
+                "eoud",
+                "drud",
+                "drrl",
+                "drfb",
+                "htr",
+                "fr",
+                "slice",
+                "finish",
+            ]
+        )
         step_selector.setCurrentText("")
+
         def selection_changed():
             text = step_selector.currentText()
             if text:
                 self.commands.execute(text)
+
         step_selector.currentIndexChanged.connect(selection_changed)
 
         solve_button = QPushButton("solve")
         solve_count = QComboBox()
-        solve_count.addItems([str(i) for i in range(1,21)])
-        solve_button.clicked.connect(lambda: self.commands.execute(f"solve({solve_count.currentIndex()+1})"))
-
+        solve_count.addItems([str(i) for i in range(1, 21)])
+        solve_button.clicked.connect(
+            lambda: self.commands.execute(f"solve({solve_count.currentIndex()+1})")
+        )
 
         gui_widget = self._empty_container(QHBoxLayout())
 
@@ -267,12 +326,14 @@ class AppWindow(QMainWindow):
         h = self._empty_container(QHBoxLayout())
         l = QLabel("Display:")
         h.layout().addWidget(l)
-        b = QComboBox()
-        b.addItems(["bad","all"])
+        self.display_selector = QComboBox()
+        self.display_selector.addItems(Palette.names())
+
         def display_changed():
-            self.commands.execute(f'display("{b.currentText()}")')
-        b.currentIndexChanged.connect(display_changed)
-        h.layout().addWidget(b)
+            self.commands.execute(f'display("{self.display_selector.currentText()}")')
+
+        self.display_selector.currentIndexChanged.connect(display_changed)
+        h.layout().addWidget(self.display_selector)
         w.layout().addWidget(h)
         gui_widget.layout().addWidget(w)
 
@@ -308,7 +369,7 @@ class AppWindow(QMainWindow):
 
         def normalize(kind, variant):
             s = kind
-            if s not in {"htr","fr","slice"}:
+            if s not in {"htr", "fr", "slice"}:
                 s = f"{s}{variant}"
             return s
 
@@ -320,8 +381,10 @@ class AppWindow(QMainWindow):
                 valid_steps.add(normalize(step.kind, step.variant))
                 if step.step_info.is_solved(self.attempt.cube):
                     for kind, variant in NEXT_STEPS.get((step.kind, step.variant), []):
-                        valid_steps.add(normalize(kind,variant))
-            current_step = normalize(self.attempt.solution.kind, self.attempt.solution.variant)
+                        valid_steps.add(normalize(kind, variant))
+            current_step = normalize(
+                self.attempt.solution.kind, self.attempt.solution.variant
+            )
             enable_items(step_selector, valid_steps)
             step_selector.blockSignals(True)
             step_selector.setCurrentText(current_step)
@@ -341,7 +404,7 @@ class AppWindow(QMainWindow):
         command_label = QLabel("Command:")
         self.command_input = QLineEdit()
         self.command_input.setText("help")
-        self.command_input.setSelection(0,4)
+        self.command_input.setSelection(0, 4)
         self.command_input.returnPressed.connect(self.execute_command)
         self.command_input.installEventFilter(self)
 
@@ -487,19 +550,24 @@ class AppWindow(QMainWindow):
         if sol.alg.len() > 0:
             if not self.attempt.append_moves(moves, inverse):
                 self.set_status(
-                    f"{moves} not allowed after {sol.previous.kind}{sol.previous.variant}")
+                    f"{moves} not allowed after {sol.previous.kind}{sol.previous.variant}"
+                )
         else:
             if not self.attempt.append_moves(moves, inverse):
                 assert sol.previous is not None
                 if sol.previous.allows_moves(moves_str):
+                    inverse = self.attempt.inverse
                     alg = sol.previous.alg
                     self.attempt.back()
                     self.attempt.append_moves(alg.normal_moves(), False)
                     self.attempt.append_moves(alg.inverse_moves(), True)
                     self.attempt.append_moves(moves, inverse)
+                    if inverse != self.attempt.inverse:
+                        self.attempt.niss()
                 else:
                     self.set_status(
-                        f"{moves_str} not allowed after {sol.previous.kind}{sol.previous.variant}")
+                        f"{moves_str} not allowed after {sol.previous.kind}{sol.previous.variant}"
+                    )
 
     def set_step(self, kind, variant) -> bool:
         """Change to a specific solving step"""
@@ -560,7 +628,9 @@ class AppWindow(QMainWindow):
             for i in range(w.count()):
                 item = w.item(i)
                 sol = item.data(SOLUTION)
-                highlight = sol in selected_step.substeps() or selected_step in sol.substeps()
+                highlight = (
+                    sol in selected_step.substeps() or selected_step in sol.substeps()
+                )
                 item.setSelected(highlight)
                 if highlight:
                     w.setCurrentItem(item)
@@ -578,7 +648,9 @@ class AppWindow(QMainWindow):
         on_inverse = self.attempt.inverse
         if on_inverse:
             self.attempt.niss()
-        existing = set(str(s) for s in self.attempt.solutions_for_step(sol.kind, sol.variant))
+        existing = set(
+            str(s) for s in self.attempt.solutions_for_step(sol.kind, sol.variant)
+        )
         self.set_status(f"Finding solutions for {sol.kind}{sol.variant}...")
         algs = sol.step_info.solve(self.attempt.cube, len(existing) + num_solutions)
         solutions = []
@@ -589,14 +661,16 @@ class AppWindow(QMainWindow):
                 kind=sol.kind,
                 variant=sol.variant,
                 previous=sol.previous,
-                alg=sol.alg.merge(alg)
+                alg=sol.alg.merge(alg),
             )
             if str(s) not in existing:
                 solutions.append(s)
             if len(solutions) >= num_solutions:
                 break
         if solutions:
-            self.set_status(f"Found {len(solutions)} solution{'' if len(solutions) == 1 else 's'}")
+            self.set_status(
+                f"Found {len(solutions)} solution{'' if len(solutions) == 1 else 's'}"
+            )
             self.attempt.save_solutions(solutions)
             self.check_solution(solutions[-1])
         else:
@@ -625,9 +699,12 @@ class AppWindow(QMainWindow):
                     if obj.currentItem():
                         self.activate_item(obj.currentItem())
                         return True
-            elif (key == Qt.Key_Tab or key == Qt.Key_Backtab):
+            elif key == Qt.Key_Tab or key == Qt.Key_Backtab:
                 # Handle Tab and Shift+Tab to move between solution lists
-                if obj not in self.solution_widgets.values() and obj != self.command_input:
+                if (
+                    obj not in self.solution_widgets.values()
+                    and obj != self.command_input
+                ):
                     return False
 
                 def select_widget(widget):
@@ -636,7 +713,10 @@ class AppWindow(QMainWindow):
                         widget.setCurrentItem(None)
                         selection = 0
                         for i in range(0, widget.count()):
-                            if widget.item(i).data(SOLUTION) in self.attempt.solution.substeps():
+                            if (
+                                widget.item(i).data(SOLUTION)
+                                in self.attempt.solution.substeps()
+                            ):
                                 selection = i
                                 break
                         widget.setCurrentItem(widget.item(selection))
@@ -650,13 +730,19 @@ class AppWindow(QMainWindow):
                 if obj == self.command_input:
                     if key == Qt.Key_Backtab:
                         self.current_solution_widget.setCurrentItem(
-                            self.current_solution_widget.item(self.current_solution_widget.count() - 1))
+                            self.current_solution_widget.item(
+                                self.current_solution_widget.count() - 1
+                            )
+                        )
                         self.current_solution_widget.setFocus()
                         return True
                     for k in reversed(self.step_order):
                         w = self.solution_widgets[k]
                         for i in range(0, w.count()):
-                            if w.item(i).data(SOLUTION) in self.attempt.solution.substeps():
+                            if (
+                                w.item(i).data(SOLUTION)
+                                in self.attempt.solution.substeps()
+                            ):
                                 return select_widget(w)
                     return select_widget(self.solution_widgets["eo"])
                 index = self.step_order.index(obj.property("kind"))
@@ -678,24 +764,36 @@ class AppWindow(QMainWindow):
                         return True
                     else:
                         next_index = (index + 1) % len(self.step_order)
-                        return select_widget(self.solution_widgets[self.step_order[next_index]])
-            elif (obj == self.command_input and key == Qt.Key_Up):
+                        return select_widget(
+                            self.solution_widgets[self.step_order[next_index]]
+                        )
+            elif obj == self.command_input and key == Qt.Key_Up:
                 if self.history_pointer < 0:
                     return True
                 previous_command = self.command_history[self.history_pointer]
                 self.command_input.setText(previous_command)
                 self.history_pointer = max(0, self.history_pointer - 1)
                 return True
-            elif (obj == self.command_input and key == Qt.Key_Down):
-                self.history_pointer = min(self.history_pointer + 1, len(self.command_history))
+            elif obj == self.command_input and key == Qt.Key_Down:
+                self.history_pointer = min(
+                    self.history_pointer + 1, len(self.command_history)
+                )
                 previous_command = ""
                 if self.history_pointer < len(self.command_history) - 1:
                     previous_command = self.command_history[self.history_pointer + 1]
                 self.command_input.setText(previous_command)
-                self.history_pointer = min(self.history_pointer, len(self.command_history) - 1)
+                self.history_pointer = min(
+                    self.history_pointer, len(self.command_history) - 1
+                )
                 return True
-            elif (obj == self.command_input and (
-                    event.modifiers() & Qt.ControlModifier or event.modifiers() & Qt.MetaModifier) and key == Qt.Key_Z):
+            elif (
+                obj == self.command_input
+                and (
+                    event.modifiers() & Qt.ControlModifier
+                    or event.modifiers() & Qt.MetaModifier
+                )
+                and key == Qt.Key_Z
+            ):
                 self.commands.undo()
                 return True
 
@@ -714,52 +812,56 @@ class AppWindow(QMainWindow):
         """Create the menu bar with File and Help menus"""
         # Create menu bar
         menu_bar = self.menuBar()
-        
+
         # File menu
         file_menu = menu_bar.addMenu("File")
-        
+
         # Save session action
         save_action = QAction("Save Session", self)
         save_action.triggered.connect(lambda: self.save_session_dialog())
         file_menu.addAction(save_action)
-        
+
         # Load session action
         load_action = QAction("Load Session", self)
         load_action.triggered.connect(lambda: self.load_session_dialog())
         file_menu.addAction(load_action)
-        
+
         # Exit action
         exit_action = QAction("Exit", self)
         exit_action.triggered.connect(self.close)
         file_menu.addAction(exit_action)
-        
+
         # Help menu
         help_menu = menu_bar.addMenu("Help")
-        
+
         # Help action
         help_action = QAction("Help", self)
         help_action.triggered.connect(self.show_help)
         help_menu.addAction(help_action)
-        
+
         # About action
         about_action = QAction("About", self)
         about_action.triggered.connect(self.show_about)
         help_menu.addAction(about_action)
-    
+
     def save_session_dialog(self):
         """Show dialog to save session"""
-        filename, _ = QFileDialog.getSaveFileName(self, "Save Session", "", "VFMC Files (*.vfmc)")
+        filename, _ = QFileDialog.getSaveFileName(
+            self, "Save Session", "", "VFMC Files (*.vfmc)"
+        )
         if filename:
             if not filename.endswith(".vfmc"):
                 filename += ".vfmc"
             self.commands.execute(f'save_session("{filename}")')
-    
+
     def load_session_dialog(self):
         """Show dialog to load session"""
-        filename, _ = QFileDialog.getOpenFileName(self, "Load Session", "", "VFMC Files (*.vfmc)")
+        filename, _ = QFileDialog.getOpenFileName(
+            self, "Load Session", "", "VFMC Files (*.vfmc)"
+        )
         if filename:
             self.commands.execute(f'load_session("{filename}")')
-    
+
     def show_about(self):
         """Show about dialog"""
         about_dialog = QMessageBox(self)
@@ -775,7 +877,7 @@ class AppWindow(QMainWindow):
         about_dialog.setMinimumHeight(300)
         about_dialog.setStandardButtons(QMessageBox.Ok)
         about_dialog.show()
-    
+
     def show_help(self):
         """Show help popup with commands organized by section"""
         help_dialog = QMessageBox(self)
@@ -785,7 +887,7 @@ class AppWindow(QMainWindow):
         # Generate help text by inspecting Commands methods
         commands = []
         for name in dir(self.commands):
-            if name.startswith('_'):
+            if name.startswith("_"):
                 continue
             attr = getattr(self.commands, name)
             if callable(attr):
@@ -804,10 +906,10 @@ class AppWindow(QMainWindow):
 def main():
     # Create the Qt Application
     app = QApplication(sys.argv)
-    
+
     # Set the application name (helps with proper Mac menu bar naming)
     app.setApplicationName("VFMC")
-    
+
     window = AppWindow()
     window.show()
 
@@ -888,20 +990,23 @@ class Commands:
             return
         self.history_pointer = max(0, next_undo)
 
-    def display(self,option):
+    def display(self, option):
         try:
-            display_corners = DisplayOption[option.upper()]
-            display_edges = DisplayOption[option.upper()]
-            display_centers = DisplayOption.ALL
-            self.window.viz.corner_display = display_corners
-            self.window.viz.edge_display = display_edges
-            self.window.viz.center_display = display_centers
+            option = option.lower()
+            self.window.viz.set_palette(Palette.by_name(option))
+            self.window.display_selector.blockSignals(True)
+            self.window.display_selector.setCurrentText(option)
+            self.window.display_selector.blockSignals(False)
             self.attempt.notify_cube_listeners()
             return CommandResult(add_to_history=None)
-        except:
+        except Exception as e:
+            logging.exception(e)
             return CommandResult(
-                error=ValueError(f'Valid values for display are: "all", "none", or "bad"'),
-                add_to_history=None)
+                error=ValueError(
+                    f'Valid values for display are: {",".join(Palette.names())}'
+                ),
+                add_to_history=None,
+            )
 
     def help(self):
         self.window.show_help()
@@ -975,18 +1080,26 @@ class Commands:
         """Look for FR"""
         variant = axis
         if variant is None:
-            variant = next(s.variant for s in self.attempt.solution.substeps() if s.kind == "dr")
+            variant = next(
+                s.variant for s in self.attempt.solution.substeps() if s.kind == "dr"
+            )
         if variant is not None:
             self.window.set_step("fr", variant)
         else:
-            self.window.set_status("""No DR step found. Specify axis="..." to set the FR axis""")
+            self.window.set_status(
+                """No DR step found. Specify axis="..." to set the FR axis"""
+            )
 
     def slice(self, axis=None):
-        variant = next(s.variant for s in self.attempt.solution.substeps() if s.kind == "dr")
+        variant = next(
+            s.variant for s in self.attempt.solution.substeps() if s.kind == "dr"
+        )
         if variant is not None:
             self.window.set_step("slice", variant)
         else:
-            self.window.set_status("""No DR step found. Specify axis="..." to set the slice axis""")
+            self.window.set_status(
+                """No DR step found. Specify axis="..." to set the slice axis"""
+            )
 
     def finish(self, axis=None):
         self.window.set_step("finish", "")
@@ -1045,6 +1158,7 @@ class Commands:
             self.attempt.advance_to(*next_steps[0])
         else:
             self.reset()
+        self.window.scroll_to(sol)
 
     def reset(self):
         """Reset the cube to the beginning of the current step"""
@@ -1215,7 +1329,12 @@ class CurrentSolutionWidget(QListWidget):
             if selected_items:
                 clipboard_text = "\n".join(item.text() for item in selected_items)
                 QApplication.clipboard().setText(clipboard_text)
-        elif event.key() in {Qt.Key_Enter, Qt.Key_Return, Qt.Key_Delete, Qt.Key_Backspace}:
+        elif event.key() in {
+            Qt.Key_Enter,
+            Qt.Key_Return,
+            Qt.Key_Delete,
+            Qt.Key_Backspace,
+        }:
             # Enter key starts editing the current item if any
             current_item = self.currentItem()
             if current_item:
@@ -1234,18 +1353,21 @@ if __name__ == "__main__":
     # Configure logging
     logfile = os.path.expanduser("~/vfmc.log")
     logging.basicConfig(
-        filename=logfile, filemode="w",
+        filename=logfile,
+        filemode="w",
         level=logging.DEBUG,
-        format='%(levelname)s - %(message)s'
+        format="%(levelname)s - %(message)s",
     )
 
     # Figure out the application bundle path
-    if getattr(sys, 'frozen', False):
+    if getattr(sys, "frozen", False):
         # We're running from a PyInstaller bundle
         bundle_dir = os.path.dirname(sys.executable)
         logging.debug(f"Running bundle from {bundle_dir}")
         # For apps launched from Finder, we need to set the working directory
         # to the bundle's MacOS directory (where the executable lives)
-        if os.path.basename(bundle_dir) == 'MacOS':
-            os.chdir(os.path.dirname(os.path.dirname(bundle_dir)))  # Go up to the .app level
+        if os.path.basename(bundle_dir) == "MacOS":
+            os.chdir(
+                os.path.dirname(os.path.dirname(bundle_dir))
+            )  # Go up to the .app level
     main()
