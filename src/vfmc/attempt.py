@@ -213,7 +213,7 @@ class Attempt:
             existing += [
                 s for s in sols_for_kind if not str(s.full_alg()) in existing_algs
             ]
-            existing.sort(key=lambda s: (s.alg.len(), s.variant))
+            existing.sort(key=lambda s: (s.full_alg().len(), s.variant))
         self.notify_saved_solution_listeners()
 
     def add_saved_solution_listener(self, callback: Callable):

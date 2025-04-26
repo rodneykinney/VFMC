@@ -80,6 +80,15 @@ NEXT_STEPS = {
     ("slice", "rl"): [("finish", "")],
 }
 
+DEFAULT_NEXT_STEPS = {
+    ("htr", "ud"): ("fr", "ud"),
+    ("htr", "rl"): ("fr", "rl"),
+    ("htr", "fb"): ("fr", "fb"),
+    ("fr", "ud"): ("slice", "ud"),
+    ("fr", "fb"): ("slice", "fb"),
+    ("fr", "rl"): ("slice", "rl"),
+}
+
 PREFERRED_AXIS = {
     ("eo", "ud"): (["fb", "rl"], ["ud"]),
     ("eo", "rl"): (["ud", "fb"], ["rl"]),
@@ -672,7 +681,11 @@ class AppWindow(QMainWindow):
                 f"Found {len(solutions)} solution{'' if len(solutions) == 1 else 's'}"
             )
             self.attempt.save_solutions(solutions)
-            self.check_solution(solutions[-1])
+            if len(solutions) == 1:
+                self.check_solution(solutions[0])
+            else:
+                self.scroll_to(solutions[0])
+            self.attempt.notify_solution_attribute_listeners()
         else:
             self.set_status(f"No solutions found for {sol.kind}{sol.variant}")
         if on_inverse:
@@ -1153,9 +1166,15 @@ class Commands:
             self.window.scroll_to(partial)
             return
         self.attempt.save()
-        next_steps = NEXT_STEPS.get((sol.kind, sol.variant))
-        if next_steps is not None and len(next_steps) == 1:
-            self.attempt.advance_to(*next_steps[0])
+        self.load_next(sol)
+
+    def load_next(self, sol: PartialSolution):
+        next_steps = NEXT_STEPS.get((sol.kind, sol.variant), [])
+        next_step = DEFAULT_NEXT_STEPS.get((sol.kind, sol.variant))
+        if next_step is None and len(next_steps) == 1:
+            next_step = next_steps[0]
+        if next_step:
+            self.attempt.advance_to(*next_step)
         else:
             self.reset()
         self.window.scroll_to(sol)
