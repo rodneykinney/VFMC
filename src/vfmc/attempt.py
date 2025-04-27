@@ -104,6 +104,9 @@ class Attempt:
         self._comments[sol] = s
         self.notify_solution_attribute_listeners()
 
+    def get_comment(self, sol: PartialSolution) -> Optional[str]:
+        return self._comments.get(sol)
+
     def is_done(self, sol: PartialSolution):
         return sol in self._done
 

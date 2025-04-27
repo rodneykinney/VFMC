@@ -934,6 +934,7 @@ class Commands:
                 # Check if it's a sequence of cube moves
                 if re.fullmatch(MOVE_REGEX, raw_command):
                     self.window._append_moves(raw_command)
+                    self.command_history.append(raw_command)
                 else:
                     self.window.set_status(f"No such command: {raw_command}")
         except Exception as e:
@@ -1205,7 +1206,7 @@ class Commands:
     def save_session(self, filename):
         try:
             with open(filename, "w") as f:
-                f.write(f"# VFMC version {version('vfmc')}")
+                f.write(f"# VFMC version {version('vfmc')}\n")
                 f.writelines("\n".join(self.command_history))
             self.window.set_status(f"Saved session to {filename}")
             return CommandResult(add_to_history=[])
@@ -1251,7 +1252,6 @@ class CurrentSolutionWidget(QListWidget):
         self.current_editor = None
         self.originalKeyPress = None
         self.original_alg = None
-        self.comment = None
         self.setSelectionMode(QListWidget.ContiguousSelection)
         self.setStyleSheet("font-size: 16px;")
         self.setEditTriggers(QListWidget.DoubleClicked)
@@ -1271,7 +1271,11 @@ class CurrentSolutionWidget(QListWidget):
                 if step.step_info.is_solved(self.attempt.cube):
                     line = f"{self.attempt.to_str(step)}"
                 else:
-                    line = f"{line}{' ' if step.alg.len() else ''}{'( )' if not step.alg.inverse_moves() and self.attempt.inverse else ''} // {step.kind}{step.variant}-{step.step_info.case_name(self.attempt.cube)} ({step.full_alg().len()})"
+                    parentheses = f"{' ' if step.alg.len() else ''}{'( )' if not step.alg.inverse_moves() and self.attempt.inverse else ''}"
+                    comment = self.attempt.get_comment(step)
+                    if not comment or step.alg.len() ==0:
+                        comment = f"{step.kind}{step.variant}-{step.step_info.case_name(self.attempt.cube)}"
+                    line = f"{line}{parentheses} // {comment} ({step.full_alg().len()})"
             item = QListWidgetItem(line)
             self.addItem(item)
         last_item = self.item(self.count() - 1)
@@ -1296,12 +1300,14 @@ class CurrentSolutionWidget(QListWidget):
             return
         edited_text = self.current_editor.text().split("//")
         alg_str = edited_text[0].strip()
-        self.comment = edited_text[1] if len(edited_text) > 1 else None
+        comment = edited_text[1].strip() if len(edited_text) > 1 else None
         if "(" in alg_str and ")" not in alg_str:
             return
         try:
             alg = Algorithm(alg_str)
             self.attempt.solution.alg = alg
+            if comment:
+                self.attempt.set_comment(self.attempt.solution, comment)
             self.attempt.update_cube()
             self.history_is_stale = True
         except:
@@ -1325,8 +1331,9 @@ class CurrentSolutionWidget(QListWidget):
             if not self.attempt.inverse:
                 commands.execute("niss")
             commands.execute(" ".join(net_alg.inverse_moves()))
-        if self.comment:
-            commands.execute(f'comment("{self.comment}")')
+        comment = self.attempt.get_comment(self.attempt.solution)
+        if comment:
+            commands.execute(f'comment("{comment}")')
         self.history_is_stale = False
 
     def closeEditor(self, editor, hint):
