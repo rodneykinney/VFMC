@@ -111,7 +111,6 @@ AXIS_ORIENTATIONS = {
 SOLUTION = Qt.UserRole
 BOLD = Qt.UserRole + 1
 STRIKETHROUGH = Qt.UserRole + 2
-OLD_ALG = Qt.UserRole + 3
 
 
 class AppWindow(QMainWindow):
@@ -1135,6 +1134,7 @@ class Commands:
 
     def save(self):
         """Save this algorithm and start a new one"""
+        self.window.current_solution_widget.sync_history_with_editor()
         sol = self.attempt.solution
         if not sol.step_info.is_solved(self.attempt.cube):
             if sol.kind == "" or sol.previous is None:
@@ -1155,6 +1155,7 @@ class Commands:
             return
         self.attempt.save()
         self.load_next(sol)
+        self.window.command_input.setFocus()
 
     def load_next(self, sol: PartialSolution):
         next_steps = NEXT_STEPS.get((sol.kind, sol.variant), [])
@@ -1195,6 +1196,7 @@ class Commands:
             wrapper = Algorithm("R' U' F")
             scramble = str(wrapper.merge(Algorithm(gen_scramble())).merge(wrapper))
         self.window.set_scramble(scramble)
+        self.command_history.clear()
         return CommandResult(add_to_history=[f'scramble("{scramble}")'])
 
     def save_session(self, filename):
@@ -1240,7 +1242,7 @@ class CurrentSolutionWidget(QListWidget):
     def __init__(self, attempt: Attempt):
         super().__init__()
         self.attempt = attempt
-        self.ignore_updates = False
+        self.history_is_stale = False
         self.current_editor = None
         self.originalKeyPress = None
         self.original_alg = None
@@ -1251,7 +1253,9 @@ class CurrentSolutionWidget(QListWidget):
         self.attempt.add_cube_listener(self.refresh)
 
     def refresh(self):
-        if self.ignore_updates:
+        """Sync the widget with Attempt cube state"""
+        # Only if not editing
+        if self.current_editor:
             return
         self.clear()
         self.addItem(self.attempt.scramble)
@@ -1267,7 +1271,6 @@ class CurrentSolutionWidget(QListWidget):
             self.addItem(item)
         last_item = self.item(self.count() - 1)
         last_item.setFlags(last_item.flags() | Qt.ItemIsEditable)
-        last_item.setData(OLD_ALG, self.attempt.solution.alg)
 
     def edit(self, index, trigger, event):
         result = super().edit(index, trigger, event)
@@ -1280,10 +1283,10 @@ class CurrentSolutionWidget(QListWidget):
                 if ")" in text and self.attempt.inverse:
                     editor.setCursorPosition(text.index(")"))
                 self.original_alg = self.attempt.solution.alg
-                self.current_editor.textEdited.connect(self.alg_updated)
+                self.current_editor.textEdited.connect(self.sync_cube_with_editor)
         return result
 
-    def alg_updated(self):
+    def sync_cube_with_editor(self):
         if not self.current_editor:
             return
         edited_text = self.current_editor.text().split("//")
@@ -1294,38 +1297,41 @@ class CurrentSolutionWidget(QListWidget):
         try:
             alg = Algorithm(alg_str)
             self.attempt.solution.alg = alg
-            self.ignore_updates = True
             self.attempt.update_cube()
-            self.ignore_updates = False
+            self.history_is_stale = True
         except:
             pass
 
+    def sync_history_with_editor(self):
+        if not self.history_is_stale or not self.original_alg:
+            return
+        # Reset solution to original state, before we started editing
+        current_alg = self.attempt.solution.alg
+        self.attempt.solution.alg = self.original_alg
+
+        # To properly populate the history, execute the moves done in the editor
+        net_alg = self.original_alg.inverted().merge(current_alg)
+        commands = self.parent().window().commands
+        if net_alg.normal_moves():
+            if self.attempt.inverse:
+                commands.execute("niss")
+            commands.execute(" ".join(net_alg.normal_moves()))
+        if net_alg.inverse_moves():
+            if not self.attempt.inverse:
+                commands.execute("niss")
+            commands.execute(" ".join(net_alg.inverse_moves()))
+        if self.comment:
+            commands.execute(f'comment("{self.comment}")')
+        self.history_is_stale = False
+
     def closeEditor(self, editor, hint):
         # Called when editing is finished
-        if self.original_alg and self.parent() and self.parent().window():
-            self.blockSignals(True)
-            # Reset solution to original state, before we started editing
-            current_alg = self.attempt.solution.alg
-            self.attempt.solution.alg = self.original_alg
-
-            # To properly populate the history, execute the moves done in the editor
-            net_alg = self.original_alg.inverted().merge(current_alg)
-            commands = self.parent().window().commands
-            if net_alg.normal_moves():
-                if self.attempt.inverse:
-                    commands.execute("niss")
-                commands.execute(" ".join(net_alg.normal_moves()))
-            if net_alg.inverse_moves():
-                if not self.attempt.inverse:
-                    commands.execute("niss")
-                commands.execute(" ".join(net_alg.inverse_moves()))
-            if self.comment:
-                commands.execute(f'comment("{self.comment}")')
-            self.parent().window().command_input.setFocus()
-            self.blockSignals(False)
+        self.sync_history_with_editor()
+        self.parent().window().command_input.setFocus()
 
         self.current_editor = None
         self.original_alg = None
+
         super().closeEditor(editor, hint)
         self.refresh()
 
