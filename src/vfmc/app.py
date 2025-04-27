@@ -912,33 +912,34 @@ class Commands:
         try:
             self.window.set_status("")
             result = None
-            # Check if it's a sequence of cube moves
-            if re.fullmatch(MOVE_REGEX, cmd):
-                self.window._append_moves(cmd)
-            else:
-                if cmd.endswith("'"):
-                    cmd = cmd.replace("'", "_prime")
-                # Assume it's a Python command
+            # Does it match a method in this class?
+            if cmd.endswith("'"):
+                cmd = cmd.replace("'", "_prime")
+            if sum((1 for f in dir(self) if cmd.startswith(f))):
+                # Add parentheses if missing
                 if cmd.find("(") < 0:
                     cmd = f"{cmd}()"
                 # Use locals and globals from this context
                 local_vars = {"self": self}
                 exec(f"result = self.{cmd}", globals(), local_vars)
                 result = local_vars.get("result")
-            if result is None:
-                result = CommandResult(add_to_history=[raw_command])
-            if result.error is not None:
-                self.window.set_status(f"Error: {result.error}")
-            elif result.add_to_history:
-                self.command_history.extend(result.add_to_history)
-                self.history_pointer = len(self.command_history) - 1
+                if result is None:
+                    result = CommandResult(add_to_history=[raw_command])
+                if result.error is not None:
+                    self.window.set_status(f"Error: {result.error}")
+                elif result.add_to_history:
+                    self.command_history.extend(result.add_to_history)
+                    self.history_pointer = len(self.command_history) - 1
+            else:
+                # Check if it's a sequence of cube moves
+                if re.fullmatch(MOVE_REGEX, raw_command):
+                    self.window._append_moves(raw_command)
+                else:
+                    self.window.set_status(f"No such command: {raw_command}")
         except Exception as e:
             logging.error(traceback.format_exc())
             logging.error(sys.exc_info())
-            if sum((1 for n in dir(self) if cmd.startswith(n))) == 0:
-                self.window.set_status(f"No such command: {raw_command}")
-            else:
-                self.window.set_status(f"Error: {e}")
+            self.window.set_status(f"Error: {e}")
 
     def undo(self):
         if self.history_pointer < 0:
@@ -1270,7 +1271,7 @@ class CurrentSolutionWidget(QListWidget):
                 if step.step_info.is_solved(self.attempt.cube):
                     line = f"{self.attempt.to_str(step)}"
                 else:
-                    line = f"{line}{'( )' if step.alg.len() == 0 and self.attempt.inverse else ''} // {step.kind}{step.variant}-{step.step_info.case_name(self.attempt.cube)} ({step.full_alg().len()})"
+                    line = f"{line}{' ' if step.alg.len() else ''}{'( )' if not step.alg.inverse_moves() and self.attempt.inverse else ''} // {step.kind}{step.variant}-{step.step_info.case_name(self.attempt.cube)} ({step.full_alg().len()})"
             item = QListWidgetItem(line)
             self.addItem(item)
         last_item = self.item(self.count() - 1)
