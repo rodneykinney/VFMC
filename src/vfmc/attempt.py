@@ -197,6 +197,32 @@ class Attempt:
         self.update_cube()
         self.notify_solution_attribute_listeners()
 
+    def solve(self, num_solutions: int) -> List[PartialSolution]:
+        """Find solutions for the current step"""
+        sol = self.solution
+        on_inverse = self.inverse
+        if on_inverse:
+            self.niss()
+        existing = set(str(s) for s in self.solutions_for_step(sol.kind, sol.variant))
+        algs = sol.step_info.solve(self.cube, len(existing) + num_solutions)
+        solutions = []
+        for alg in algs:
+            base_alg = Algorithm(str(sol.alg))
+            base_alg.merge(alg)
+            s = PartialSolution(
+                kind=sol.kind,
+                variant=sol.variant,
+                previous=sol.previous,
+                alg=sol.alg.merge(alg),
+            )
+            if str(s) not in existing:
+                solutions.append(s)
+            if len(solutions) >= num_solutions:
+                break
+        if on_inverse:
+            self.niss()
+        return solutions
+
     def save(self):
         self.save_solution(self.solution)
 
@@ -243,6 +269,13 @@ class Attempt:
     def notify_cube_listeners(self):
         for l in self._cube_listeners:
             l()
+
+
+def step_name(kind, variant):
+    s = kind
+    if s not in {"htr", "fr", "slice"}:
+        s = f"{s}{variant}"
+    return s
 
 
 VARIANT_ORIENTATIONS = {

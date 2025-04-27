@@ -35,7 +35,7 @@ from PyQt5.QtCore import Qt, QEvent
 from PyQt5.QtGui import QKeySequence
 from black.trans import defaultdict
 
-from vfmc.attempt import PartialSolution, Attempt
+from vfmc.attempt import PartialSolution, Attempt, step_name
 from vfmc.viz import CubeViz, DisplayOption, CubeWidget, Palette
 from vfmc_core import Cube, Algorithm, StepInfo, scramble as gen_scramble
 
@@ -376,22 +376,16 @@ class AppWindow(QMainWindow):
                 else:
                     item.setFlags(item.flags() & ~Qt.ItemIsEnabled)
 
-        def normalize(kind, variant):
-            s = kind
-            if s not in {"htr", "fr", "slice"}:
-                s = f"{s}{variant}"
-            return s
-
         def refresh():
             valid_steps.clear()
             for kind, variant in NEXT_STEPS[("", "")]:
                 valid_steps.add(f"{kind}{variant}")
             for step in reversed(self.attempt.solution.substeps()):
-                valid_steps.add(normalize(step.kind, step.variant))
+                valid_steps.add(step_name(step.kind, step.variant))
                 if step.step_info.is_solved(self.attempt.cube):
                     for kind, variant in NEXT_STEPS.get((step.kind, step.variant), []):
-                        valid_steps.add(normalize(kind, variant))
-            current_step = normalize(
+                        valid_steps.add(step_name(kind, variant))
+            current_step = step_name(
                 self.attempt.solution.kind, self.attempt.solution.variant
             )
             enable_items(step_selector, valid_steps)
@@ -647,49 +641,6 @@ class AppWindow(QMainWindow):
             w.blockSignals(False)
         for _, w in self.solution_widgets.items():
             w.scrollToItem(w.currentItem())
-
-    def solve(self, num_solutions: int):
-        """Find and save solutions for the current step"""
-        if num_solutions > 50:
-            self.set_status("Maximum of 50 solutions per solve")
-            return
-        sol = self.attempt.solution
-        on_inverse = self.attempt.inverse
-        if on_inverse:
-            self.attempt.niss()
-        existing = set(
-            str(s) for s in self.attempt.solutions_for_step(sol.kind, sol.variant)
-        )
-        self.set_status(f"Finding solutions for {sol.kind}{sol.variant}...")
-        algs = sol.step_info.solve(self.attempt.cube, len(existing) + num_solutions)
-        solutions = []
-        for alg in algs:
-            base_alg = Algorithm(str(sol.alg))
-            base_alg.merge(alg)
-            s = PartialSolution(
-                kind=sol.kind,
-                variant=sol.variant,
-                previous=sol.previous,
-                alg=sol.alg.merge(alg),
-            )
-            if str(s) not in existing:
-                solutions.append(s)
-            if len(solutions) >= num_solutions:
-                break
-        if solutions:
-            self.set_status(
-                f"Found {len(solutions)} solution{'' if len(solutions) == 1 else 's'}"
-            )
-            self.attempt.save_solutions(solutions)
-            if len(solutions) == 1:
-                self.check_solution(solutions[0])
-            else:
-                self.scroll_to(solutions[0])
-            self.attempt.notify_solution_attribute_listeners()
-        else:
-            self.set_status(f"No solutions found for {sol.kind}{sol.variant}")
-        if on_inverse:
-            self.attempt.niss()
 
     def execute_command(self):
         cmd = self.command_input.text().strip()
@@ -974,11 +925,11 @@ class Commands:
                 exec(f"result = self.{cmd}", globals(), local_vars)
                 result = local_vars.get("result")
             if result is None:
-                result = CommandResult(add_to_history=raw_command)
+                result = CommandResult(add_to_history=[raw_command])
             if result.error is not None:
                 self.window.set_status(f"Error: {result.error}")
-            elif result.add_to_history is not None:
-                self.command_history.append(result.add_to_history)
+            elif result.add_to_history:
+                self.command_history.extend(result.add_to_history)
                 self.history_pointer = len(self.command_history) - 1
         except Exception as e:
             logging.error(traceback.format_exc())
@@ -1011,19 +962,19 @@ class Commands:
             self.window.display_selector.setCurrentText(option)
             self.window.display_selector.blockSignals(False)
             self.attempt.notify_cube_listeners()
-            return CommandResult(add_to_history=None)
+            return CommandResult(add_to_history=[])
         except Exception as e:
             logging.exception(e)
             return CommandResult(
                 error=ValueError(
                     f'Valid values for display are: {",".join(Palette.names())}'
                 ),
-                add_to_history=None,
+                add_to_history=[],
             )
 
     def help(self):
         self.window.show_help()
-        return CommandResult(add_to_history=None)
+        return CommandResult(add_to_history=[])
 
     def x(self):
         self.attempt.solution.orientation.x(1)
@@ -1123,7 +1074,44 @@ class Commands:
 
     def solve(self, num_solutions: int = 1):
         """Find and save solutions for the current step"""
-        self.window.solve(num_solutions)
+        if num_solutions > 50:
+            self.window.set_status("Maximum of 50 solutions per solve")
+            return
+        self.window.set_status(
+            f"Finding solutions for {self.attempt.solution.kind}{self.attempt.solution.variant}..."
+        )
+        solutions = self.attempt.solve(num_solutions)
+        if solutions:
+            self.window.set_status(
+                f"Found {len(solutions)} solution{'' if len(solutions) == 1 else 's'}"
+            )
+            self.attempt.save_solutions(solutions)
+            if len(solutions) == 1:
+                self.window.check_solution(solutions[0])
+            else:
+                self.window.scroll_to(solutions[0])
+            self.attempt.notify_solution_attribute_listeners()
+        else:
+            self.window.set_status(
+                f"No solutions found for {self.attempt.solution.kind}{self.attempt.solution.variant}"
+            )
+        history = []
+        if solutions:
+            on_inverse = self.attempt.inverse
+            if on_inverse:
+                history.append("niss")
+            for sol in solutions:
+                history.append(step_name(sol.kind, sol.variant))
+                if sol.alg.normal_moves():
+                    history.append(" ".join(sol.alg.normal_moves()))
+                if sol.alg.inverse_moves():
+                    history.append("niss")
+                    history.append(" ".join(sol.alg.inverse_moves()))
+                    history.append("niss")
+                history.append("save")
+            if on_inverse:
+                history.append("niss")
+        return CommandResult(add_to_history=history)
 
     def comment(self, s: str):
         sol = self.attempt.solution
@@ -1207,17 +1195,17 @@ class Commands:
             wrapper = Algorithm("R' U' F")
             scramble = str(wrapper.merge(Algorithm(gen_scramble())).merge(wrapper))
         self.window.set_scramble(scramble)
-        return CommandResult(add_to_history=f'scramble("{scramble}")')
+        return CommandResult(add_to_history=[f'scramble("{scramble}")'])
 
     def save_session(self, filename):
         try:
             with open(filename, "w") as f:
                 f.writelines("\n".join(self.command_history))
             self.window.set_status(f"Saved session to {filename}")
-            return CommandResult(add_to_history=None)
+            return CommandResult(add_to_history=[])
         except Exception as e:
             self.window.set_status(f"Unable to save to {filename}: {e}")
-            return CommandResult(error=e, add_to_history=None)
+            return CommandResult(error=e, add_to_history=[])
 
     def load_session(self, filename):
         h = self.command_history
@@ -1227,11 +1215,11 @@ class Commands:
                 for cmd in f.readlines():
                     self.execute(cmd.strip())
             self.window.set_status(f"Loaded '{filename}'")
-            return CommandResult(add_to_history=None)
+            return CommandResult(add_to_history=[])
         except Exception as e:
             self.command_history = h
             self.window.set_status(f"Unable to load '{filename}': {e}")
-            return CommandResult(error=e, add_to_history=None)
+            return CommandResult(error=e, add_to_history=[])
 
 
 class SolutionItemRenderer(QStyledItemDelegate):
@@ -1365,7 +1353,7 @@ class CurrentSolutionWidget(QListWidget):
 @dataclasses.dataclass
 class CommandResult:
     error: Optional[Exception] = None
-    add_to_history: Optional[str] = None
+    add_to_history: List[str] = None
 
 
 if __name__ == "__main__":
