@@ -5,6 +5,7 @@ import math
 import logging
 import traceback
 import functools
+import re
 from functools import cached_property
 from typing import Optional, List, Tuple, Dict, Set
 from importlib.metadata import version
@@ -40,6 +41,7 @@ from vfmc.viz import CubeViz, DisplayOption, CubeWidget, Palette
 from vfmc_core import Cube, Algorithm, StepInfo, scramble as gen_scramble
 
 # Basic set of cube moves
+MOVE_REGEX = r"[rRuUfFlLdDbB '2]*"
 MOVES = {
     "R",
     "U",
@@ -544,28 +546,28 @@ class AppWindow(QMainWindow):
 
     def _append_moves(self, moves_str):
         """Append moves to the current solution"""
-        moves = moves_str.split(" ")
-        inverse = self.attempt.inverse
+        alg = Algorithm(moves_str)
 
         sol = self.attempt.solution
 
         if sol.alg.len() > 0:
-            if not self.attempt.append_moves(moves, inverse):
+            if not self.attempt.append(alg):
                 self.set_status(
-                    f"{moves} not allowed after {sol.previous.kind}{sol.previous.variant}"
+                    f"{alg} not allowed after {sol.previous.kind}{sol.previous.variant}"
                 )
         else:
-            if not self.attempt.append_moves(moves, inverse):
+            if not self.attempt.append(alg):
                 assert sol.previous is not None
-                if sol.previous.allows_moves(moves_str):
-                    inverse = self.attempt.inverse
-                    alg = sol.previous.alg
-                    self.attempt.back()
-                    self.attempt.append_moves(alg.normal_moves(), False)
-                    self.attempt.append_moves(alg.inverse_moves(), True)
-                    self.attempt.append_moves(moves, inverse)
-                    if inverse != self.attempt.inverse:
+                if sol.previous.allows_moves(alg):
+                    on_inverse = self.attempt.inverse
+                    if on_inverse:
                         self.attempt.niss()
+                    previous_alg = sol.previous.alg
+                    self.attempt.back()
+                    self.attempt.append(previous_alg)
+                    if on_inverse:
+                        self.attempt.niss()
+                    self.attempt.append(alg)
                 else:
                     self.set_status(
                         f"{moves_str} not allowed after {sol.previous.kind}{sol.previous.variant}"
@@ -911,8 +913,8 @@ class Commands:
             self.window.set_status("")
             result = None
             # Check if it's a sequence of cube moves
-            if all(m in MOVES for m in cmd.upper().split()):
-                self.window._append_moves(cmd.upper())
+            if re.fullmatch(MOVE_REGEX, cmd):
+                self.window._append_moves(cmd)
             else:
                 if cmd.endswith("'"):
                     cmd = cmd.replace("'", "_prime")
@@ -1202,6 +1204,7 @@ class Commands:
     def save_session(self, filename):
         try:
             with open(filename, "w") as f:
+                f.write(f"# VFMC version {version('vfmc')}")
                 f.writelines("\n".join(self.command_history))
             self.window.set_status(f"Saved session to {filename}")
             return CommandResult(add_to_history=[])
@@ -1215,7 +1218,8 @@ class Commands:
             self.command_history = []
             with open(filename, "r") as f:
                 for cmd in f.readlines():
-                    self.execute(cmd.strip())
+                    if not cmd.startswith('#'):
+                        self.execute(cmd.strip())
             self.window.set_status(f"Loaded '{filename}'")
             return CommandResult(add_to_history=[])
         except Exception as e:

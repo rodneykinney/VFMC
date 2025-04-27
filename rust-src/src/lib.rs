@@ -83,6 +83,15 @@ impl Algorithm {
         Algorithm(alg)
     }
 
+    fn on_inverse(&self) -> Algorithm {
+        let alg = self.0.clone();
+        let alg = LibAlgorithm {
+            normal_moves: alg.inverse_moves,
+            inverse_moves: alg.normal_moves,
+        };
+        Algorithm(alg)
+    }
+
     fn __repr__(&self) -> String {
         format!("{}", self.0)
     }
@@ -301,9 +310,7 @@ impl StepInfo {
 #[pymethods]
 impl StepInfo {
 
-    fn are_moves_allowed(&self, moves: &str) -> PyResult<bool> {
-        let alg = Algorithm::new(moves)
-            .map_err(|_| PyValueError::new_err(format!("Invalid moves '{}'", moves)))?;
+    fn are_moves_allowed(&self, alg: &Algorithm) -> PyResult<bool> {
         let mut cube = Cube333::default();
         cube.apply_alg(&alg.0);
         self.is_solved(&Cube(cube))

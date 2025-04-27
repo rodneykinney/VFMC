@@ -30,13 +30,13 @@ class PartialSolution:
                     self.previous.orientation.top, self.previous.orientation.front
                 )
 
-    def append_move(self, move: str, inverse: bool):
-        self.alg = self.alg.append(move, inverse)
+    def append(self, alg: Algorithm):
+        self.alg = self.alg.merge(alg)
 
-    def allows_moves(self, moves: str) -> bool:
+    def allows_moves(self, alg: Algorithm) -> bool:
         if self.previous is None:
             return True
-        return self.previous.step_info.are_moves_allowed(moves)
+        return self.previous.step_info.are_moves_allowed(alg)
 
     def full_alg(self):
         if self.previous is not None:
@@ -113,12 +113,13 @@ class Attempt:
             comment = sol.kind
         return f"{sol.alg} // {comment} ({sol.full_alg().len()})"
 
-    def append_moves(self, moves: List[str], inverse: bool) -> bool:
-        if not self.solution.allows_moves(" ".join(moves)):
+    def append(self, alg: Algorithm) -> bool:
+        if self.inverse:
+            alg = alg.on_inverse()
+        if not self.solution.allows_moves(alg):
             return False
 
-        for m in moves:
-            self.solution.append_move(m, inverse)
+        self.solution.append(alg)
         self.update_cube()
         return True
 
