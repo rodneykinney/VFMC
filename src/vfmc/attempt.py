@@ -89,9 +89,13 @@ class Attempt:
         self.set_solution(PartialSolution("", "", previous=None))
         self.update_cube()
 
-    def niss(self):
-        self.inverse = not self.inverse
-        self.update_cube()
+    def niss(self, inverse: Optional[bool] = None):
+        self.set_inverse(not self.inverse)
+
+    def set_inverse(self, b):
+        if b != self.inverse:
+            self.inverse = b
+            self.update_cube()
 
     def toggle_done(self, sol: PartialSolution):
         if sol in self._done:
@@ -205,8 +209,7 @@ class Attempt:
         """Find solutions for the current step"""
         sol = self.solution
         on_inverse = self.inverse
-        if on_inverse:
-            self.niss()
+        self.set_inverse(False)
         existing = set(str(s) for s in self.solutions_for_step(sol.kind, sol.variant))
         algs = sol.step_info.solve(self.cube, len(existing) + num_solutions)
         solutions = []
@@ -223,8 +226,7 @@ class Attempt:
                 solutions.append(s)
             if len(solutions) >= num_solutions:
                 break
-        if on_inverse:
-            self.niss()
+        self.set_inverse(on_inverse)
         return solutions
 
     def save(self):

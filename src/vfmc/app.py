@@ -7,7 +7,7 @@ import traceback
 import functools
 import re
 from functools import cached_property
-from typing import Optional, List, Tuple, Dict, Set
+from typing import Optional, List, Tuple, Dict, Set, Optional
 from importlib.metadata import version
 
 from PyQt5.QtWidgets import (
@@ -560,13 +560,11 @@ class AppWindow(QMainWindow):
                 assert sol.previous is not None
                 if sol.previous.allows_moves(alg):
                     on_inverse = self.attempt.inverse
-                    if on_inverse:
-                        self.attempt.niss()
+                    self.attempt.set_inverse(False)
                     previous_alg = sol.previous.alg
                     self.attempt.back()
                     self.attempt.append(previous_alg)
-                    if on_inverse:
-                        self.attempt.niss()
+                    self.attempt.set_inverse(on_inverse)
                     self.attempt.append(alg)
                 else:
                     self.set_status(
@@ -1071,9 +1069,12 @@ class Commands:
     def finish(self, axis=None):
         self.window.set_step("finish", "")
 
+    def set_inverse(self, b: bool):
+        self.attempt.inverse = b
+
     def niss(self):
         """Switch between normal and inverse scramble"""
-        self.attempt.niss()
+        self.attempt.set_inverse(not self.attempt.inverse)
 
     def solve(self, num_solutions: int = 1):
         """Find and save solutions for the current step"""
@@ -1088,33 +1089,32 @@ class Commands:
             self.window.set_status(
                 f"Found {len(solutions)} solution{'' if len(solutions) == 1 else 's'}"
             )
-            self.attempt.save_solutions(solutions)
-            if len(solutions) == 1:
-                self.window.check_solution(solutions[0])
-            else:
-                self.window.scroll_to(solutions[0])
-            self.attempt.notify_solution_attribute_listeners()
         else:
             self.window.set_status(
                 f"No solutions found for {self.attempt.solution.kind}{self.attempt.solution.variant}"
             )
-        history = []
+        commands = []
         if solutions:
             on_inverse = self.attempt.inverse
-            if on_inverse:
-                history.append("niss")
             for sol in solutions:
-                history.append(step_name(sol.kind, sol.variant))
+                commands.append(step_name(sol.kind, sol.variant))
                 if sol.alg.normal_moves():
-                    history.append(" ".join(sol.alg.normal_moves()))
+                    commands.append("set_inverse(False)")
+                    commands.append(" ".join(sol.alg.normal_moves()))
                 if sol.alg.inverse_moves():
-                    history.append("niss")
-                    history.append(" ".join(sol.alg.inverse_moves()))
-                    history.append("niss")
-                history.append("save")
-            if on_inverse:
-                history.append("niss")
-        return CommandResult(add_to_history=history)
+                    commands.append("set_inverse(True)")
+                    commands.append(" ".join(sol.alg.inverse_moves()))
+                commands.append("save")
+            commands.append(f"set_inverse({on_inverse}")
+            commands.append(step_name(self.attempt.solution.kind, self.attempt.solution.variant))
+
+        for cmd in commands:
+            self.execute(cmd)
+        if len(solutions) == 1:
+            sol = solutions[0]
+            index = self.attempt.solutions_by_kind()[sol.kind].index(sol) + 1
+            self.execute(f'check("{sol.kind}",{index})')
+        return CommandResult(add_to_history=[])
 
     def comment(self, s: str):
         sol = self.attempt.solution
@@ -1255,13 +1255,12 @@ class CurrentSolutionWidget(QListWidget):
         self.setSelectionMode(QListWidget.ContiguousSelection)
         self.setStyleSheet("font-size: 16px;")
         self.setEditTriggers(QListWidget.DoubleClicked)
-        self.attempt.add_cube_listener(self.refresh)
+        self.attempt.add_cube_listener(self.sync_widget_with_cube)
 
-    def refresh(self):
+    def sync_widget_with_cube(self):
         """Sync the widget with Attempt cube state"""
-        # Only if not editing
         if self.current_editor:
-            return
+            return # Don't sync if user is editing
         self.clear()
         self.addItem(self.attempt.scramble)
         self.addItem("")
@@ -1345,7 +1344,7 @@ class CurrentSolutionWidget(QListWidget):
         self.original_alg = None
 
         super().closeEditor(editor, hint)
-        self.refresh()
+        self.sync_widget_with_cube()
 
     # Override key event to handle copy and editing
     def keyPressEvent(self, event):
