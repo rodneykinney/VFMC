@@ -58,6 +58,8 @@ FACELET_VERTICES = {
     ],
 }
 
+BACKGROUND_COLOR = 0x4D
+
 axis = ["xy"] * 9 + ["yz"] * 9 + ["xz"] * 9 + ["yz"] * 9 + ["xz"] * 9 + ["xy"] * 9
 
 corner_piece_colors = [
@@ -144,7 +146,7 @@ class CubeViz:
         self.view_x = 0
 
         self.colors = [(1, 1, 1, 0.2)] * 54
-        self.palette = Palette.by_name("bad")
+        self.palette = None
 
     def init_camera(self, x, y, z):
         self.camera = np.array([x, y, z])
@@ -157,26 +159,24 @@ class CubeViz:
 
     def set_palette(self, p: "Palette"):
         self.palette = p
+        self.refresh()
 
     def refresh(self):
-        self.colors = [self.palette.hidden_color] * 54
-        self.colors[4] = self.palette.color_of(FaceletColors.WHITE, Visibility.BadFace)
-        self.colors[13] = self.palette.color_of(
-            FaceletColors.ORANGE, Visibility.BadFace
-        )
-        self.colors[22] = self.palette.color_of(FaceletColors.GREEN, Visibility.BadFace)
-        self.colors[31] = self.palette.color_of(FaceletColors.RED, Visibility.BadFace)
-        self.colors[40] = self.palette.color_of(FaceletColors.BLUE, Visibility.BadFace)
-        self.colors[49] = self.palette.color_of(
-            FaceletColors.YELLOW, Visibility.BadFace
-        )
+        palette = self.palette or Palette.by_name(self.attempt.solution.kind)
+        self.colors = [palette.hidden_color] * 54
+        self.colors[4] = palette.color_of(FaceletColors.WHITE, Visibility.BAD)
+        self.colors[13] = palette.color_of(FaceletColors.ORANGE, Visibility.BAD)
+        self.colors[22] = palette.color_of(FaceletColors.GREEN, Visibility.BAD)
+        self.colors[31] = palette.color_of(FaceletColors.RED, Visibility.BAD)
+        self.colors[40] = palette.color_of(FaceletColors.BLUE, Visibility.BAD)
+        self.colors[49] = palette.color_of(FaceletColors.YELLOW, Visibility.BAD)
         corners = self.attempt.cube.corners()
         corner_visibility = self.attempt.corner_visibility()
         for i in range(0, 8):
             piece_id, orientation = corners[i]
             for side in range(0, 3):
                 face = (side + 3 - orientation) % 3
-                self.colors[corner_position_facelets[i][side]] = self.palette.color_of(
+                self.colors[corner_position_facelets[i][side]] = palette.color_of(
                     corner_piece_colors[piece_id][face], corner_visibility[i][side]
                 )
         edges = self.attempt.cube.edges()
@@ -186,7 +186,7 @@ class CubeViz:
             orientation = default_orientation[home_slice[piece_id] ^ home_slice[i]]
             flipped = 0 if piece_orientation == orientation else 1
             for side in range(0, 2):
-                self.colors[edge_position_facelets[i][side]] = self.palette.color_of(
+                self.colors[edge_position_facelets[i][side]] = palette.color_of(
                     edge_piece_colors[edges[i][0]][(side + flipped) % 2],
                     edge_visibility[i][side],
                 )
@@ -239,7 +239,9 @@ class CubeViz:
 
     def draw(self, painter, w, h):
         # Clear the screen with the background color
-        painter.fillRect(0, 0, w, h, QColor(0x4D, 0x4D, 0x4D))
+        painter.fillRect(
+            0, 0, w, h, QColor(BACKGROUND_COLOR, BACKGROUND_COLOR, BACKGROUND_COLOR)
+        )
         # Apply rotation
         q = (
             Quaternion(axis=[1, 0, 0], angle=self.view_x)

@@ -47,8 +47,13 @@ impl Solvable for HTRUD {
         if c.id / 4 == 1 && facelet == c.facelet_showing_ud() { // D sticker
             UsedForCaseID
         }
-        else if !c.oriented_fb(pos as u8) && facelet != CORNER_UD_FACELETS[pos] {
-            BadFace
+        else if !c.oriented_fb(pos as u8) {
+            if facelet != CORNER_UD_FACELETS[pos] {
+                BadFace
+            }
+            else {
+                BadPieceGoodFace
+            }
         }
         else {
             GoodFace
@@ -114,8 +119,13 @@ impl Solvable for HTRFB {
         if vec!(0, 1, 6, 7).contains(&c.id) && facelet == c.facelet_showing_fb() { // B sticker
             UsedForCaseID
         }
-        else if !c.oriented_rl(pos as u8) && facelet != CORNER_FB_FACELETS[pos]{
-            BadFace
+        else if !c.oriented_rl(pos as u8) {
+            if facelet != CORNER_FB_FACELETS[pos] {
+                BadFace
+            }
+            else {
+                BadPieceGoodFace
+            }
         }
         else {
             GoodFace
@@ -161,8 +171,13 @@ impl Solvable for HTRRL {
         if vec!(1, 2, 5, 6).contains(&c.id) && facelet == c.facelet_showing_rl() { // L sticker
             UsedForCaseID
         }
-        else if !c.oriented_ud(pos as u8) && facelet != CORNER_RL_FACELETS[pos]{
-            BadFace
+        else if !c.oriented_ud(pos as u8) {
+            if facelet != CORNER_RL_FACELETS[pos] {
+                BadFace
+            }
+            else {
+                BadPieceGoodFace
+            }
         }
         else {
             GoodFace

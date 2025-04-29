@@ -31,11 +31,13 @@ from PyQt5.QtWidgets import (
     QMenu,
     QAction,
     QFileDialog,
+    QCheckBox,
 )
 from PyQt5.QtCore import Qt, QEvent
 from PyQt5.QtGui import QKeySequence
 from black.trans import defaultdict
 
+import vfmc.viz
 from vfmc.attempt import PartialSolution, Attempt, step_name
 from vfmc.viz import CubeViz, DisplayOption, CubeWidget, Palette
 from vfmc_core import Cube, Algorithm, StepInfo, scramble as gen_scramble
@@ -183,7 +185,8 @@ class AppWindow(QMainWindow):
         status_layout.setContentsMargins(0, 0, 0, 0)
         status_layout.setSpacing(0)
 
-        label_style = "background-color: #4d4d4d; color: white; font-weight: bold; font-size: 18px; padding: 5px;"
+        bg = str(hex(vfmc.viz.BACKGROUND_COLOR))[2:]
+        label_style = f"background-color: #{bg}{bg}{bg}; color: white; font-weight: bold; font-size: 18px; padding: 5px;"
         # Left label - Step kind and variant
         step_label = QLabel("Step")
         step_label.setStyleSheet(label_style)
@@ -328,23 +331,18 @@ class AppWindow(QMainWindow):
         gui_widget = self._empty_container(QHBoxLayout())
 
         w = self._empty_container(QVBoxLayout())
-        w.layout().setAlignment(Qt.AlignRight)
-        h = self._empty_container(QHBoxLayout())
-        h.layout().setAlignment(Qt.AlignRight)
-        h.layout().addWidget(step_selector)
-        w.layout().addWidget(h)
-        h = self._empty_container(QHBoxLayout())
-        l = QLabel("Display:")
-        h.layout().addWidget(l)
-        self.display_selector = QComboBox()
-        self.display_selector.addItems(Palette.names())
+        w.layout().setAlignment(Qt.AlignLeft)
+        w.layout().addWidget(step_selector)
+        l = QCheckBox("Draw Entire Cube")
 
         def display_changed():
-            self.commands.execute(f'display("{self.display_selector.currentText()}")')
+            if l.checkState():
+                self.viz.set_palette(Palette.by_name("all"))
+            else:
+                self.viz.set_palette(None)
 
-        self.display_selector.currentIndexChanged.connect(display_changed)
-        h.layout().addWidget(self.display_selector)
-        w.layout().addWidget(h)
+        l.stateChanged.connect(display_changed)
+        w.layout().addWidget(l)
         gui_widget.layout().addWidget(w)
 
         gui_widget.layout().addWidget(QWidget(), 1)
@@ -913,7 +911,8 @@ class Commands:
             # Does it match a method in this class?
             if cmd.endswith("'"):
                 cmd = cmd.replace("'", "_prime")
-            if sum((1 for f in dir(self) if cmd.startswith(f))):
+            cmd_name = re.sub("\(.*$", "", cmd)
+            if cmd_name in dir(self):
                 # Add parentheses if missing
                 if cmd.find("(") < 0:
                     cmd = f"{cmd}()"
@@ -954,24 +953,6 @@ class Commands:
             self.history_pointer = -1
             return
         self.history_pointer = max(0, next_undo)
-
-    def display(self, option):
-        try:
-            option = option.lower()
-            self.window.viz.set_palette(Palette.by_name(option))
-            self.window.display_selector.blockSignals(True)
-            self.window.display_selector.setCurrentText(option)
-            self.window.display_selector.blockSignals(False)
-            self.attempt.notify_cube_listeners()
-            return CommandResult(add_to_history=[])
-        except Exception as e:
-            logging.exception(e)
-            return CommandResult(
-                error=ValueError(
-                    f'Valid values for display are: {",".join(Palette.names())}'
-                ),
-                add_to_history=[],
-            )
 
     def help(self):
         self.window.show_help()
@@ -1106,7 +1087,9 @@ class Commands:
                     commands.append(" ".join(sol.alg.inverse_moves()))
                 commands.append("save")
             commands.append(f"set_inverse({on_inverse}")
-            commands.append(step_name(self.attempt.solution.kind, self.attempt.solution.variant))
+            commands.append(
+                step_name(self.attempt.solution.kind, self.attempt.solution.variant)
+            )
 
         for cmd in commands:
             self.execute(cmd)
@@ -1131,6 +1114,10 @@ class Commands:
                     padding = "   " if i < 9 else ("  " if i < 99 else " ")
                     item.setText(f"{i + 1}.{padding}{self.attempt.to_str(sol)}")
                     return
+
+    def visibility(self, **kwargs):
+        vfmc.palette.Palette.by_name(self.attempt.solution.kind).configure(kwargs)
+        self.window.viz.refresh()
 
     def done(self):
         sol = self.attempt.solution
@@ -1220,7 +1207,7 @@ class Commands:
             self.command_history = []
             with open(filename, "r") as f:
                 for cmd in f.readlines():
-                    if not cmd.startswith('#'):
+                    if not cmd.startswith("#"):
                         self.execute(cmd.strip())
             self.window.set_status(f"Loaded '{filename}'")
             return CommandResult(add_to_history=[])
@@ -1260,7 +1247,7 @@ class CurrentSolutionWidget(QListWidget):
     def sync_widget_with_cube(self):
         """Sync the widget with Attempt cube state"""
         if self.current_editor:
-            return # Don't sync if user is editing
+            return  # Don't sync if user is editing
         self.clear()
         self.addItem(self.attempt.scramble)
         self.addItem("")
@@ -1272,7 +1259,7 @@ class CurrentSolutionWidget(QListWidget):
                 else:
                     parentheses = f"{' ' if step.alg.len() else ''}{'( )' if not step.alg.inverse_moves() and self.attempt.inverse else ''}"
                     comment = self.attempt.get_comment(step)
-                    if not comment or step.alg.len() ==0:
+                    if not comment or step.alg.len() == 0:
                         comment = f"{step.kind}{step.variant}-{step.step_info.case_name(self.attempt.cube)}"
                     line = f"{line}{parentheses} // {comment} ({step.full_alg().len()})"
             item = QListWidgetItem(line)
