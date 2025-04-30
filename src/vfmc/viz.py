@@ -283,12 +283,12 @@ def rotation_for(o: Orientation) -> Quaternion:
     base = Orientation("u", "f")
     if o.top in "fb":
         ticks = AXIS_ROTATIONS["r"].index(o.top)
-        base.x(ticks)
+        base = base.x(ticks)
         q = Quaternion(axis=[1, 0, 0], angle=-math.pi / 2 * ticks)
     else:
         ticks = AXIS_ROTATIONS["f"].index(o.top)
         q = Quaternion(axis=[0, 1, 0], angle=math.pi / 2 * ticks)
-        base.z(ticks)
+        base = base.z(ticks)
     ticks = (
         AXIS_ROTATIONS[base.top].index(o.front)
         - AXIS_ROTATIONS[base.top].index(base.front)

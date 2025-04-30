@@ -35,7 +35,6 @@ from PyQt5.QtWidgets import (
 )
 from PyQt5.QtCore import Qt, QEvent
 from PyQt5.QtGui import QKeySequence
-from black.trans import defaultdict
 
 import vfmc.viz
 from vfmc.attempt import PartialSolution, Attempt, step_name
@@ -63,34 +62,6 @@ MOVES = {
     "L2",
     "D2",
     "B2",
-}
-
-NEXT_STEPS = {
-    ("", ""): [("eo", "fb"), ("eo", "rl"), ("eo", "ud")],
-    ("eo", "ud"): [("dr", "fb"), ("dr", "rl")],
-    ("eo", "rl"): [("dr", "ud"), ("dr", "fb")],
-    ("eo", "fb"): [("dr", "ud"), ("dr", "rl")],
-    ("dr", "ud"): [("htr", "ud")],
-    ("dr", "rl"): [("htr", "rl")],
-    ("dr", "fb"): [("htr", "fb")],
-    ("htr", "ud"): [("fr", "ud"), ("slice", "ud"), ("finish", "")],
-    ("htr", "rl"): [("fr", "rl"), ("slice", "rl"), ("finish", "")],
-    ("htr", "fb"): [("fr", "fb"), ("slice", "rl"), ("finish", "")],
-    ("fr", "ud"): [("slice", "ud"), ("finish", "")],
-    ("fr", "fb"): [("slice", "fb"), ("finish", "")],
-    ("fr", "rl"): [("slice", "rl"), ("finish", "")],
-    ("slice", "ud"): [("finish", "")],
-    ("slice", "fb"): [("finish", "")],
-    ("slice", "rl"): [("finish", "")],
-}
-
-DEFAULT_NEXT_STEPS = {
-    ("htr", "ud"): ("fr", "ud"),
-    ("htr", "rl"): ("fr", "rl"),
-    ("htr", "fb"): ("fr", "fb"),
-    ("fr", "ud"): ("slice", "ud"),
-    ("fr", "fb"): ("slice", "fb"),
-    ("fr", "rl"): ("slice", "rl"),
 }
 
 PREFERRED_AXIS = {
@@ -377,12 +348,14 @@ class AppWindow(QMainWindow):
 
         def refresh():
             valid_steps.clear()
-            for kind, variant in NEXT_STEPS[("", "")]:
+            for kind, variant in self.attempt.possible_steps_following("", ""):
                 valid_steps.add(f"{kind}{variant}")
             for step in reversed(self.attempt.solution.substeps()):
                 valid_steps.add(step_name(step.kind, step.variant))
                 if step.step_info.is_solved(self.attempt.cube):
-                    for kind, variant in NEXT_STEPS.get((step.kind, step.variant), []):
+                    for kind, variant in self.attempt.possible_steps_following(
+                        step.kind, step.variant
+                    ):
                         valid_steps.add(step_name(kind, variant))
             current_step = step_name(
                 self.attempt.solution.kind, self.attempt.solution.variant
@@ -505,6 +478,7 @@ class AppWindow(QMainWindow):
                 list.addItem(f"{i + 1}.{padding}{self.attempt.to_str(sol)}")
                 item = list.item(list.count() - 1)
                 item.setData(SOLUTION, sol)
+        self.format_saved_solutions()
 
     def format_saved_solutions(self):
         active = self.attempt.solution.substeps()
@@ -514,7 +488,7 @@ class AppWindow(QMainWindow):
             list = self.solution_widgets[kind]
             list.blockSignals(True)
             matched = False
-            for i in range(list.count()):
+            for i in range(list.count() - 1, -1, -1):
                 item = list.item(i)
                 sol = item.data(SOLUTION)
                 item.setData(BOLD, sol in active and not matched)
@@ -532,12 +506,6 @@ class AppWindow(QMainWindow):
             item.setSelected(True)
             list.setCurrentItem(item)
             self.item_selected(list)
-
-    def set_scramble(self, scramble: str):
-        """Set the cube to a specific scramble"""
-        for w in self.solution_widgets.values():
-            w.clear()
-        self.attempt.set_scramble(scramble)
 
     def set_status(self, status: str):
         self.status_label.setText(status)
@@ -557,13 +525,13 @@ class AppWindow(QMainWindow):
             if not self.attempt.append(alg):
                 assert sol.previous is not None
                 if sol.previous.allows_moves(alg):
-                    on_inverse = self.attempt.inverse
-                    self.attempt.set_inverse(False)
                     previous_alg = sol.previous.alg
                     self.attempt.back()
+                    was_inverse = self.attempt.inverse
+                    self.attempt.set_inverse(False)
                     self.attempt.append(previous_alg)
-                    self.attempt.set_inverse(on_inverse)
                     self.attempt.append(alg)
+                    self.attempt.set_inverse(was_inverse)
                 else:
                     self.set_status(
                         f"{moves_str} not allowed after {sol.previous.kind}{sol.previous.variant}"
@@ -624,7 +592,7 @@ class AppWindow(QMainWindow):
             w.blockSignals(True)
             w.clearSelection()
             w.setCurrentItem(None)
-            w.setSelectionMode(QListWidget.ContiguousSelection)
+            w.setSelectionMode(QListWidget.MultiSelection)
             for i in range(w.count()):
                 item = w.item(i)
                 sol = item.data(SOLUTION)
@@ -660,6 +628,7 @@ class AppWindow(QMainWindow):
                     if obj.currentItem():
                         self.activate_item(obj.currentItem())
                         return True
+                return False
             elif key == Qt.Key_Tab or key == Qt.Key_Backtab:
                 # Handle Tab and Shift+Tab to move between solution lists
                 if (
@@ -747,26 +716,13 @@ class AppWindow(QMainWindow):
                     self.history_pointer, len(self.command_history) - 1
                 )
                 return True
-            elif (
-                obj == self.command_input
-                and (
-                    event.modifiers() & Qt.ControlModifier
-                    or event.modifiers() & Qt.MetaModifier
-                )
-                and key == Qt.Key_Z
-            ):
-                self.commands.undo()
-                return True
 
         return super().eventFilter(obj, event)
 
     def check_solution(self, solution):
         """Load a selected solution"""
         self.attempt.set_solution(solution)
-        key = (self.attempt.solution.kind, self.attempt.solution.variant)
-        next_steps = NEXT_STEPS.get(key)
-        if next_steps:
-            self.attempt.advance_to(*next_steps[0])
+        self.attempt.advance()
         self.command_input.setFocus()
 
     def _create_menus(self):
@@ -939,51 +895,36 @@ class Commands:
             logging.error(sys.exc_info())
             self.window.set_status(f"Error: {e}")
 
-    def undo(self):
-        if self.history_pointer < 0:
-            return
-        last_command = self.command_history[self.history_pointer]
-        next_undo = self.history_pointer - 1
-        if all(m in MOVES for m in last_command.upper().split()):
-            inverse = str(Algorithm(last_command).inverted())
-            self.execute(inverse)
-        elif last_command == "niss":
-            self.execute("niss")
-        else:
-            self.history_pointer = -1
-            return
-        self.history_pointer = max(0, next_undo)
-
     def help(self):
         self.window.show_help()
         return CommandResult(add_to_history=[])
 
     def x(self):
-        self.attempt.solution.orientation.x(1)
+        self.attempt.solution.x(1)
 
     def x_prime(self):
-        self.attempt.solution.orientation.x(3)
+        self.attempt.solution.x(3)
 
     def x2(self):
-        self.attempt.solution.orientation.x(2)
+        self.attempt.solution.x(2)
 
     def y(self):
-        self.attempt.solution.orientation.y(1)
+        self.attempt.solution.y(1)
 
     def y_prime(self):
-        self.attempt.solution.orientation.y(3)
+        self.attempt.solution.y(3)
 
     def y2(self):
-        self.attempt.solution.orientation.y(2)
+        self.attempt.solution.y(2)
 
     def z(self):
-        self.attempt.solution.orientation.z(1)
+        self.attempt.solution.z(1)
 
     def z_prime(self):
-        self.attempt.solution.orientation.z(3)
+        self.attempt.solution.z(3)
 
     def z2(self):
-        self.attempt.solution.orientation.z(2)
+        self.attempt.solution.z(2)
 
     def eoud(self):
         """Look for EO on UD axis"""
@@ -1076,7 +1017,7 @@ class Commands:
             )
         commands = []
         if solutions:
-            on_inverse = self.attempt.inverse
+            was_inverse = self.attempt.inverse
             for sol in solutions:
                 commands.append(step_name(sol.kind, sol.variant))
                 if sol.alg.normal_moves():
@@ -1086,7 +1027,7 @@ class Commands:
                     commands.append("set_inverse(True)")
                     commands.append(" ".join(sol.alg.inverse_moves()))
                 commands.append("save")
-            commands.append(f"set_inverse({on_inverse}")
+            commands.append(f"set_inverse({was_inverse})")
             commands.append(
                 step_name(self.attempt.solution.kind, self.attempt.solution.variant)
             )
@@ -1106,14 +1047,21 @@ class Commands:
         if not sol:
             return
         self.attempt.set_comment(sol, s)
+        item = self.item_containing(sol)
+        if item:
+            i = item.listWidget().row(item)
+            padding = "   " if i < 9 else ("  " if i < 99 else " ")
+            item.setText(f"{i + 1}.{padding}{self.attempt.to_str(sol)}")
+            return
+
+    def item_containing(self, sol: PartialSolution) -> Optional[QListWidgetItem]:
         for kind in reversed(self.window.step_order):
             widget = self.window.solution_widgets[kind]
             for i in range(widget.count()):
                 item = widget.item(i)
                 if item.data(SOLUTION) == sol:
-                    padding = "   " if i < 9 else ("  " if i < 99 else " ")
-                    item.setText(f"{i + 1}.{padding}{self.attempt.to_str(sol)}")
-                    return
+                    return item
+        return None
 
     def visibility(self, **kwargs):
         vfmc.palette.Palette.by_name(self.attempt.solution.kind).configure(kwargs)
@@ -1126,38 +1074,12 @@ class Commands:
     def save(self):
         """Save this algorithm and start a new one"""
         self.window.current_solution_widget.sync_history_with_editor()
-        sol = self.attempt.solution
-        if not sol.step_info.is_solved(self.attempt.cube):
-            if sol.kind == "" or sol.previous is None:
-                self.window.set_status("Complete at least one step before saving")
-                return
-            partial = PartialSolution(
-                kind=sol.previous.kind,
-                variant=sol.previous.variant,
-                previous=sol.previous.previous,
-                alg=sol.previous.alg.merge(sol.alg),
-            )
-            options = NEXT_STEPS.get((partial.kind, partial.variant), [])
-            case = sol.step_info.case_name(self.attempt.cube)
-            comment = f"{sol.kind}{sol.variant}-{case}" if len(options) > 1 else case
-            self.attempt.save_solution(partial)
-            self.attempt.set_comment(partial, comment)
-            self.window.scroll_to(partial)
+        saved = self.attempt.save()
+        if not saved:
+            self.window.set_status("Complete at least one step before saving")
             return
-        self.attempt.save()
-        self.load_next(sol)
+        self.window.scroll_to(saved)
         self.window.command_input.setFocus()
-
-    def load_next(self, sol: PartialSolution):
-        next_steps = NEXT_STEPS.get((sol.kind, sol.variant), [])
-        next_step = DEFAULT_NEXT_STEPS.get((sol.kind, sol.variant))
-        if next_step is None and len(next_steps) == 1:
-            next_step = next_steps[0]
-        if next_step:
-            self.attempt.advance_to(*next_step)
-        else:
-            self.reset()
-        self.window.scroll_to(sol)
 
     def reset(self):
         """Reset the cube to the beginning of the current step"""
@@ -1186,7 +1108,7 @@ class Commands:
         if scramble is None:
             wrapper = Algorithm("R' U' F")
             scramble = str(wrapper.merge(Algorithm(gen_scramble())).merge(wrapper))
-        self.window.set_scramble(scramble)
+        self.attempt.set_scramble(scramble)
         self.command_history.clear()
         return CommandResult(add_to_history=[f'scramble("{scramble}")'])
 
@@ -1237,6 +1159,7 @@ class CurrentSolutionWidget(QListWidget):
         self.attempt = attempt
         self.history_is_stale = False
         self.current_editor = None
+        self.comment = None
         self.originalKeyPress = None
         self.original_alg = None
         self.setSelectionMode(QListWidget.ContiguousSelection)
@@ -1252,17 +1175,18 @@ class CurrentSolutionWidget(QListWidget):
         self.addItem(self.attempt.scramble)
         self.addItem("")
         for step in self.attempt.solution.substeps():
-            line = f"{step.alg}"
+            text = f"{step.alg}"
             if step.kind != "":
                 if step.step_info.is_solved(self.attempt.cube):
-                    line = f"{self.attempt.to_str(step)}"
+                    text = f"{self.attempt.to_str(step)}"
                 else:
                     parentheses = f"{' ' if step.alg.len() else ''}{'( )' if not step.alg.inverse_moves() and self.attempt.inverse else ''}"
                     comment = self.attempt.get_comment(step)
                     if not comment or step.alg.len() == 0:
                         comment = f"{step.kind}{step.variant}-{step.step_info.case_name(self.attempt.cube)}"
-                    line = f"{line}{parentheses} // {comment} ({step.full_alg().len()})"
-            item = QListWidgetItem(line)
+                    text = f"{text}{parentheses} // {comment} ({step.full_alg().len()})"
+            item = QListWidgetItem(text)
+            item.setData(SOLUTION, step)
             self.addItem(item)
         last_item = self.item(self.count() - 1)
         last_item.setFlags(last_item.flags() | Qt.ItemIsEditable)
@@ -1279,6 +1203,7 @@ class CurrentSolutionWidget(QListWidget):
                     editor.setCursorPosition(text.index(")"))
                 self.original_alg = self.attempt.solution.alg
                 self.current_editor.textEdited.connect(self.sync_cube_with_editor)
+                self.comment = None
         return result
 
     def sync_cube_with_editor(self):
@@ -1286,14 +1211,12 @@ class CurrentSolutionWidget(QListWidget):
             return
         edited_text = self.current_editor.text().split("//")
         alg_str = edited_text[0].strip()
-        comment = edited_text[1].strip() if len(edited_text) > 1 else None
+        self.comment = edited_text[1].strip() if len(edited_text) > 1 else None
         if "(" in alg_str and ")" not in alg_str:
             return
         try:
             alg = Algorithm(alg_str)
             self.attempt.solution.alg = alg
-            if comment:
-                self.attempt.set_comment(self.attempt.solution, comment)
             self.attempt.update_cube()
             self.history_is_stale = True
         except:
@@ -1317,9 +1240,8 @@ class CurrentSolutionWidget(QListWidget):
             if not self.attempt.inverse:
                 commands.execute("niss")
             commands.execute(" ".join(net_alg.inverse_moves()))
-        comment = self.attempt.get_comment(self.attempt.solution)
-        if comment:
-            commands.execute(f'comment("{comment}")')
+        if self.comment:
+            commands.execute(f'comment("{self.comment}")')
         self.history_is_stale = False
 
     def closeEditor(self, editor, hint):
@@ -1332,6 +1254,14 @@ class CurrentSolutionWidget(QListWidget):
 
         super().closeEditor(editor, hint)
         self.sync_widget_with_cube()
+
+    def mouseDoubleClickEvent(self, event):
+        item = self.itemAt(event.pos())
+        if item:
+            self.activate_step(item.data(SOLUTION))
+        super().mouseDoubleClickEvent(
+            event
+        )  # Call the parent class method if you still want default behavior
 
     # Override key event to handle copy and editing
     def keyPressEvent(self, event):
@@ -1348,10 +1278,32 @@ class CurrentSolutionWidget(QListWidget):
         }:
             # Enter key starts editing the current item if any
             current_item = self.currentItem()
-            if current_item:
+            if current_item and (current_item.flags() & Qt.ItemIsEditable):
                 self.editItem(current_item)
+            else:
+                self.activate_step(current_item.data(SOLUTION))
         else:
             super().keyPressEvent(event)  # Default behavior for other keys
+
+    def activate_step(self, target: PartialSolution):
+        index = self.attempt.solutions_by_kind()[target.kind].index(target) + 1
+        # Execute via self.commands to get this into the history
+        cmd = self.window().commands
+        while self.attempt.solution.kind != target.kind:
+            cmd.execute("back")
+            if self.attempt.solution.kind == "":
+                break
+        inverse = False
+        if target.alg.inverse_moves():
+            cmd.execute(f"set_inverse(True)")
+            cmd.execute(" ".join(target.alg.inverse_moves()))
+            inverse = True
+        if target.alg.normal_moves():
+            cmd.execute(f"set_inverse(False)")
+            cmd.execute(" ".join(target.alg.normal_moves()))
+            inverse = False
+        cmd.execute(f"set_inverse({inverse})")
+        self.editItem(self.item(self.count() - 1))
 
 
 @dataclasses.dataclass
