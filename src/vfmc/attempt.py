@@ -5,6 +5,34 @@ from collections import defaultdict
 from vfmc.palette import Visibility
 from vfmc_core import Algorithm, StepInfo, debug, Cube
 
+NEXT_STEPS = {
+    ("", ""): [("eo", "fb"), ("eo", "rl"), ("eo", "ud")],
+    ("eo", "ud"): [("dr", "fb"), ("dr", "rl")],
+    ("eo", "rl"): [("dr", "ud"), ("dr", "fb")],
+    ("eo", "fb"): [("dr", "ud"), ("dr", "rl")],
+    ("dr", "ud"): [("htr", "ud")],
+    ("dr", "rl"): [("htr", "rl")],
+    ("dr", "fb"): [("htr", "fb")],
+    ("htr", "ud"): [("fr", "ud"), ("slice", "ud"), ("finish", "")],
+    ("htr", "rl"): [("fr", "rl"), ("slice", "rl"), ("finish", "")],
+    ("htr", "fb"): [("fr", "fb"), ("slice", "rl"), ("finish", "")],
+    ("fr", "ud"): [("slice", "ud"), ("finish", "")],
+    ("fr", "fb"): [("slice", "fb"), ("finish", "")],
+    ("fr", "rl"): [("slice", "rl"), ("finish", "")],
+    ("slice", "ud"): [("finish", "")],
+    ("slice", "fb"): [("finish", "")],
+    ("slice", "rl"): [("finish", "")],
+}
+
+DEFAULT_NEXT_STEPS = {
+    ("htr", "ud"): ("fr", "ud"),
+    ("htr", "rl"): ("fr", "rl"),
+    ("htr", "fb"): ("fr", "fb"),
+    ("fr", "ud"): ("slice", "ud"),
+    ("fr", "fb"): ("slice", "fb"),
+    ("fr", "rl"): ("slice", "rl"),
+}
+
 
 class PartialSolution:
     def __init__(
@@ -19,16 +47,7 @@ class PartialSolution:
         self.step_info = StepInfo(kind, variant)
         self.previous = previous
         self.alg = alg
-        d = VARIANT_ORIENTATIONS.get(kind, VARIANT_ORIENTATIONS.get("*"))
-        self.orientation = Orientation(*d.get(variant, d.get("*")))
-        if self.previous is not None:
-            if self.previous.kind == "eo":
-                if self.orientation.front not in self.previous.variant:
-                    self.orientation.y(1)
-            else:
-                self.orientation = Orientation(
-                    self.previous.orientation.top, self.previous.orientation.front
-                )
+        self.orientation = Orientation.default_for(self)
 
     def append(self, alg: Algorithm):
         self.alg = self.alg.merge(alg)
@@ -55,6 +74,15 @@ class PartialSolution:
             val = val and self.previous.is_empty()
         return val
 
+    def x(self, ticks: int):
+        self.orientation = self.orientation.x(ticks)
+
+    def y(self, ticks: int):
+        self.orientation = self.orientation.y(ticks)
+
+    def z(self, ticks: int):
+        self.orientation = self.orientation.z(ticks)
+
     def __repr__(self):
         return f"{self.alg} // ({self.full_alg().len()})"
 
@@ -77,12 +105,18 @@ class Attempt:
         self._saved_by_kind: Dict[str, List[PartialSolution]] = defaultdict(list)
         self._done: Set[PartialSolution] = set()
         self._comments: Dict[PartialSolution, str] = {}
+        self._continuations: Dict[PartialSolution, Tuple[str, str]] = {}
+        self._orientations: Dict[PartialSolution, Orientation] = {}
         self._cube_listeners = []
         self._saved_solution_listeners = []
         self._solution_attribute_listeners = []
 
     def set_scramble(self, s):
         self._saved_by_kind.clear()
+        self._done.clear()
+        self._comments.clear()
+        self._continuations.clear()
+        self._orientations.clear()
         self.notify_saved_solution_listeners()
         self.scramble = s
         self.inverse = False
@@ -148,6 +182,12 @@ class Attempt:
             self.solution = previous.previous or PartialSolution()
             self.advance_to(previous.kind, previous.variant)
 
+    def possible_next_steps(self, sol: PartialSolution) -> List[Tuple[str, str]]:
+        return NEXT_STEPS[(sol.kind, sol.variant)]
+
+    def possible_steps_following(self, kind, variant) -> List[Tuple[str, str]]:
+        return NEXT_STEPS[(kind, variant)]
+
     def advance_to(self, kind: str, variant: str):
         previous = (
             self.solution
@@ -160,6 +200,25 @@ class Attempt:
             else:
                 self.inverse = len(previous.alg.normal_moves()) == 0
         self.set_solution(PartialSolution(kind, variant, previous=previous))
+
+    def advance(self):
+        next = self._continuations.get(self.solution)
+        if not next:
+            next = DEFAULT_NEXT_STEPS.get((self.solution.kind, self.solution.variant))
+        if not next:
+            next = NEXT_STEPS[(self.solution.kind, self.solution.variant)][0]
+        self.advance_to(*next)
+
+    def advance_or_reset(self):
+        sol = self.solution
+        next_steps = NEXT_STEPS.get((sol.kind, sol.variant), [])
+        next_step = DEFAULT_NEXT_STEPS.get((sol.kind, sol.variant))
+        if next_step is None and len(next_steps) == 1:
+            next_step = next_steps[0]
+        if next_step:
+            self.advance_to(*next_step)
+        else:
+            self.reset()
 
     def solutions_by_kind(self) -> Dict[str, List[PartialSolution]]:
         return self._saved_by_kind
@@ -202,6 +261,9 @@ class Attempt:
 
     def set_solution(self, sol: PartialSolution):
         self.solution = sol
+        o = self._orientations.get(sol)
+        if o:
+            self.solution.orientation = o
         self.update_cube()
         self.notify_solution_attribute_listeners()
 
@@ -229,11 +291,36 @@ class Attempt:
         self.set_inverse(on_inverse)
         return solutions
 
-    def save(self):
-        self.save_solution(self.solution)
-
-    def save_solution(self, sol: PartialSolution):
-        self.save_solutions([sol])
+    def save(self) -> Optional[PartialSolution]:
+        to_be_saved = self.solution
+        is_solved = to_be_saved.step_info.is_solved(self.cube)
+        if not is_solved:
+            if to_be_saved.kind == "" or to_be_saved.previous is None:
+                return None
+            to_be_saved = PartialSolution(
+                kind=self.solution.previous.kind,
+                variant=self.solution.previous.variant,
+                previous=self.solution.previous.previous,
+                alg=self.solution.previous.alg.merge(self.solution.alg),
+            )
+            options = self.possible_next_steps(to_be_saved)
+            case = self.solution.step_info.case_name(self.cube)
+            if not self.get_comment(to_be_saved):
+                comment = (
+                    f"{self.solution.kind}{self.solution.variant}-{case}"
+                    if len(options) > 1
+                    else case
+                )
+                self.set_comment(to_be_saved, comment)
+            self._continuations[to_be_saved] = (
+                self.solution.kind,
+                self.solution.variant,
+            )
+            self._orientations[to_be_saved] = self.solution.orientation
+        if is_solved:
+            self.reset()
+        self.save_solutions([to_be_saved])
+        return to_be_saved
 
     def save_solutions(self, sols: List[PartialSolution]):
         new_sols_by_key = defaultdict(list)
@@ -314,23 +401,39 @@ class Orientation:
         self.top = top
         self.front = front
 
-    def x(self, ticks: int):
+    def x(self, ticks: int) -> "Orientation":
         rot = AXIS_ROTATIONS[self.right]
-        self.top = rot[(rot.index(self.top) + ticks) % 4]
-        self.front = rot[(rot.index(self.front) + ticks) % 4]
+        return Orientation(
+            top=rot[(rot.index(self.top) + ticks) % 4],
+            front=rot[(rot.index(self.front) + ticks) % 4],
+        )
 
     @property
     def right(self):
         rot = AXIS_ROTATIONS[self.top]
         return rot[(rot.index(self.front) + 1) % 4]
 
-    def z(self, ticks: int):
+    def z(self, ticks: int) -> "Orientation":
         rot = AXIS_ROTATIONS[self.front]
-        self.top = rot[(rot.index(self.top) + ticks) % 4]
+        return Orientation(top=rot[(rot.index(self.top) + ticks) % 4], front=self.front)
 
-    def y(self, ticks: int):
+    def y(self, ticks: int) -> "Orientation":
         rot = AXIS_ROTATIONS[self.top]
-        self.front = rot[(rot.index(self.front) + ticks) % 4]
+        return Orientation(top=self.top, front=rot[(rot.index(self.front) + ticks) % 4])
 
     def __repr__(self):
         return f"top={self.top}, front={self.front}"
+
+    @staticmethod
+    def default_for(sol: PartialSolution):
+        d = VARIANT_ORIENTATIONS.get(sol.kind, VARIANT_ORIENTATIONS.get("*"))
+        orientation = Orientation(*d.get(sol.variant, d.get("*")))
+        if sol.previous is not None:
+            if sol.previous.kind == "eo":
+                if orientation.front not in sol.previous.variant:
+                    orientation = orientation.y(1)
+            else:
+                orientation = Orientation(
+                    sol.previous.orientation.top, sol.previous.orientation.front
+                )
+        return orientation
