@@ -198,7 +198,9 @@ class AppWindow(QMainWindow):
 
     @cached_property
     def current_solution_widget(self) -> "CurrentSolutionWidget":
-        return CurrentSolutionWidget(self.attempt)
+        w = CurrentSolutionWidget(self.attempt)
+        w.installEventFilter(self)
+        return w
 
     @cached_property
     def edit_widget(self) -> QWidget:
@@ -616,9 +618,13 @@ class AppWindow(QMainWindow):
 
     def eventFilter(self, obj, event):
         """Handle keyboard events for navigating between solution lists"""
+        if self.viz.handle_toggle_view_event(obj, event):
+            return True
         # Check if this is a key event for one of our solution lists
         if event.type() == QEvent.KeyPress:
             key = event.key()
+            if event.isAutoRepeat():
+                return False
             if key == Qt.Key_Return or key == Qt.Key_Enter:
                 if obj in list(self.solution_widgets.values()):
                     kind = obj.property("kind")
@@ -1214,11 +1220,20 @@ class CurrentSolutionWidget(QListWidget):
         self.comment = edited_text[1].strip() if len(edited_text) > 1 else None
         if "(" in alg_str and ")" not in alg_str:
             return
+        if not alg_str and self.attempt.inverse:
+            self.current_editor.setText("( )")
+            self.current_editor.setCursorPosition(2)
         try:
             alg = Algorithm(alg_str)
-            self.attempt.solution.alg = alg
-            self.attempt.update_cube()
-            self.history_is_stale = True
+            self.attempt.solution.alg = Algorithm("")
+            if not self.attempt.solution.append(alg):
+                self.window().set_status(
+                    f"{alg} not allowed after {self.attempt.solution.previous.kind}{self.attempt.solution.previous.variant}"
+                )
+            else:
+                self.window().set_status("")
+                self.attempt.update_cube()
+                self.history_is_stale = True
         except:
             pass
 
@@ -1286,6 +1301,8 @@ class CurrentSolutionWidget(QListWidget):
             super().keyPressEvent(event)  # Default behavior for other keys
 
     def activate_step(self, target: PartialSolution):
+        if target not in self.attempt.solutions_by_kind()[target.kind]:
+            return
         index = self.attempt.solutions_by_kind()[target.kind].index(target) + 1
         # Execute via self.commands to get this into the history
         cmd = self.window().commands
@@ -1304,6 +1321,7 @@ class CurrentSolutionWidget(QListWidget):
             inverse = False
         cmd.execute(f"set_inverse({inverse})")
         self.editItem(self.item(self.count() - 1))
+        self.window().format_saved_solutions()
 
 
 @dataclasses.dataclass

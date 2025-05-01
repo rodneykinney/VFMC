@@ -49,8 +49,11 @@ class PartialSolution:
         self.alg = alg
         self.orientation = Orientation.default_for(self)
 
-    def append(self, alg: Algorithm):
+    def append(self, alg: Algorithm) -> bool:
+        if not self.allows_moves(alg):
+            return False
         self.alg = self.alg.merge(alg)
+        return True
 
     def allows_moves(self, alg: Algorithm) -> bool:
         if self.previous is None:
@@ -157,10 +160,8 @@ class Attempt:
     def append(self, alg: Algorithm) -> bool:
         if self.inverse:
             alg = alg.on_inverse()
-        if not self.solution.allows_moves(alg):
+        if not self.solution.append(alg):
             return False
-
-        self.solution.append(alg)
         self.update_cube()
         return True
 
@@ -208,17 +209,6 @@ class Attempt:
         if not next:
             next = NEXT_STEPS[(self.solution.kind, self.solution.variant)][0]
         self.advance_to(*next)
-
-    def advance_or_reset(self):
-        sol = self.solution
-        next_steps = NEXT_STEPS.get((sol.kind, sol.variant), [])
-        next_step = DEFAULT_NEXT_STEPS.get((sol.kind, sol.variant))
-        if next_step is None and len(next_steps) == 1:
-            next_step = next_steps[0]
-        if next_step:
-            self.advance_to(*next_step)
-        else:
-            self.reset()
 
     def solutions_by_kind(self) -> Dict[str, List[PartialSolution]]:
         return self._saved_by_kind
@@ -318,7 +308,10 @@ class Attempt:
             )
             self._orientations[to_be_saved] = self.solution.orientation
         if is_solved:
-            self.reset()
+            if to_be_saved.kind in {"eo", "dr"}:
+                self.reset()
+            else:
+                self.advance()
         self.save_solutions([to_be_saved])
         return to_be_saved
 

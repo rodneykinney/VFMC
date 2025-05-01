@@ -2,7 +2,7 @@ from enum import Enum
 
 import math
 import numpy as np
-from PyQt5.QtCore import QTimer, Qt
+from PyQt5.QtCore import QTimer, Qt, QEvent
 from PyQt5.QtWidgets import QWidget
 from PyQt5.QtGui import QPainter, QColor, QPen, QBrush, QPolygon
 
@@ -147,6 +147,7 @@ class CubeViz:
 
         self.colors = [(1, 1, 1, 0.2)] * 54
         self.palette = None
+        self.hide_nearest_faces = False
 
     def init_camera(self, x, y, z):
         self.camera = np.array([x, y, z])
@@ -157,12 +158,32 @@ class CubeViz:
         screen_y_dir = np.cross(self.camera, self.screen_x_dir)
         self.screen_y_dir = screen_y_dir / np.linalg.norm(screen_y_dir)
 
-    def set_palette(self, p: "Palette"):
+    def set_palette(self, p: Palette):
         self.palette = p
         self.refresh()
 
+    def get_palette(self) -> Palette:
+        return self.palette or Palette.by_name(self.attempt.solution.kind)
+
+    def handle_toggle_view_event(self, obj, event):
+        if (
+            event.type() == QEvent.KeyPress
+            and event.key() == Qt.Key_Alt
+            and not event.isAutoRepeat()
+        ):
+            self.hide_nearest_faces = True
+            return True
+        if (
+            event.type() == QEvent.KeyRelease
+            and event.key() == Qt.Key_Alt
+            and not event.isAutoRepeat()
+        ):
+            self.hide_nearest_faces = False
+            return True
+        return False
+
     def refresh(self):
-        palette = self.palette or Palette.by_name(self.attempt.solution.kind)
+        palette = self.get_palette()
         self.colors = [palette.hidden_color] * 54
         self.colors[4] = palette.color_of(FaceletColors.WHITE, Visibility.BAD)
         self.colors[13] = palette.color_of(FaceletColors.ORANGE, Visibility.BAD)
@@ -259,8 +280,12 @@ class CubeViz:
         faces.sort(key=lambda x: -x[1])
         faces = [f for f, d in faces]
 
-        for face in faces:
+        hidden_color = self.get_palette().hidden_color
+        for f, face in enumerate(faces):
             for i in face:
+                color = self.colors[i]
+                if self.hide_nearest_faces and f >= 3:
+                    color = hidden_color
                 self.draw_facelet(
                     painter,
                     w,
@@ -269,7 +294,7 @@ class CubeViz:
                     facelet_x[i],
                     facelet_y[i],
                     facelet_z[i],
-                    self.colors[i],
+                    color,
                     axis[i],
                 )
 
