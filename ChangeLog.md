@@ -1,5 +1,8 @@
 # VFMC Release History
 
+## v0.5
+ - Hold option key to show back half of cube
+
 ## v0.4
  - GUI equivalents for all commands
 
