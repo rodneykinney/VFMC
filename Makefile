@@ -9,6 +9,7 @@ all: build
 icons:
 	@echo "Generating icon files from dist/vfmc-icon.png..."
 	# Create macOS icns file
+	rm -rf IconSet.iconset
 	mkdir -p IconSet.iconset
 	sips -z 16 16     dist/vfmc-icon.png --out IconSet.iconset/icon_16x16.png
 	sips -z 32 32     dist/vfmc-icon.png --out IconSet.iconset/icon_16x16@2x.png

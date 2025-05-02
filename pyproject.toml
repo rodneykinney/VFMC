@@ -1,6 +1,6 @@
 [project]
 name = "vfmc"
-version = "0.4.2"
+version = "0.5"
 
 dependencies = [
   "black~=25.1",
