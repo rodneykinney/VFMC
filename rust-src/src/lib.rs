@@ -18,10 +18,10 @@ use crate::fr::{FRFB, FRRL, FRUD};
 use crate::htr::{HTRFB, HTRRL, HTRUD};
 use crate::slice::{SliceFB, SliceRL, SliceUD};
 use crate::solver::scramble;
+use crate::Visibility::Any;
 use cubelib::algs::Algorithm as LibAlgorithm;
 use cubelib::cube::turn::{ApplyAlgorithm, Direction, Invertible, InvertibleMut};
-use cubelib::cube::{Corner, Cube333, Turn333};
-use crate::Visibility::BadFace;
+use cubelib::cube::{Corner, Cube333, Edge, Turn333};
 
 #[pyclass]
 struct Algorithm(LibAlgorithm);
@@ -215,33 +215,33 @@ fn vfmc_core(_py: Python, m: &PyModule) -> PyResult<()> {
     Ok(())
 }
 
-// trait DrawableEdge {
-//     fn facelet_showing_ud(&self) -> Option<u8>;
-//     fn facelet_showing_fb(&self) -> Option<u8>;
-//     fn facelet_showing_rl(&self) -> Option<u8>;
-// }
-// impl DrawableEdge for Edge {
-//     fn facelet_showing_ud(&self) -> Option<u8> {
-//         match self.id / 4 {
-//             1 => None,
-//             _ => Some(0),
-//         }
-//     }
-//     fn facelet_showing_fb(&self) -> Option<u8> {
-//         match self.id / 4 {
-//             1 => Some(0),
-//             i if i % 2 == 0 => Some(1),
-//             _ => None,
-//         }
-//     }
-//     fn facelet_showing_rl(&self) -> Option<u8> {
-//         match self.id / 4 {
-//             1 => Some(1),
-//             i if i % 2 == 1 => Some(0),
-//             _ => None,
-//         }
-//     }
-// }
+trait DrawableEdge {
+    fn facelet_showing_ud(&self) -> Option<u8>;
+    fn facelet_showing_fb(&self) -> Option<u8>;
+    fn facelet_showing_rl(&self) -> Option<u8>;
+}
+impl DrawableEdge for Edge {
+    fn facelet_showing_ud(&self) -> Option<u8> {
+        match self.id / 4 {
+            1 => None,
+            _ => Some(0),
+        }
+    }
+    fn facelet_showing_fb(&self) -> Option<u8> {
+        match self.id / 4 {
+            1 => Some(0),
+            _ if self.id % 2 == 0 => Some(1),
+            _ => None,
+        }
+    }
+    fn facelet_showing_rl(&self) -> Option<u8> {
+        match self.id / 4 {
+            1 => Some(1),
+            _ if self.id % 2 == 1 => Some(1),
+            _ => None,
+        }
+    }
+}
 
 #[pyfunction]
 fn debug(cube: &Cube) -> String {
@@ -309,7 +309,6 @@ impl StepInfo {
 
 #[pymethods]
 impl StepInfo {
-
     fn are_moves_allowed(&self, alg: &Algorithm) -> PyResult<bool> {
         let mut cube = Cube333::default();
         cube.apply_alg(&alg.0);
@@ -382,18 +381,19 @@ impl StepInfo {
 }
 
 pub enum Visibility {
-    GoodFace = 0,
-    BadFace = 1,
-    BadPieceGoodFace = 2,
-    UsedForCaseID = 3,
+    Any = 1,
+    BadFace = 2,
+    BadPiece = 4,
+    HtrD = 8,
+    HtrU = 16,
 }
 
 trait Solvable {
     fn is_solved(&self, cube: &Cube333) -> bool;
     fn is_eligible(&self, cube: &Cube333) -> bool;
     fn case_name(&self, cube: &Cube333) -> String;
-    fn edge_visibility(&self, cube: &Cube333, pos: usize, facelet: u8) -> Visibility;
-    fn corner_visibility(&self, cube: &Cube333, pos: usize, facelet: u8) -> Visibility;
+    fn edge_visibility(&self, cube: &Cube333, pos: usize, facelet: u8) -> u8;
+    fn corner_visibility(&self, cube: &Cube333, pos: usize, facelet: u8) -> u8;
     fn solve(&self, cube: &Cube333, count: usize) -> PyResult<Vec<Algorithm>>;
 }
 struct StepBuilder;
@@ -448,11 +448,11 @@ impl Solvable for SCRAMBLED {
     fn case_name(&self, _cube: &Cube333) -> String {
         "".to_string()
     }
-    fn edge_visibility(&self, _cube: &Cube333, _pos: usize, _facelet: u8) -> Visibility {
-        BadFace
+    fn edge_visibility(&self, _cube: &Cube333, _pos: usize, _facelet: u8) -> u8 {
+        Any as u8
     }
-    fn corner_visibility(&self, _cube: &Cube333, _pos: usize, _facelet: u8) -> Visibility {
-        BadFace
+    fn corner_visibility(&self, _cube: &Cube333, _pos: usize, _facelet: u8) -> u8 {
+        Any as u8
     }
     fn solve(&self, _cube: &Cube333, _count: usize) -> PyResult<Vec<Algorithm>> {
         Err(PyValueError::new_err("Direct solver is not implemented"))
@@ -517,6 +517,7 @@ const CORNER_OPPOSITE_M_SLICE: [u8; 8] = [1, 0, 3, 2, 5, 4, 7, 6];
 mod tests {
     use super::*;
     use crate::Solvable;
+    use crate::Visibility::BadFace;
 
     #[test]
     fn algorithm_append() {
@@ -563,12 +564,12 @@ mod tests {
             variant: "fb".to_string(),
         };
         let visibility = s.edge_visibility(&cube).unwrap();
-        assert!(visibility[2].0 == BadFace as u8);
+        assert!(visibility[2].0 & BadFace as u8 > 0);
         let s = StepInfo {
             kind: "htr".to_string(),
             variant: "ud".to_string(),
         };
         let visibility = s.edge_visibility(&cube).unwrap();
-        assert!(visibility[0].0 == BadFace as u8);
+        assert!(visibility[0].0 & BadFace as u8 > 0);
     }
 }

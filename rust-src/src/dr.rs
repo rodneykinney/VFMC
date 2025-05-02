@@ -1,6 +1,10 @@
 use crate::eo::{EOFB, EORL, EOUD};
 use crate::solver::{solve_step, step_config};
-use crate::{Algorithm, DrawableCorner, Solvable, Visibility};
+use crate::Visibility::{Any, BadFace, BadPiece};
+use crate::{
+    Algorithm, DrawableCorner, DrawableEdge, Solvable, EDGE_FB_FACELETS, EDGE_RL_FACELETS,
+    EDGE_UD_FACELETS,
+};
 use cubelib::cube::turn::TransformableMut;
 use cubelib::cube::{Corner, Cube333, Transformation333};
 use cubelib::defs::StepKind;
@@ -8,7 +12,6 @@ use cubelib::steps::coord::Coord;
 use cubelib::steps::dr::coords::DRUDEOFBCoord;
 use cubelib::steps::eo::coords::BadEdgeCount;
 use pyo3::PyResult;
-use crate::Visibility::{GoodFace, BadFace, BadPieceGoodFace};
 
 pub struct DRUD;
 impl Solvable for DRUD {
@@ -32,26 +35,29 @@ impl Solvable for DRUD {
         let bad_edge_count = cube.count_bad_edges_lr() + cube.count_bad_edges_fb();
         format!("{}c{}e", bad_corner_count, bad_edge_count)
     }
-    fn edge_visibility(&self, cube: &Cube333, pos: usize, _facelet: u8) -> Visibility {
+    fn edge_visibility(&self, cube: &Cube333, pos: usize, _facelet: u8) -> u8 {
         let e = cube.edges.get_edges()[pos];
+        let mut v = Any as u8;
         if !e.oriented_fb || !e.oriented_rl {
-            BadFace
-        } else {
-            GoodFace
-        }
-    }
-    fn corner_visibility(&self, cube: &Cube333, pos: usize, facelet: u8) -> Visibility {
-        let c = cube.corners.get_corners()[pos];
-        if !c.oriented_ud(pos as u8) {
-            if facelet == c.facelet_showing_ud() {
-                BadFace
-            } else {
-                BadPieceGoodFace
+            v |= BadPiece as u8;
+            match pos {
+                4 | 5 | 6 | 7 if Some(_facelet) == e.facelet_showing_ud() => v |= BadFace as u8,
+                _ if Some(_facelet) == EDGE_UD_FACELETS[pos] => v |= BadFace as u8,
+                _ => (),
             }
         }
-        else {
-            GoodFace
+        v
+    }
+    fn corner_visibility(&self, cube: &Cube333, pos: usize, facelet: u8) -> u8 {
+        let c = cube.corners.get_corners()[pos];
+        let mut v = Any as u8;
+        if !c.oriented_ud(pos as u8) {
+            v |= BadPiece as u8;
+            if facelet == c.facelet_showing_ud() {
+                v |= BadFace as u8;
+            }
         }
+        v
     }
     fn solve(&self, cube: &Cube333, count: usize) -> PyResult<Vec<Algorithm>> {
         solve_step(cube, step_config(StepKind::DR, "ud"), count, true)
@@ -73,26 +79,29 @@ impl Solvable for DRFB {
         cube.transform(Transformation333::X);
         DRUD.case_name(&cube)
     }
-    fn edge_visibility(&self, cube: &Cube333, pos: usize, _facelet: u8) -> Visibility {
+    fn edge_visibility(&self, cube: &Cube333, pos: usize, _facelet: u8) -> u8 {
         let e = cube.edges.get_edges()[pos];
+        let mut v = Any as u8;
         if !e.oriented_ud || !e.oriented_rl {
-            BadFace
-        } else {
-            GoodFace
-        }
-    }
-    fn corner_visibility(&self, cube: &Cube333, pos: usize, facelet: u8) -> Visibility {
-        let c = cube.corners.get_corners()[pos];
-        if !c.oriented_fb(pos as u8) {
-            if facelet == c.facelet_showing_fb() {
-                BadFace
-            } else {
-                BadPieceGoodFace
+            v |= BadPiece as u8;
+            match pos {
+                1 | 3 | 9 | 11 if Some(_facelet) == e.facelet_showing_fb() => v |= BadFace as u8,
+                _ if Some(_facelet) == EDGE_FB_FACELETS[pos] => v |= BadFace as u8,
+                _ => (),
             }
         }
-        else {
-            GoodFace
+        v
+    }
+    fn corner_visibility(&self, cube: &Cube333, pos: usize, facelet: u8) -> u8 {
+        let c = cube.corners.get_corners()[pos];
+        let mut v = Any as u8;
+        if !c.oriented_fb(pos as u8) {
+            v |= BadPiece as u8;
+            if facelet == c.facelet_showing_fb() {
+                v |= BadFace as u8;
+            }
         }
+        v
     }
     fn solve(&self, cube: &Cube333, count: usize) -> PyResult<Vec<Algorithm>> {
         solve_step(cube, step_config(StepKind::DR, "fb"), count, true)
@@ -113,28 +122,29 @@ impl Solvable for DRRL {
         cube.transform(Transformation333::Z);
         DRUD.case_name(&cube)
     }
-    fn edge_visibility(&self, cube: &Cube333, pos: usize, _facelet: u8) -> Visibility {
+    fn edge_visibility(&self, cube: &Cube333, pos: usize, _facelet: u8) -> u8 {
         let e = cube.edges.get_edges()[pos];
+        let mut v = Any as u8;
         if !e.oriented_fb || !e.oriented_ud {
-            BadFace
+            v |= BadPiece as u8;
+            match pos {
+                0 | 2 | 8 | 10 if Some(_facelet) == e.facelet_showing_rl() => v |= BadFace as u8,
+                _ if Some(_facelet) == EDGE_RL_FACELETS[pos] => v |= BadFace as u8,
+                _ => (),
+            }
         }
-        else {
-            GoodFace
-        }
+        v
     }
-    fn corner_visibility(&self, cube: &Cube333, pos: usize, facelet: u8) -> Visibility {
+    fn corner_visibility(&self, cube: &Cube333, pos: usize, facelet: u8) -> u8 {
         let c = cube.corners.get_corners()[pos];
+        let mut v = Any as u8;
         if !c.oriented_rl(pos as u8) {
+            v |= BadPiece as u8;
             if facelet == c.facelet_showing_rl() {
-                BadFace
-            }
-            else {
-                BadPieceGoodFace
+                v |= BadFace as u8;
             }
         }
-        else {
-            GoodFace
-        }
+        v
     }
     fn solve(&self, cube: &Cube333, count: usize) -> PyResult<Vec<Algorithm>> {
         solve_step(cube, step_config(StepKind::DR, "lr"), count, true)

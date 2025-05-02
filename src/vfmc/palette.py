@@ -1,9 +1,7 @@
 from enum import Enum
-import functools
-from linecache import cache
 from typing import Dict, Tuple, List
 
-from black.trans import defaultdict
+from vfmc.prefs import preferences, RecognitionOptionNames
 
 
 class FaceletColors(Enum):
@@ -16,104 +14,82 @@ class FaceletColors(Enum):
     HIDDEN = 6
 
 
-class Visibility(Enum):
-    IRRELEVANT = 0
-    BAD = 1
-    GOOD_ON_BAD = 2
-    RELEVANT = 3
+class Visibility:
+    Any = 1
+    BadFace = 2
+    BadPiece = 4
+    HtrD = 8
+    HtrU = 16
+    All = 255
 
 
-_HIGH_VISILIBITY = 237
+_visibility_options = {
+    RecognitionOptionNames.BAD_FACES: Visibility.BadFace,
+    RecognitionOptionNames.BAD_PIECES: Visibility.BadPiece,
+    RecognitionOptionNames.TOP_COLOR: Visibility.HtrU,
+    RecognitionOptionNames.BOTTOM_COLOR: Visibility.HtrD,
+    RecognitionOptionNames.ALL: Visibility.All,
+}
+
 _MEDIUM_VISIBILITY = 110
 _LOW_VISIBILITY = 51
-
-opacity_names = {
-    "high": _HIGH_VISILIBITY,
-    "med": _MEDIUM_VISIBILITY,
-    "low": _LOW_VISIBILITY,
-    "none": 0,
-}
-
-vis_names = {
-    "irrelevant": Visibility.IRRELEVANT,
-    "relevant": Visibility.RELEVANT,
-    "bad": Visibility.BAD,
-    "good_on_bad": Visibility.GOOD_ON_BAD,
-}
 
 
 class Palette:
     def __init__(
         self,
         colors: Dict[FaceletColors, Tuple],
-        opacities: Dict[Visibility, int],
+        edge_visibility_mask: int,
+        corner_visibility_mask: int,
         hidden_color: Tuple,
+        opacity: int,
     ):
         self.colors = colors
-        self.opacities = opacities
+        self.edge_visibility_mask = edge_visibility_mask
+        self.corner_visibility_mask = corner_visibility_mask
         self.hidden_color = hidden_color
+        self.opacity = opacity
 
-    def configure(self, d):
-        o = dict((vis_names[k], opacity_names[v]) for k, v in d.items())
-        o = {}
-        for k, v in d.items():
-            vis = vis_names[k]
-            if v == "none":
-                if vis in self.opacities:
-                    del self.opacities[vis]
-            else:
-                o[vis] = opacity_names[v]
-        self.opacities.update(o)
-
-    def color_of(self, f: FaceletColors, v: Visibility) -> Tuple:
-        if v not in self.opacities:
+    def color_of_edge(self, f: FaceletColors, visibility: int) -> Tuple:
+        if visibility & self.edge_visibility_mask == 0:
             return self.hidden_color
-        return self.colors[f] + (self.opacities[v],)
+        return self.colors[f] + (self.opacity,)
+
+    def color_of_corner(self, f: FaceletColors, visibility: int) -> Tuple:
+        if visibility & self.corner_visibility_mask == 0:
+            return self.hidden_color
+        return self.colors[f] + (self.opacity,)
 
     @staticmethod
-    def names() -> List[str]:
-        return ["bad", "all"]
-
-    @staticmethod
-    def _default() -> "Palette":
-        c = {
-            FaceletColors.WHITE: (255, 255, 255),
-            FaceletColors.YELLOW: (255, 255, 0),
-            FaceletColors.GREEN: (0, 153, 0),
-            FaceletColors.BLUE: (0, 0, 255),
-            FaceletColors.RED: (255, 0, 0),
-            FaceletColors.ORANGE: (255, 94, 51),  # (255, 204, 25),
-        }
-        o = {
-            Visibility.BAD: _HIGH_VISILIBITY,
-        }
-        return Palette(c, o, (255, 255, 255, _LOW_VISIBILITY))
-
-    @staticmethod
-    @functools.lru_cache(maxsize=None)
     def by_name(name) -> "Palette":
+        colors = dict((FaceletColors(k), tuple(v)) for k,v in enumerate(preferences.colors))
+        p = Palette(colors, 0, 0, (255, 255, 255, _LOW_VISIBILITY), preferences.opacity)
+        options = [], []
         if name == "eo":
-            return Palette._default()
+            options = (
+                preferences.recognition.eo_edges,
+                preferences.recognition.eo_corners,
+            )
         elif name == "dr":
-            p = Palette._default()
-            return p
+            options = (
+                preferences.recognition.dr_edges,
+                preferences.recognition.dr_corners,
+            )
         elif name == "htr":
-            p = Palette._default()
-            p.opacities.update(
-                {
-                    Visibility.RELEVANT: _HIGH_VISILIBITY,
-                }
+            options = (
+                preferences.recognition.htr_edges,
+                preferences.recognition.htr_corners,
             )
-            return p
-        elif name == "all":
-            p = Palette._default()
-            p.opacities.update(
-                {
-                    Visibility.GOOD_ON_BAD: _HIGH_VISILIBITY,
-                    Visibility.RELEVANT: _HIGH_VISILIBITY,
-                    Visibility.IRRELEVANT: _HIGH_VISILIBITY,
-                }
+        elif name == "fr":
+            options = (
+                preferences.recognition.fr_edges,
+                preferences.recognition.fr_corners,
             )
-            return p
         else:
-            return Palette._default()
+            p.edge_visibility_mask = Visibility.All
+            p.corner_visibility_mask = Visibility.All
+        for opt in options[0]:
+            p.edge_visibility_mask |= _visibility_options.get(opt, 0)
+        for opt in options[1]:
+            p.corner_visibility_mask |= _visibility_options.get(opt, 0)
+        return p

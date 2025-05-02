@@ -216,17 +216,11 @@ class Attempt:
     def solutions_for_step(self, kind: str, variant: str) -> List[PartialSolution]:
         return [s for s in self._saved_by_kind.get(kind, []) if s.variant == s.variant]
 
-    def corner_visibility(self) -> List[Tuple[Visibility, Visibility, Visibility]]:
-        return [
-            (Visibility(t[0]), Visibility(t[1]), Visibility(t[2]))
-            for t in self.solution.step_info.corner_visibility(self.cube)
-        ]
+    def corner_visibility(self) -> List[Tuple[int, int, int]]:
+        return self.solution.step_info.corner_visibility(self.cube)
 
-    def edge_visibility(self) -> List[Tuple[Visibility, Visibility]]:
-        return [
-            (Visibility(t[0]), Visibility(t[1]))
-            for t in self.solution.step_info.edge_visibility(self.cube)
-        ]
+    def edge_visibility(self) -> List[Tuple[int, int]]:
+        return self.solution.step_info.edge_visibility(self.cube)
 
     def last_solved_step(self) -> Optional[PartialSolution]:
         for step in reversed(self.solution.substeps()):

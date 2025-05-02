@@ -8,6 +8,7 @@ from PyQt5.QtGui import QPainter, QColor, QPen, QBrush, QPolygon
 
 from vfmc.attempt import PartialSolution, Attempt, Orientation, AXIS_ROTATIONS
 from vfmc.palette import FaceletColors, Visibility, Palette
+from vfmc.prefs import preferences
 from vfmc_core import Cube, StepInfo
 from pyquaternion import Quaternion
 
@@ -139,6 +140,7 @@ class CubeViz:
     ):
         self.attempt = attempt
         self.attempt.add_cube_listener(self.refresh)
+        preferences.add_listener(self.refresh)
 
         # Initial camera position
         self.init_camera(0, -10, 6)
@@ -185,20 +187,22 @@ class CubeViz:
     def refresh(self):
         palette = self.get_palette()
         self.colors = [palette.hidden_color] * 54
-        self.colors[4] = palette.color_of(FaceletColors.WHITE, Visibility.BAD)
-        self.colors[13] = palette.color_of(FaceletColors.ORANGE, Visibility.BAD)
-        self.colors[22] = palette.color_of(FaceletColors.GREEN, Visibility.BAD)
-        self.colors[31] = palette.color_of(FaceletColors.RED, Visibility.BAD)
-        self.colors[40] = palette.color_of(FaceletColors.BLUE, Visibility.BAD)
-        self.colors[49] = palette.color_of(FaceletColors.YELLOW, Visibility.BAD)
+        self.colors[4] = palette.color_of_edge(FaceletColors.WHITE, Visibility.All)
+        self.colors[13] = palette.color_of_edge(FaceletColors.ORANGE, Visibility.All)
+        self.colors[22] = palette.color_of_edge(FaceletColors.GREEN, Visibility.All)
+        self.colors[31] = palette.color_of_edge(FaceletColors.RED, Visibility.All)
+        self.colors[40] = palette.color_of_edge(FaceletColors.BLUE, Visibility.All)
+        self.colors[49] = palette.color_of_edge(FaceletColors.YELLOW, Visibility.All)
         corners = self.attempt.cube.corners()
         corner_visibility = self.attempt.corner_visibility()
         for i in range(0, 8):
             piece_id, orientation = corners[i]
             for side in range(0, 3):
                 face = (side + 3 - orientation) % 3
-                self.colors[corner_position_facelets[i][side]] = palette.color_of(
-                    corner_piece_colors[piece_id][face], corner_visibility[i][side]
+                self.colors[corner_position_facelets[i][side]] = (
+                    palette.color_of_corner(
+                        corner_piece_colors[piece_id][face], corner_visibility[i][side]
+                    )
                 )
         edges = self.attempt.cube.edges()
         edge_visibility = self.attempt.edge_visibility()
@@ -207,7 +211,7 @@ class CubeViz:
             orientation = default_orientation[home_slice[piece_id] ^ home_slice[i]]
             flipped = 0 if piece_orientation == orientation else 1
             for side in range(0, 2):
-                self.colors[edge_position_facelets[i][side]] = palette.color_of(
+                self.colors[edge_position_facelets[i][side]] = palette.color_of_edge(
                     edge_piece_colors[edges[i][0]][(side + flipped) % 2],
                     edge_visibility[i][side],
                 )
@@ -286,6 +290,8 @@ class CubeViz:
                 color = self.colors[i]
                 if self.hide_nearest_faces and f >= 3:
                     color = hidden_color
+                if f < 3 and color != hidden_color:
+                    color = color[:3] + (255,)
                 self.draw_facelet(
                     painter,
                     w,

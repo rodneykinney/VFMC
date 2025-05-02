@@ -1,13 +1,13 @@
-use crate::htr::{HTRFB, HTRUD, HTRRL};
+use crate::htr::{HTRFB, HTRRL, HTRUD};
 use crate::solver::{solve_step, step_config};
-use crate::{Algorithm, Solvable, Visibility};
+use crate::Visibility::{Any, BadFace, BadPiece};
+use crate::{Algorithm, Solvable};
 use cubelib::cube::turn::TransformableMut;
 use cubelib::cube::{Cube333, Transformation333};
 use cubelib::defs::StepKind;
 use cubelib::steps::coord::Coord;
 use cubelib::steps::finish::coords::HTRLeaveSliceFinishCoord;
 use pyo3::PyResult;
-use crate::Visibility::{GoodFace, BadFace};
 
 pub struct SliceUD;
 impl Solvable for SliceUD {
@@ -29,7 +29,7 @@ impl Solvable for SliceUD {
                 bad_edge_count += 1;
             }
         }
-        for i in 8.. 12 {
+        for i in 8..12 {
             if edges[i].id as usize != i {
                 bad_edge_count += 1;
             }
@@ -42,16 +42,16 @@ impl Solvable for SliceUD {
         format!("{}c{}e", bad_corner_count, bad_edge_count).to_string()
     }
 
-    fn edge_visibility(&self, _cube: &Cube333, pos: usize, _facelet: u8) -> Visibility {
+    fn edge_visibility(&self, _cube: &Cube333, pos: usize, _facelet: u8) -> u8 {
         if pos < 4 || pos > 7 {
-            BadFace
+            BadPiece as u8 | BadFace as u8
         } else {
-            GoodFace
+            Any as u8
         }
     }
 
-    fn corner_visibility(&self, _cube: &Cube333, _pos: usize, _facelet: u8) -> Visibility {
-        BadFace
+    fn corner_visibility(&self, _cube: &Cube333, _pos: usize, _facelet: u8) -> u8 {
+        BadFace as u8 | BadPiece as u8
     }
     fn solve(&self, cube: &Cube333, count: usize) -> PyResult<Vec<Algorithm>> {
         solve_step(cube, step_config(StepKind::FINLS, ""), count, false)
@@ -75,15 +75,15 @@ impl Solvable for SliceFB {
         SliceUD.case_name(&cube)
     }
 
-    fn edge_visibility(&self, _cube: &Cube333, pos: usize, _facelet: u8) -> Visibility {
+    fn edge_visibility(&self, _cube: &Cube333, pos: usize, _facelet: u8) -> u8 {
         match pos {
-            1 | 3 | 9 | 11 => GoodFace,
-            _ => BadFace,
+            1 | 3 | 9 | 11 => Any as u8,
+            _ => BadPiece as u8 | BadFace as u8,
         }
     }
 
-    fn corner_visibility(&self, _cube: &Cube333, _pos: usize, _facelet: u8) -> Visibility {
-        BadFace
+    fn corner_visibility(&self, _cube: &Cube333, _pos: usize, _facelet: u8) -> u8 {
+        BadPiece as u8 | BadFace as u8
     }
     fn solve(&self, cube: &Cube333, count: usize) -> PyResult<Vec<Algorithm>> {
         solve_step(cube, step_config(StepKind::FINLS, ""), count, false)
@@ -108,15 +108,15 @@ impl Solvable for SliceRL {
         SliceUD.case_name(&cube)
     }
 
-    fn edge_visibility(&self, _cube: &Cube333, pos: usize, _facelet: u8) -> Visibility {
+    fn edge_visibility(&self, _cube: &Cube333, pos: usize, _facelet: u8) -> u8 {
         match pos {
-            0 | 2 | 8 | 10 => GoodFace,
-            _ => BadFace,
+            0 | 2 | 8 | 10 => Any as u8,
+            _ => BadPiece as u8 | BadFace as u8,
         }
     }
 
-    fn corner_visibility(&self, _cube: &Cube333, _pos: usize, _facelet: u8) -> Visibility {
-        BadFace
+    fn corner_visibility(&self, _cube: &Cube333, _pos: usize, _facelet: u8) -> u8 {
+        BadPiece as u8 | BadFace as u8
     }
     fn solve(&self, cube: &Cube333, count: usize) -> PyResult<Vec<Algorithm>> {
         solve_step(cube, step_config(StepKind::FINLS, ""), count, false)
@@ -125,12 +125,9 @@ impl Solvable for SliceRL {
 
 #[cfg(test)]
 mod tests {
-    use crate::Cube;
     use super::*;
+    use crate::Cube;
     use cubelib::cube::turn::TurnableMut;
-    use cubelib::cube::Cube333;
-    use cubelib::cube::CubeFace;
-    use cubelib::cube::Direction;
 
     #[test]
     fn test_slice_ud() {

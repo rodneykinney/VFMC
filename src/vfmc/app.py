@@ -6,9 +6,11 @@ import logging
 import traceback
 import functools
 import re
+import json
 from functools import cached_property
 from typing import Optional, List, Tuple, Dict, Set, Optional
 from importlib.metadata import version
+from pathlib import Path
 
 from PyQt5.QtWidgets import (
     QApplication,
@@ -32,12 +34,16 @@ from PyQt5.QtWidgets import (
     QAction,
     QFileDialog,
     QCheckBox,
+    QDialog,
+    QDialogButtonBox,
+    QGroupBox,
 )
 from PyQt5.QtCore import Qt, QEvent
 from PyQt5.QtGui import QKeySequence
 
 import vfmc.viz
 from vfmc.attempt import PartialSolution, Attempt, step_name
+from vfmc import prefs
 from vfmc.viz import CubeViz, DisplayOption, CubeWidget, Palette
 from vfmc_core import Cube, Algorithm, StepInfo, scramble as gen_scramble
 
@@ -306,16 +312,12 @@ class AppWindow(QMainWindow):
         w = self._empty_container(QVBoxLayout())
         w.layout().setAlignment(Qt.AlignLeft)
         w.layout().addWidget(step_selector)
-        l = QCheckBox("Draw Entire Cube")
 
-        def display_changed():
-            if l.checkState():
-                self.viz.set_palette(Palette.by_name("all"))
-            else:
-                self.viz.set_palette(None)
+        # Preferences button
+        pref_button = QPushButton("Display Preferences")
+        pref_button.clicked.connect(lambda: prefs.show_dialog(self))
+        w.layout().addWidget(pref_button)
 
-        l.stateChanged.connect(display_changed)
-        w.layout().addWidget(l)
         gui_widget.layout().addWidget(w)
 
         gui_widget.layout().addWidget(QWidget(), 1)
@@ -1068,10 +1070,6 @@ class Commands:
                 if item.data(SOLUTION) == sol:
                     return item
         return None
-
-    def visibility(self, **kwargs):
-        vfmc.palette.Palette.by_name(self.attempt.solution.kind).configure(kwargs)
-        self.window.viz.refresh()
 
     def done(self):
         sol = self.attempt.solution
