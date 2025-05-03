@@ -1,6 +1,9 @@
 # VFMC Release History
 
 ## v0.5
+ - Configurable transparency
+ - Configuration colors
+ - Configurable step recognition display
  - Hold option key to show back half of cube
 
 ## v0.4

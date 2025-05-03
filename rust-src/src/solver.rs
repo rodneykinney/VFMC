@@ -113,10 +113,7 @@ where
     let mut tables = Box::new(PruningTables333::new());
     let mut step_configs = match cfg.kind {
         StepKind::DR => vec![step_config(StepKind::EO, "")],
-        StepKind::HTR => vec![
-            step_config(StepKind::EO, ""),
-            step_config(StepKind::DR, ""),
-        ],
+        StepKind::HTR => vec![step_config(StepKind::EO, ""), step_config(StepKind::DR, "")],
         StepKind::FR | StepKind::FRLS | StepKind::FINLS | StepKind::FIN => vec![
             step_config(StepKind::EO, ""),
             step_config(StepKind::DR, ""),
@@ -124,7 +121,10 @@ where
         ],
         _ => vec![],
     };
-    step_configs.iter_mut().for_each(|config| {config.step_limit = Some(1); config.max=Some(0);});
+    step_configs.iter_mut().for_each(|config| {
+        config.step_limit = Some(1);
+        config.max = Some(0);
+    });
     step_configs.push(cfg);
     gen_tables(&step_configs, &mut tables);
 
