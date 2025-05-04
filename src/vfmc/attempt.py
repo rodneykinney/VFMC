@@ -302,7 +302,7 @@ class Attempt:
             )
             self._orientations[to_be_saved] = self.solution.orientation
         if is_solved:
-            if to_be_saved.kind in {"eo", "dr"}:
+            if to_be_saved.kind in {"eo", "dr", "finish"}:
                 self.reset()
             else:
                 self.advance()

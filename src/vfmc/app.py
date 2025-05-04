@@ -44,6 +44,7 @@ from PyQt5.QtGui import QKeySequence
 import vfmc.viz
 from vfmc.attempt import PartialSolution, Attempt, step_name
 from vfmc import prefs
+from vfmc.prefs import preferences
 from vfmc.viz import CubeViz, DisplayOption, CubeWidget, Palette
 from vfmc_core import Cube, Algorithm, StepInfo, scramble as gen_scramble
 
@@ -162,27 +163,34 @@ class AppWindow(QMainWindow):
         status_layout.setContentsMargins(0, 0, 0, 0)
         status_layout.setSpacing(0)
 
-        bg = str(hex(vfmc.viz.BACKGROUND_COLOR))[2:]
-        label_style = f"background-color: #{bg}{bg}{bg}; color: white; font-weight: bold; font-size: 18px; padding: 5px;"
         # Left label - Step kind and variant
         step_label = QLabel("Step")
-        step_label.setStyleSheet(label_style)
         step_label.setMinimumHeight(40)
         status_layout.addWidget(step_label, 1)  # Give it a stretch factor of 1
 
         # Inverse marker
         niss_label = QLabel("NISS")
-        niss_label.setStyleSheet(label_style)
         niss_label.setAlignment(Qt.AlignCenter)
         niss_label.setMinimumHeight(40)
         status_layout.addWidget(niss_label, 1)  # Give it a stretch factor of 1
 
         # Right label - Case name
         case_label = QLabel("Case")
-        case_label.setStyleSheet(label_style)
         case_label.setAlignment(Qt.AlignRight)
         case_label.setMinimumHeight(40)
         status_layout.addWidget(case_label, 1)  # Give it a stretch factor of 1
+
+        def update_bg_color():
+            bg = str(hex(preferences.background_color))[2:]
+            text_color = 255 if preferences.background_color < 128 else 0
+            tc = str(hex(text_color))[2:]
+            label_style = f"background-color: #{bg}{bg}{bg}; color: #{tc}{tc}{tc}; font-weight: bold; font-size: 18px; padding: 5px;"
+            step_label.setStyleSheet(label_style)
+            niss_label.setStyleSheet(label_style)
+            case_label.setStyleSheet(label_style)
+
+        update_bg_color()
+        preferences.add_listener(update_bg_color)
 
         def refresh():
             sol = self.attempt.solution

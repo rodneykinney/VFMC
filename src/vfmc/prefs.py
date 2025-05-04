@@ -30,6 +30,7 @@ class RecognitionOptionNames:
     BOTTOM_COLOR = "bottom color"
     ALL = "all"
 
+
 _DEFAULT_COLORS = [
     (255, 255, 255),
     (255, 255, 0),
@@ -38,6 +39,7 @@ _DEFAULT_COLORS = [
     (255, 0, 0),
     (255, 94, 51),  # (255, 204, 25),
 ]
+
 
 @dataclass
 class RecognitionOptions:
@@ -83,6 +85,7 @@ class RecognitionOptions:
 @dataclass
 class Preferences:
     opacity: int = 237
+    background_color: int = 77
     colors: List[Tuple] = field(default_factory=lambda: _DEFAULT_COLORS)
     recognition: RecognitionOptions = field(default_factory=RecognitionOptions.default)
     listeners: List = field(default_factory=list)
@@ -94,7 +97,8 @@ class Preferences:
         prefs = {
             "opacity": self.opacity,
             "display": asdict(self.recognition),
-            "colors": self.colors
+            "colors": self.colors,
+            "background": self.background_color,
         }
 
         try:
@@ -125,10 +129,12 @@ class Preferences:
                     colors = prefs.get("colors", [])
                     if len(colors) != len(_DEFAULT_COLORS):
                         colors = _DEFAULT_COLORS
+                    bg = prefs.get("background", 77)
                     return Preferences(
-                        opacity = opacity,
-                        colors = colors,
+                        opacity=opacity,
+                        colors=colors,
                         recognition=RecognitionOptions(**recognition),
+                        background_color=bg,
                     )
             except Exception as e:
                 logging.error(f"Error loading preferences: {e}")
@@ -160,12 +166,12 @@ class PreferencesDialog(QDialog):
 
         layout = QVBoxLayout()
         self.setLayout(layout)
-        layout.addWidget(self.opacity_controller)
-        layout.addWidget(self.color_choosers)
-        layout.addWidget(self.eo_recognition_options)
-        layout.addWidget(self.dr_recognition_options)
-        layout.addWidget(self.htr_recognition_options)
-        layout.addWidget(self.fr_recognition_options)
+        layout.addWidget(self.opacity_widget)
+        layout.addWidget(self.colors_widget)
+        layout.addWidget(self.eo_widget)
+        layout.addWidget(self.dr_widget)
+        layout.addWidget(self.htr_widget)
+        layout.addWidget(self.fr_widget)
 
         def close():
             preferences.save()
@@ -225,78 +231,97 @@ class PreferencesDialog(QDialog):
         return group
 
     @cached_property
-    def color_choosers(self) -> QWidget:
+    def colors_widget(self) -> QWidget:
+        w = QWidget()
+        l = QHBoxLayout()
+        w.setLayout(l)
+        l.addWidget(self.cube_colors_widget)
+        l.addWidget(self.background_widget)
+        return w
+
+    @cached_property
+    def cube_colors_widget(self) -> QWidget:
         group = QGroupBox("Colors")
         layout = QHBoxLayout()
         group.setLayout(layout)
-        
+
         col = [QVBoxLayout(), QVBoxLayout(), QVBoxLayout()]
         for c in col:
             layout.addLayout(c)
-        
-        color_names = ["U","D","F","B","R","L"]
+
+        color_names = ["U", "D", "F", "B", "R", "L"]
         color_buttons = []
         for i, color in enumerate(preferences.colors):
             color_button = QWidget()
             color_button.setFixedSize(30, 30)
-            color_button.setStyleSheet(f"background-color: rgb({color[0]}, {color[1]}, {color[2]}); border: 1px solid black;")
+            color_button.setStyleSheet(
+                f"background-color: rgb({color[0]}, {color[1]}, {color[2]}); border: 1px solid black;"
+            )
             color_button.setCursor(Qt.PointingHandCursor)
             color_button.setToolTip(color_names[i])
-            
+
             # Store the index for the clicked callback
             color_button.index = i
-            
+
             # Connect mouse press event via installEventFilter
-            color_button.mousePressEvent = lambda event, idx=i: self._show_color_dialog(idx)
-            
+            color_button.mousePressEvent = lambda event, idx=i: self._show_color_dialog(
+                idx
+            )
+
             color_buttons.append(color_button)
             col[int(i / 2)].addWidget(color_button)
 
         def reset():
             preferences.colors = _DEFAULT_COLORS
-            for i,c in enumerate(preferences.colors):
-                color_buttons[i].setStyleSheet(f"background-color: rgb({c[0]}, {c[1]}, {c[2]}); border: 1px solid black;")
+            for i, c in enumerate(preferences.colors):
+                color_buttons[i].setStyleSheet(
+                    f"background-color: rgb({c[0]}, {c[1]}, {c[2]}); border: 1px solid black;"
+                )
             preferences.notify()
+
         reset_button = QPushButton("Reset")
         layout.addWidget(reset_button)
         reset_button.clicked.connect(reset)
-        # Add a spacer to push everything to the left
+
+        layout.addWidget(self.background_widget)
+
         layout.addStretch(1)
-        
+
         return group
-        
+
     def _show_color_dialog(self, index):
         """Show a color dialog for selecting the color at the specified index"""
         from PyQt5.QtWidgets import QColorDialog
         from PyQt5.QtGui import QColor
-        
+
         # Store a reference to self inside the color picker
         # This helps maintain the parent relationship
         self._current_color_picker = QColorDialog(self)
-        
+
         # Set up the dialog with current color
         current_color = preferences.colors[index]
         initial_color = QColor(current_color[0], current_color[1], current_color[2])
         self._current_color_picker.setCurrentColor(initial_color)
         self._current_color_picker.setWindowTitle(f"Select Color {index+1}")
-        
+
         # Define callback for when a color is selected
         def on_color_selected(color):
             if color.isValid():
                 # Update the color in preferences
                 new_color = (color.red(), color.green(), color.blue())
                 preferences.colors[index] = new_color
-                
+
                 # Update the button appearance
                 for button in self.findChildren(QWidget):
-                    if hasattr(button, 'index') and button.index == index:
+                    if hasattr(button, "index") and button.index == index:
                         button.setStyleSheet(
-                            f"background-color: rgb({new_color[0]}, {new_color[1]}, {new_color[2]}); border: 1px solid black;")
+                            f"background-color: rgb({new_color[0]}, {new_color[1]}, {new_color[2]}); border: 1px solid black;"
+                        )
                         break
-                
+
                 # Notify listeners about the change
                 preferences.notify()
-        
+
         # Connect signal and show the dialog
         self._current_color_picker.colorSelected.connect(on_color_selected)
         self._current_color_picker.finished.connect(lambda: self.activateWindow())
@@ -304,7 +329,7 @@ class PreferencesDialog(QDialog):
         self._current_color_picker.show()
 
     @cached_property
-    def eo_recognition_options(self) -> QWidget:
+    def eo_widget(self) -> QWidget:
         minimal = RecognitionOptions.minimal()
         return self.step_options(
             "EO Recognition",
@@ -317,7 +342,7 @@ class PreferencesDialog(QDialog):
         )
 
     @cached_property
-    def dr_recognition_options(self) -> QWidget:
+    def dr_widget(self) -> QWidget:
         minimal = RecognitionOptions.minimal()
         return self.step_options(
             "DR Recognition",
@@ -338,7 +363,7 @@ class PreferencesDialog(QDialog):
         )
 
     @cached_property
-    def htr_recognition_options(self) -> QWidget:
+    def htr_widget(self) -> QWidget:
         minimal = RecognitionOptions.minimal()
         return self.step_options(
             "HTR Recognition",
@@ -363,7 +388,7 @@ class PreferencesDialog(QDialog):
         )
 
     @cached_property
-    def fr_recognition_options(self) -> QWidget:
+    def fr_widget(self) -> QWidget:
         minimal = RecognitionOptions.minimal()
         return self.step_options(
             "FR Recognition",
@@ -384,13 +409,33 @@ class PreferencesDialog(QDialog):
         )
 
     @cached_property
-    def opacity_controller(self) -> QWidget:
+    def background_widget(self) -> QWidget:
+        group = QGroupBox("Background Color")
+        layout = QHBoxLayout()
+        group.setLayout(layout)
+        slider = QSlider(Qt.Horizontal)
+        layout.addWidget(slider)
+        layout.addStretch(1)
+        slider.setMinimum(0)
+        slider.setMaximum(255)
+        slider.setValue(preferences.background_color)
+
+        def update():
+            preferences.background_color = slider.value()
+            preferences.notify()
+
+        slider.valueChanged.connect(update)
+
+        return group
+
+    @cached_property
+    def opacity_widget(self) -> QWidget:
         group = QGroupBox("Transparency")
         layout = QHBoxLayout()
         group.setLayout(layout)
         slider = QSlider(Qt.Horizontal)
         layout.addWidget(slider)
-        layout.addWidget(QWidget(), 1)
+        layout.addStretch(1)
         slider.setMinimum(0)
         slider.setMaximum(75)
         slider.setValue(255 - preferences.opacity)

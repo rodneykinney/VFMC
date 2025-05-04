@@ -31,9 +31,6 @@ _visibility_options = {
     RecognitionOptionNames.ALL: Visibility.All,
 }
 
-_MEDIUM_VISIBILITY = 110
-_LOW_VISIBILITY = 51
-
 
 class Palette:
     def __init__(
@@ -62,8 +59,13 @@ class Palette:
 
     @staticmethod
     def by_name(name) -> "Palette":
-        colors = dict((FaceletColors(k), tuple(v)) for k,v in enumerate(preferences.colors))
-        p = Palette(colors, 0, 0, (255, 255, 255, _LOW_VISIBILITY), preferences.opacity)
+        colors = dict(
+            (FaceletColors(k), tuple(v)) for k, v in enumerate(preferences.colors)
+        )
+        bg = preferences.background_color
+        h = 0 if bg > 128 else 255
+        hidden = (h, h, h, 51)
+        p = Palette(colors, 0, 0, hidden, preferences.opacity)
         options = [], []
         if name == "eo":
             options = (

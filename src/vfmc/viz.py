@@ -59,8 +59,6 @@ FACELET_VERTICES = {
     ],
 }
 
-BACKGROUND_COLOR = 0x4D
-
 axis = ["xy"] * 9 + ["yz"] * 9 + ["xz"] * 9 + ["yz"] * 9 + ["xz"] * 9 + ["xy"] * 9
 
 corner_piece_colors = [
@@ -264,9 +262,8 @@ class CubeViz:
 
     def draw(self, painter, w, h):
         # Clear the screen with the background color
-        painter.fillRect(
-            0, 0, w, h, QColor(BACKGROUND_COLOR, BACKGROUND_COLOR, BACKGROUND_COLOR)
-        )
+        bg = preferences.background_color
+        painter.fillRect(0, 0, w, h, QColor(bg, bg, bg))
         # Apply rotation
         q = (
             Quaternion(axis=[1, 0, 0], angle=self.view_x)
