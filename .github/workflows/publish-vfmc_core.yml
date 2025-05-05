@@ -1,5 +1,5 @@
 # .github/workflows/publish-pypi.yml
-name: Publish vfmc_core
+name: Publish vfmc_core to PyPi
 
 on:
   workflow_dispatch:

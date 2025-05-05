@@ -1,17 +1,137 @@
-name: Publish vfmc
+name: Publish all VFMC artifacts
 
 on:
-#  release:
-#    types: [created]
   workflow_dispatch:
+    inputs:
+      create_release:
+        description: 'Create GitHub release'
+        required: true
+        default: false
+        type: boolean
+      release_tag:
+        description: 'Release tag (e.g., v1.0.0)'
+        required: false
+        type: string
+
+permissions:
+  contents: write  # For creating releases and uploading assets
+  id-token: write  # For PyPI trusted publishing
 
 jobs:
-  deploy:
-    runs-on: ubuntu-latest
-    environment: pypi
-    permissions:
-      id-token: write  # For PyPI trusted publishing
+  # Step 1: Publish vfmc_core to PyPI
+  build-vfmc-core:
+    name: Build vfmc_core wheels on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
 
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Build wheels
+        uses: PyO3/maturin-action@v1
+        env:
+          RUSTFLAGS: "-C target-feature=+avx2"
+        with:
+          command: build
+          args: --release --out dist --find-interpreter
+          sccache: 'true'
+          working-directory: rust-src
+
+      - name: Upload wheels
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheels-${{ matrix.os }}
+          path: rust-src/dist
+
+  build-vfmc-core-macos:
+    name: Build vfmc_core wheels on macOS
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.9'
+
+      - name: Build wheels for aarch64
+        uses: PyO3/maturin-action@v1
+        with:
+          working-directory: rust-src
+          command: build
+          args: --release --out dist --target aarch64-apple-darwin --find-interpreter
+          sccache: 'true'
+
+      - name: Build wheels for x86_64
+        uses: PyO3/maturin-action@v1
+        env:
+          RUSTFLAGS: "-C target-feature=+avx2"
+        with:
+          working-directory: rust-src
+          command: build
+          args: --release --out dist --target x86_64-apple-darwin --find-interpreter
+          sccache: 'true'
+
+      - name: Upload wheels
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheels-macos
+          path: rust-src/dist
+
+  build-vfmc-core-sdist:
+    name: Build vfmc_core source distribution
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Build sdist
+        uses: PyO3/maturin-action@v1
+        with:
+          working-directory: rust-src
+          command: sdist
+          args: --out dist
+
+      - name: Upload sdist
+        uses: actions/upload-artifact@v4
+        with:
+          name: sdist
+          path: rust-src/dist
+
+  publish-vfmc-core:
+    name: Publish vfmc_core to PyPI
+    runs-on: ubuntu-latest
+    needs: [build-vfmc-core, build-vfmc-core-macos, build-vfmc-core-sdist]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist-artifacts
+
+      - name: Publish to PyPI
+        uses: PyO3/maturin-action@v1
+        env:
+          MATURIN_PYPI_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
+        with:
+          command: upload
+          args: --non-interactive --skip-existing "dist-artifacts/wheels*/*" "dist-artifacts/sdist/*"
+
+  # Step 2: Publish vfmc to PyPI
+  publish-vfmc:
+    name: Publish vfmc to PyPI
+    runs-on: ubuntu-latest
+    needs: publish-vfmc-core
+    environment: pypi
     steps:
       - uses: actions/checkout@v4
       
@@ -30,3 +150,145 @@ jobs:
       
       - name: Publish package
         uses: pypa/gh-action-pypi-publish@release/v1
+
+  # Step 3: Build pre-compiled binaries
+  build-windows:
+    name: Build Windows executable
+    runs-on: windows-latest
+    needs: publish-vfmc
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.9'
+          
+      - name: Install Python dependencies
+        run: |
+          python -m venv .venv
+          .\.venv\Scripts\Activate.ps1
+          python -m pip install --upgrade pip
+          pip install -e .
+          
+      - name: Build Windows executable
+        run: |
+          .\.venv\Scripts\Activate.ps1
+          pyinstaller win-x86.spec
+          
+      - name: Create distribution package
+        run: |
+          .\.venv\Scripts\Activate.ps1
+          cd dist\win-x86
+          $VERSION = (python -c "from importlib.metadata import version; print(version('vfmc'))")
+          Compress-Archive -Path .\VFMC.exe -DestinationPath VFMC-v$VERSION-Windows.zip
+          
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: VFMC-Windows
+          path: dist/win-x86/*.zip
+
+  build-macos-arm:
+    name: Build macOS ARM executable
+    runs-on: macos-latest
+    needs: publish-vfmc
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      
+      - name: Set up Python 3.9
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.9'
+          
+      - name: Install Dependencies
+        run: |
+          python -m pip install .[dev]
+
+      - name: Build ARM executable
+        run: |
+          pyinstaller macos-arm.spec
+          VERSION=$(make print-version)
+          cd dist/macos-arm
+          cp ../../resources/VFMC-Readme.txt .
+          zip -q VFMC-v${VERSION}-Mac-ARM.zip -r VFMC-Readme.txt vfmc.app
+
+      - name: Upload ARM build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: VFMC-macOS-ARM
+          path: dist/macos-arm/*.zip
+
+  build-macos-x86:
+    name: Build macOS X86 executable
+    runs-on: macos-latest
+    needs: publish-vfmc
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Set up Python 3.9
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.9'
+
+      - name: Install Dependencies
+        run: |
+          arch -x86_64 python -m pip install .[dev]
+
+      - name: Build X86 executable
+        run: |
+          arch -x86_64 pyinstaller macos-x86.spec
+          VERSION=$(make print-version)
+          cd dist/macos-x86
+          cp ../../resources/VFMC-Readme.txt .
+          zip -q VFMC-v${VERSION}-Mac-X86.zip -r VFMC-Readme.txt vfmc.app
+
+      - name: Upload X86 build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: VFMC-macOS-X86
+          path: dist/macos-x86/*.zip
+
+  # Step 4: Create GitHub release and upload assets
+  create-release:
+    name: Create release and upload assets
+    if: ${{ github.event.inputs.create_release == 'true' }}
+    runs-on: ubuntu-latest
+    needs: [build-windows, build-macos-arm, build-macos-x86]
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Get version
+        id: get_version
+        run: |
+          if [[ -n "${{ github.event.inputs.release_tag }}" ]]; then
+            echo "VERSION=${{ github.event.inputs.release_tag }}" >> $GITHUB_OUTPUT
+          else
+            VERSION=$(python -c "import toml; print(toml.load('pyproject.toml')['project']['version'])")
+            echo "VERSION=v${VERSION}" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-artifacts
+      
+      - name: Create Release
+        id: create_release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.get_version.outputs.VERSION }}
+          name: VFMC ${{ steps.get_version.outputs.VERSION }}
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+          files: |
+            release-artifacts/VFMC-Windows/*.zip
+            release-artifacts/VFMC-macOS-ARM/*.zip
+            release-artifacts/VFMC-macOS-X86/*.zip
