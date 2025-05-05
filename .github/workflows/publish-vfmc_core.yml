@@ -1,4 +1,4 @@
-# .github/workflows/build-and-publish.yml
+# .github/workflows/publish-pypi.yml
 name: Publish vfmc_core
 
 on:
@@ -20,9 +20,13 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
       - name: Build wheels
         uses: PyO3/maturin-action@v1
+        env:
+          RUSTFLAGS: "-C target-feature=+avx2"
         with:
           command: build
           args: --release --out dist --find-interpreter
@@ -33,13 +37,15 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: wheels-${{ matrix.os }}
-          path: dist
+          path: rust-src/dist
 
   build-macos:
     name: Build wheels on macOS
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -49,52 +55,60 @@ jobs:
       - name: Build wheels for aarch64
         uses: PyO3/maturin-action@v1
         with:
+          working-directory: rust-src
           command: build
           args: --release --out dist --target aarch64-apple-darwin --find-interpreter
           sccache: 'true'
-          working-directory: rust-src
 
       - name: Build wheels for x86_64
         uses: PyO3/maturin-action@v1
         env:
           RUSTFLAGS: "-C target-feature=+avx2"
         with:
+          working-directory: rust-src
           command: build
           args: --release --out dist --target x86_64-apple-darwin --find-interpreter
           sccache: 'true'
-          working-directory: rust-src
 
       - name: Upload wheels
         uses: actions/upload-artifact@v4
         with:
-          name: wheels-${{ matrix.os }}
-          path: dist
+          name: wheels-macos
+          path: rust-src/dist
 
   build-sdist:
     name: Build source distribution
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
       - name: Build sdist
         uses: PyO3/maturin-action@v1
         with:
+          working-directory: rust-src
           command: sdist
           args: --out dist
-          working-directory: rust-src
 
       - name: Upload sdist
         uses: actions/upload-artifact@v4
         with:
           name: sdist
-          path: dist
+          path: rust-src/dist
 
   publish:
     name: Publish to PyPI
     runs-on: ubuntu-latest
     needs: [build-linux-windows, build-macos, build-sdist]
     steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      
       - uses: actions/download-artifact@v4
+        with:
+          path: dist-artifacts
 
       - name: Publish to PyPI
         uses: PyO3/maturin-action@v1
@@ -102,4 +116,4 @@ jobs:
           MATURIN_PYPI_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
         with:
           command: upload
-          args: --non-interactive --skip-existing wheels*/*
+          args: --non-interactive --skip-existing "dist-artifacts/wheels*/*" "dist-artifacts/sdist/*"
