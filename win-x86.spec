@@ -32,5 +32,5 @@ exe = EXE(
     target_arch='x86_64',
     codesign_identity=None,
     entitlements_file=None,
-    icon='dist/vfmc.ico',  # Path to the .ico file
+    icon='resources/vfmc.ico',  # Path to the .ico file
 )

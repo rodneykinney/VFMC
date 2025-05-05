@@ -3,13 +3,9 @@ name = "vfmc"
 version = "0.5"
 
 dependencies = [
-  "black~=25.1",
-  "mypy~=1.15",
-  "pytest~=8.3",
   "pyquaternion~=0.9",
   "PyQt5~=5.15.0",
-  "maturin~=1.8",
-  "pyinstaller~=6.12",
+  "vfmc_core~=0.5",
 ]
 
 authors = [
@@ -22,11 +18,32 @@ classifiers = [
   "Programming Language :: Python :: 3",
 ]
 
-[license]
-file = ["LICENSE"]
+[project.optional-dependencies]
+dev = [
+  "black~=25.1",
+  "maturin~=1.8",
+  "pyinstaller~=6.12",
+  "build~=1.2",
+  "twine~=6.1",
+]
+
+[project.license]
+file = "LICENSE"
       
 [project.urls]
 Homepage = "https://github.com/rodneykinney/VFMC"
 
 [project.scripts]
 vfmc = "vfmc.app:main"
+
+#[build-system]
+#requires = ["maturin~=1.8"]
+#build-backend = "maturin"
+#
+#[tool.maturin]
+#python-source = "src"
+#manifest-path = "rust-src/Cargo.toml"
+#module-name = "vfmc_core"
+#include = ["LICENSE"]
+#bindings = "pyo3"
+#sdist-include = ["src/vfmc/**/*", "LICENSE"]

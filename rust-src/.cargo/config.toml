@@ -1,2 +1,0 @@
-[target.aarch64-apple-darwin]
-rustflags = ["-L", "/opt/homebrew/Cellar/python@3.9/3.9.22/Frameworks/Python.framework/Versions/3.9/lib", "-l", "python3.9"]

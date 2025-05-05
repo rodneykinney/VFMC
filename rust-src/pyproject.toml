@@ -1,0 +1,26 @@
+[build-system]
+requires = ["maturin>=1.8,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "vfmc_core"
+version = "0.5.1"
+description = "Rust core implementation for VFMC"
+authors = [
+  { name="Rodney Kinney", email="rodney.m.kinney@gmail.com" },
+]
+readme = "README.md"
+requires-python = ">=3.9"
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Rust",
+]
+
+[project.license]
+file = "LICENSE"
+
+[tool.maturin]
+module-name = "vfmc_core"
+include = ["LICENSE"]
+bindings = "pyo3"
+sdist-include = ["LICENSE", "Cargo.toml", "cubelib/**/*", "src/**/*"]

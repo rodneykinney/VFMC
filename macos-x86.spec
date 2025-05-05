@@ -31,7 +31,7 @@ coll = COLLECT(
 app = BUNDLE(
     coll,
     name='VFMC.app',
-    icon='dist/vfmc.icns',
+    icon='resources/vfmc.icns',
     bundle_identifier='com.rodneykinney.vfmc',
     info_plist={
         'NSHighResolutionCapable': 'True',
