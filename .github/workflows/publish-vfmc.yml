@@ -2,6 +2,11 @@ name: Publish all VFMC artifacts
 
 on:
   workflow_dispatch:
+    inputs:
+      version:
+        description: 'PyPI version number (publish new version if empty)'
+        required: false
+        type: string
 
 permissions:
   contents: write  # For creating releases and uploading assets
@@ -12,6 +17,7 @@ jobs:
   build-vfmc-core:
     name: Build vfmc_core wheels on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
+    if: github.event.inputs.version == ''
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest]
@@ -40,6 +46,7 @@ jobs:
   build-vfmc-core-macos:
     name: Build vfmc_core wheels on macOS
     runs-on: macos-latest
+    if: github.event.inputs.version == ''
     steps:
       - uses: actions/checkout@v4
         with:
@@ -77,6 +84,7 @@ jobs:
   build-vfmc-core-sdist:
     name: Build vfmc_core source distribution
     runs-on: ubuntu-latest
+    if: github.event.inputs.version == ''
     steps:
       - uses: actions/checkout@v4
         with:
@@ -98,6 +106,7 @@ jobs:
   publish-vfmc-core:
     name: Publish vfmc_core to PyPI
     runs-on: ubuntu-latest
+    if: github.event.inputs.version == ''
     needs: [build-vfmc-core, build-vfmc-core-macos, build-vfmc-core-sdist]
     steps:
       - uses: actions/checkout@v4
@@ -118,7 +127,7 @@ jobs:
   publish-vfmc:
     name: Publish vfmc to PyPI
     runs-on: ubuntu-latest
-    needs: publish-vfmc-core
+    if: github.event.inputs.version == ''
     environment: pypi
     steps:
       - uses: actions/checkout@v4
@@ -138,23 +147,38 @@ jobs:
       
       - name: Publish package
         uses: pypa/gh-action-pypi-publish@release/v1
-        
+
   # Verify vfmc is available on PyPI
   verify-vfmc-pypi:
     name: Verify vfmc is available on PyPI
-    if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
     needs: publish-vfmc
+    if: ${{ !failure() && !cancelled() }}
     steps:
+      - name: Get version id
+        id: get_version_id
+        run: |
+          if [ -n "${{ github.event.inputs.version }}" ]; then
+            echo "Using provided version: ${{ github.event.inputs.version }}"
+            echo "VERSION=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+          elif [ "$GITHUB_REF" = "${GITHUB_REF#refs/tags/v}" ]; then
+            VERSION=${GITHUB_REF#refs/tags/v}
+            echo "Using git tag: ${VERSION}"
+            echo "VERSION=${VERSION}" >> $GITHUB_OUTPUT
+          else
+            echo "No version number found"
+            exit 1
+          fi
+
       - name: Install dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y curl jq
-          
+
       - name: Wait for package to be available on PyPI
         run: |
-          echo "Waiting for vfmc to be available on PyPI..."
-          VERSION=${GITHUB_REF#refs/tags/v}
+          VERSION="${{ steps.get_version_id.outputs.VERSION }}"
+          echo "Waiting for vfmc v$VERSION to be available on PyPI..."
           # Maximum wait time: 5 minutes (30 tries * 10 seconds)
           for i in {1..30}; do
             if curl -s "https://pypi.org/pypi/vfmc/json" | jq -e '.releases | keys' | grep $VERSION > /dev/null; then
@@ -172,6 +196,7 @@ jobs:
     name: Build Windows executable
     runs-on: windows-latest
     needs: verify-vfmc-pypi
+    if: ${{ !failure() && !cancelled() }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -198,7 +223,7 @@ jobs:
         run: |
           .\.venv\Scripts\Activate.ps1
           cd dist\win-x86
-          $VERSION = (python -c "from importlib.metadata import version; print(version('vfmc'))")
+          $VERSION = if ("${{ github.event.inputs.version }}" -ne "") { "${{ github.event.inputs.version }}" } else { (python -c "from importlib.metadata import version; print(version('vfmc'))") }
           Compress-Archive -Path .\VFMC.exe -DestinationPath VFMC-v$VERSION-Windows.zip
           
       - name: Upload build artifacts
@@ -211,6 +236,7 @@ jobs:
     name: Build macOS ARM executable
     runs-on: macos-latest
     needs: verify-vfmc-pypi
+    if: ${{ !failure() && !cancelled() }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -223,12 +249,16 @@ jobs:
           
       - name: Install Dependencies
         run: |
-          python -m pip install .[dev]
+          python -m venv .venv
+          . .venv/bin/activate
+          python -m pip install --upgrade pip
+          pip install .[dev]
 
       - name: Build ARM executable
         run: |
+          . .venv/bin/activate
           pyinstaller macos-arm.spec
-          VERSION=$(make print-version)
+          VERSION=$([ -n "${{ github.event.inputs.version }}" ] && echo "${{ github.event.inputs.version }}" || make print-version)
           cd dist/macos-arm
           cp ../../resources/VFMC-Readme.txt .
           zip -q VFMC-v${VERSION}-Mac-ARM.zip -r VFMC-Readme.txt vfmc.app
@@ -239,52 +269,43 @@ jobs:
           name: VFMC-macOS-ARM
           path: dist/macos-arm/*.zip
 
-  build-macos-x86:
-    name: Build macOS X86 executable
-    runs-on: macos-latest
-    needs: verify-vfmc-pypi
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          submodules: recursive
-
-      - name: Set up Python 3.9
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.9'
-
-      - name: Install Dependencies
-        run: |
-          arch -x86_64 python -m pip install .[dev]
-
-      - name: Build X86 executable
-        run: |
-          arch -x86_64 pyinstaller macos-x86.spec
-          VERSION=$(make print-version)
-          cd dist/macos-x86
-          cp ../../resources/VFMC-Readme.txt .
-          zip -q VFMC-v${VERSION}-Mac-X86.zip -r VFMC-Readme.txt vfmc.app
-
-      - name: Upload X86 build artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: VFMC-macOS-X86
-          path: dist/macos-x86/*.zip
-
   # Step 4: Create GitHub release and upload assets
   create-release:
     name: Create release and upload assets
-    if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
-    needs: [build-windows, build-macos-arm, build-macos-x86]
+    needs: [build-windows, build-macos-arm]
+    if: ${{ !failure() && !cancelled() }}
     steps:
       - uses: actions/checkout@v4
       
-      - name: Get version
-        id: get_version
+      - name: Get version tag
+        id: get_version_tag
         run: |
-          TAG=${GITHUB_REF#refs/tags/}
-          echo "VERSION=${TAG}" >> $GITHUB_OUTPUT
+          if [ -n "${{ github.event.inputs.version }}" ]; then
+            echo "Using provided version: ${{ github.event.inputs.version }}"
+            echo "TAG=v${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+          elif [ "$GITHUB_REF" = "${GITHUB_REF#refs/tags/}" ]; then
+            TAG=${GITHUB_REF#refs/tags/}
+            echo "Using git tag: ${TAG}"
+            echo "TAG=${TAG}" >> $GITHUB_OUTPUT
+          else
+            echo "No version number found"
+            exit 1
+          fi
+
+      - name: Check if release exists
+        id: check_release
+        run: |
+          RELEASE_TAG="${{ steps.get_version_tag.outputs.TAG }}"
+          if gh release view "$RELEASE_TAG" &>/dev/null; then
+            echo "Release $RELEASE_TAG already exists. Will only update assets."
+            echo "EXISTS=true" >> $GITHUB_OUTPUT
+          else
+            echo "Release $RELEASE_TAG does not exist. Will create new release."
+            echo "EXISTS=false" >> $GITHUB_OUTPUT
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Download all artifacts
         uses: actions/download-artifact@v4
@@ -293,14 +314,26 @@ jobs:
       
       - name: Create Release
         id: create_release
+        if: steps.check_release.outputs.EXISTS == 'false'
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: ${{ steps.get_version.outputs.VERSION }}
-          name: ${{ steps.get_version.outputs.VERSION }}
-          draft: false
+          tag_name: ${{ steps.get_version_tag.outputs.TAG }}
+          name: ${{ steps.get_version_tag.outputs.TAG }}
+          draft: ${{ github.event.inputs.version != '' }}
           prerelease: false
           generate_release_notes: true
           files: |
             release-artifacts/VFMC-Windows/*.zip
             release-artifacts/VFMC-macOS-ARM/*.zip
             release-artifacts/VFMC-macOS-X86/*.zip
+            
+      - name: Upload assets to existing release
+        if: steps.check_release.outputs.EXISTS == 'true'
+        run: |
+          cd release-artifacts
+          find . -name "*.zip" -type f | while read -r file; do
+            echo "Uploading $file to release ${{ steps.get_version_tag.outputs.TAG }}"
+            gh release upload "${{ steps.get_version_tag.outputs.TAG }}" "$file" --clobber
+          done
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
