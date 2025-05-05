@@ -1,11 +1,11 @@
 [project]
 name = "vfmc"
-version = "0.5.2"
+version = "0.5.5"
 
 dependencies = [
   "pyquaternion~=0.9",
   "PyQt5~=5.15.0",
-  "vfmc_core==0.5.2",
+  "vfmc_core==0.5.5",
 ]
 
 authors = [
