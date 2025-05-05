@@ -1,7 +1,14 @@
 .PHONY: clean build install all dist test icons pypi-build pypi-upload
 
 print-version:
-	python -c "from importlib.metadata import version; print(version('vfmc'))"
+	@python -c "from importlib.metadata import version; print(version('vfmc'))"
+
+version=
+set-version:
+	[[ "$(version)" != "" ]] || exit 1
+	cat pyproject.toml | sed -e 's/^version *= *"[^"]*"/version = "$(version)"/g' | sed -e 's/"vfmc_core==.*"/"vfmc_core==$(version)"/' > pyproject.toml.tmp && mv pyproject.toml.tmp pyproject.toml
+	cat rust-src/Cargo.toml | sed -e 's/^version *= *"[^"]*"/version = "$(version)"/g' > rust-src/Cargo.toml.tmp && mv rust-src/Cargo.toml.tmp rust-src/Cargo.toml
+	cat rust-src/pyproject.toml | sed -e 's/^version *= *"[^"]*"/version = "$(version)"/g' > rust-src/pyproject.toml.tmp && mv rust-src/Cargo.toml.tmp rust-src/pyproject.toml
 
 all: build
 
