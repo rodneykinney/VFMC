@@ -23,23 +23,6 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e .
           
-      - name: Set up Rust
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: x86_64-pc-windows-msvc
-
-      - name: Cache Rust dependencies
-        uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: "rust-src -> target"
-
-      - name: Build Rust component
-        run: |
-          .\.venv\Scripts\Activate.ps1
-          cd rust-src
-          $env:RUSTFLAGS="-C target-feature=+avx2"
-          maturin develop --release --target x86_64-pc-windows-msvc
-          
       - name: Build Windows executable
         run: |
           .\.venv\Scripts\Activate.ps1

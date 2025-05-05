@@ -1,0 +1,77 @@
+name: macOS Build
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-macos:
+    name: Build macOS
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      
+      - name: Set up Python 3.9
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.9'
+          
+      - name: Install Dependencies
+        run: |
+          python -m pip install pyinstaller
+
+      - name: Build ARM executable
+        run: |
+          pyinstaller macos-arm.spec
+          VERSION=$(toml2json pyproject.toml | jq '.project.version' --raw-output)
+          cd dist/macos-arm
+          cp ../../resources/VFMC-Readme.txt .
+          zip -q VFMC-v${VERSION}-Mac-ARM.zip -r VFMC-Readme.txt vfmc.app
+
+      - name: Build x86 executable
+        run: |
+          pyinstaller macos-x86.spec
+          VERSION=$(toml2json pyproject.toml | jq '.project.version' --raw-output)
+          cd dist/macos-x86
+          cp ../../resources/VFMC-Readme.txt .
+          zip -q VFMC-v${VERSION}-Mac-X86.zip -r VFMC-Readme.txt vfmc.app
+
+      - name: Upload ARM build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: VFMC-macOS-ARM
+          path: dist/macos-arm/*.zip
+
+      - name: Upload x86 build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: VFMC-macOS-X86
+          path: dist/macos-x86/*.zip
+
+      - name: Check for GitHub Release
+        id: check_release
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: bash
+        run: |
+          TAG=${GITHUB_REF#refs/tags/}
+          echo "Building from tag: $TAG"
+          if gh release view $TAG &>/dev/null; then
+            echo "release_exists=true" >> $GITHUB_OUTPUT
+            echo "tag=$TAG" >> $GITHUB_OUTPUT
+          else
+            echo "release_exists=false" >> $GITHUB_OUTPUT
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          
+      - name: Upload to existing GitHub Release
+        if: steps.check_release.outputs.release_exists == 'true'
+        shell: bash
+        run: |
+          TAG=${{ steps.check_release.outputs.tag }}
+          echo "Uploading ARM build to release $TAG"
+          gh release upload $TAG "dist/macos-arm/*.zip" --clobber
+          gh release upload $TAG "dist/macos-x86/*.zip" --clobber
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
