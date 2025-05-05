@@ -1,5 +1,5 @@
 # .github/workflows/build-and-publish.yml
-name: Build and publish vfmc_core package
+name: Publish vfmc_core
 
 on:
   workflow_dispatch:
