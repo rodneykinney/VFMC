@@ -20,7 +20,7 @@ normally spent scrambling, NISS-ing, and recovering from mistakes.
 
 ## Depth-vs-breadth trade-offs
 
-Decide how manu solutions to write down for each step, 
+Decide how many solutions to write down for each step, 
 and how much time to spend on each of them. Decide what works best for you.
 
 ## Case recognition
@@ -30,10 +30,8 @@ that must be solved to get there.
 
 ## Optimal solutions for each step
 
-Use the integrated solver to verify that see whether you've found the optimal
-solution for reaching the next step.you've found the reach the next step. It will show
-you the shortest solution that hasn't been written down already, allowing you to check whether 
-or not you've found optimal for that step.
+Use the integrated solver to find the shortest solution for reaching the next step that 
+hasn't been written down already.
 
 <img width="1312" alt="image" src="https://github.com/user-attachments/assets/bd1ba408-0f60-4090-a116-59d5496add15" />
 
