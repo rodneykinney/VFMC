@@ -58,7 +58,7 @@ pub fn step_config(kind: StepKind, variant: &str) -> StepConfig {
         kind: kind,
         substeps: substeps,
         min: None,
-        max: None,
+        max: Some(40),
         absolute_min: None,
         absolute_max: None,
         step_limit: None,

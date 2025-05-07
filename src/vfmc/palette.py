@@ -91,6 +91,9 @@ class Palette:
                 preferences.recognition.fr_edges,
                 preferences.recognition.fr_corners,
             )
+        elif name == "slice":
+            p.edge_visibility_mask = Visibility.BadPiece
+            p.corner_visibility_mask = Visibility.BadPiece
         else:
             p.edge_visibility_mask = Visibility.All
             p.corner_visibility_mask = Visibility.All

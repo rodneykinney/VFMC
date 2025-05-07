@@ -752,9 +752,10 @@ class AppWindow(QMainWindow):
             "<html><body>"
             "<p style='font-size: 14px;'>A tool for building fewest-move cube solutions virtually.</p>"
             "<p style='font-size: 14px;'>Developed by Rodney Kinney. Based on the cubelib library by Jonas Balsfulland.</p>"
+            f"<p style='font-size: 10px;'>Error log: {os.path.join(prefs.app_dir(), 'vfmc.log')}</p>"
             "</body></html>"
         )
-        about_dialog.setMinimumWidth(500)
+        about_dialog.setMinimumWidth(300)
         about_dialog.setMinimumHeight(300)
         about_dialog.setStandardButtons(QMessageBox.Ok)
         about_dialog.show()

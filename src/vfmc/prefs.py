@@ -101,7 +101,7 @@ class Preferences:
 
         prefs = {
             "opacity": self.opacity,
-            "display": asdict(self.recognition),
+            "recognition": asdict(self.recognition),
             "colors": self.colors,
             "background": self.background_color,
         }
@@ -128,7 +128,7 @@ class Preferences:
             try:
                 with open(prefs_path, "r") as f:
                     prefs = json.load(f)
-                    recognition = asdict(RecognitionOptions.minimal())
+                    recognition = asdict(RecognitionOptions.default())
                     recognition.update(prefs.get("recognition", {}))
                     opacity = prefs.get("opacity", 237)
                     colors = prefs.get("colors", [])

@@ -1,7 +1,7 @@
 use crate::htr::{HTRFB, HTRRL, HTRUD};
 use crate::solver::{solve_step, step_config};
-use crate::Visibility::{Any, BadFace, BadPiece};
-use crate::{Algorithm, Solvable};
+use crate::Visibility::{Any, BadFace, BadPiece, TopColor};
+use crate::{Algorithm, DrawableEdge, Solvable};
 use cubelib::cube::turn::TransformableMut;
 use cubelib::cube::{Cube333, Transformation333};
 use cubelib::defs::StepKind;
@@ -43,10 +43,9 @@ impl Solvable for SliceUD {
     }
 
     fn edge_visibility(&self, _cube: &Cube333, pos: usize, _facelet: u8) -> u8 {
-        if pos < 4 || pos > 7 {
-            BadPiece as u8 | BadFace as u8
-        } else {
-            Any as u8
+        match pos {
+            4 | 5 | 6 | 7 => Any as u8,
+            _ => BadPiece as u8 | BadFace as u8
         }
     }
 
