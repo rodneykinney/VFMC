@@ -4,13 +4,10 @@ import sys
 import math
 import logging
 import traceback
-import functools
 import re
-import json
 from functools import cached_property
-from typing import Optional, List, Tuple, Dict, Set, Optional
+from typing import List, Set, Optional
 from importlib.metadata import version
-from pathlib import Path
 
 from PyQt5.QtWidgets import (
     QApplication,
@@ -22,54 +19,25 @@ from PyQt5.QtWidgets import (
     QLineEdit,
     QPushButton,
     QComboBox,
-    QLayout,
-    QFrame,
     QListWidget,
     QMessageBox,
     QSizePolicy,
     QStyledItemDelegate,
     QListWidgetItem,
-    QMenuBar,
-    QMenu,
     QAction,
     QFileDialog,
-    QCheckBox,
-    QDialog,
-    QDialogButtonBox,
-    QGroupBox,
 )
 from PyQt5.QtCore import Qt, QEvent
 from PyQt5.QtGui import QKeySequence
 
-import vfmc.viz
 from vfmc.attempt import PartialSolution, Attempt, step_name
 from vfmc import prefs
 from vfmc.prefs import preferences
-from vfmc.viz import CubeViz, DisplayOption, CubeWidget, Palette
-from vfmc_core import Cube, Algorithm, StepInfo, scramble as gen_scramble
+from vfmc.viz import CubeViz, CubeWidget
+from vfmc_core import Algorithm, StepInfo, scramble as gen_scramble
 
 # Basic set of cube moves
 MOVE_REGEX = r"[rRuUfFlLdDbB '2]*"
-MOVES = {
-    "R",
-    "U",
-    "F",
-    "L",
-    "D",
-    "B",
-    "R'",
-    "U'",
-    "F'",
-    "L'",
-    "D'",
-    "B'",
-    "R2",
-    "U2",
-    "F2",
-    "L2",
-    "D2",
-    "B2",
-}
 
 PREFERRED_AXIS = {
     ("eo", "ud"): (["fb", "rl"], ["ud"]),
@@ -115,7 +83,6 @@ class AppWindow(QMainWindow):
 
         self.step_order = ["eo", "dr", "htr", "fr", "slice", "finish"]
 
-        # Create menu bar
         self._create_menus()
 
         # Create GUI controls
@@ -235,42 +202,6 @@ class AppWindow(QMainWindow):
         w.layout().setContentsMargins(0, 0, 0, 0)
         w.layout().setSpacing(0)
         return w
-
-    def print_widget_geometry(self, widget, level=0):
-        """Print geometry information for a widget and its children recursively."""
-        indent = "  " * level
-        geo = widget.geometry()
-        margins = (
-            widget.contentsMargins()
-            if hasattr(widget, "contentsMargins")
-            else (0, 0, 0, 0)
-        )
-
-        print(f"{indent}Widget: {widget.__class__.__name__}")
-        print(
-            f"{indent}  Geometry: x={geo.x()}, y={geo.y()}, w={geo.width()}, h={geo.height()}"
-        )
-        print(
-            f"{indent}  Margins: left={margins.left()}, top={margins.top()}, right={margins.right()}, bottom={margins.bottom()}"
-        )
-
-        if widget.layout():
-            layout_margins = widget.layout().contentsMargins()
-            layout_spacing = (
-                widget.layout().spacing() if hasattr(widget.layout(), "spacing") else 0
-            )
-            print(f"{indent}  Layout: {widget.layout().__class__.__name__}")
-            print(
-                f"{indent}  Layout margins: left={layout_margins.left()}, top={layout_margins.top()}, "
-                f"right={layout_margins.right()}, bottom={layout_margins.bottom()}"
-            )
-            print(f"{indent}  Layout spacing: {layout_spacing}")
-
-        # Print children
-        for i in range(widget.layout().count() if widget.layout() else 0):
-            child = widget.layout().itemAt(i).widget()
-            if child:
-                self.print_widget_geometry(child, level + 1)
 
     @cached_property
     def gui_commands_widget(self) -> QWidget:
@@ -412,7 +343,6 @@ class AppWindow(QMainWindow):
         solutions_container = self._empty_container(QVBoxLayout())
         solutions_container.layout().setContentsMargins(10, 0, 10, 0)  # Remove margins
 
-        # Create a horizontal layout for the solution lists
         solution_lists_layout = QHBoxLayout()
         solution_lists_layout.setSpacing(10)  # Add some spacing between columns
 
@@ -425,30 +355,26 @@ class AppWindow(QMainWindow):
         # Create a common stylesheet for all list widgets with focus-independent styling
         list_style = f"""
             /* Default appearance */
-            QListWidget::item {{ 
+            QListWidget::item {{
                 color: black;
                 background-color: transparent;
             }}
-            
+
             /* Basic selection style (blue) */
-            QListWidget::item:selected {{ 
-                background-color: {selection_color}; 
+            QListWidget::item:selected {{
+                background-color: {selection_color};
                 color: black;
             }}
-            
+
             /* Keep selection color even when widget loses focus */
-            QListWidget::item:selected:!active {{ 
-                background-color: {active_selection_color}; 
+            QListWidget::item:selected:!active {{
+                background-color: {active_selection_color};
                 color: black;
             }}
         """
 
         def build_solution_widget(kind: str, label: Optional[str] = None):
             container = self._empty_container(QVBoxLayout())
-            # container.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-            # layout = QVBoxLayout(container)
-            # layout.setContentsMargins(0, 0, 10, 10)
-            # layout.setSpacing(2)
             label = label or kind.upper()
             container.layout().addWidget(QLabel(f"{label}:"))
             list = QListWidget()
@@ -481,6 +407,7 @@ class AppWindow(QMainWindow):
         return solutions_container
 
     def populate_saved_solutions(self):
+        """Clear and refresh the saved solution steps"""
         solutions = self.attempt.solutions_by_kind()
 
         for kind, list in self.solution_widgets.items():
@@ -493,6 +420,11 @@ class AppWindow(QMainWindow):
         self.format_saved_solutions()
 
     def format_saved_solutions(self):
+        """
+        Apply formatting to the solutions in the solution widgets
+        Bold for steps that are active
+        Strikethrough for steps marked "done"
+        """
         active = self.attempt.solution.substeps()
         active_list_item = None
 
@@ -520,6 +452,7 @@ class AppWindow(QMainWindow):
             self.item_selected(list)
 
     def set_status(self, status: str):
+        """Show user-relevant info"""
         self.status_label.setText(status)
 
     def _append_moves(self, moves_str):
@@ -579,13 +512,8 @@ class AppWindow(QMainWindow):
                 self.set_status(f"Cube is not eligible for {kind}{variant}")
                 return False
 
-    def activate_item(self, item):
-        sol = item.data(SOLUTION)
-        index = self.attempt.solutions_by_kind()[sol.kind].index(sol) + 1
-        # Execute via self.commands to get this into the history
-        self.commands.execute(f'check("{sol.kind}",{index})')
-
     def scroll_to(self, solution: PartialSolution):
+        """Make sure the given solution is visible"""
         w = self.solution_widgets[solution.kind]
         for i in range(0, w.count()):
             if w.item(i).data(SOLUTION) == solution:
@@ -593,7 +521,23 @@ class AppWindow(QMainWindow):
                 w.setCurrentItem(w.item(i))
                 w.scrollToItem(w.item(i))
 
+    def activate_item(self, item):
+        """
+        User has selected a step from one of the solution widgets
+        Result of a double-click or hitting enter
+        Load the solution step into the view
+        """
+        sol = item.data(SOLUTION)
+        index = self.attempt.solutions_by_kind()[sol.kind].index(sol) + 1
+        # Execute via self.commands to get this into the history
+        self.commands.execute(f'check("{sol.kind}",{index})')
+
     def item_selected(self, list_widget):
+        """
+        User has highlighted a step from one of the solution widgets
+        Result of a single-click or arrow key navigation
+        Does not activate the step; only shows related steps in the other widgets
+        """
         selected_item = list_widget.currentItem()
         if not selected_item:
             return
@@ -674,6 +618,7 @@ class AppWindow(QMainWindow):
                         return True
 
                 if obj == self.command_input:
+                    # Shift-tab navigates to current_solution_widget
                     if key == Qt.Key_Backtab:
                         self.current_solution_widget.setCurrentItem(
                             self.current_solution_widget.item(
@@ -682,6 +627,7 @@ class AppWindow(QMainWindow):
                         )
                         self.current_solution_widget.setFocus()
                         return True
+                    # Otherwise navigate to the last active step
                     for k in reversed(self.step_order):
                         w = self.solution_widgets[k]
                         for i in range(0, w.count()):
@@ -691,6 +637,7 @@ class AppWindow(QMainWindow):
                             ):
                                 return select_widget(w)
                     return select_widget(self.solution_widgets["eo"])
+                # Navigate between solution steps
                 index = self.step_order.index(obj.property("kind"))
                 if key == Qt.Key_Backtab:
                     if index == 0:
@@ -713,6 +660,7 @@ class AppWindow(QMainWindow):
                         return select_widget(
                             self.solution_widgets[self.step_order[next_index]]
                         )
+            # Command history
             elif obj == self.command_input and key == Qt.Key_Up:
                 if self.history_pointer < 0:
                     return True
@@ -812,12 +760,11 @@ class AppWindow(QMainWindow):
         about_dialog.show()
 
     def show_help(self):
-        """Show help popup with commands organized by section"""
+        """Show help window"""
         help_dialog = QMessageBox(self)
         help_dialog.setWindowModality(Qt.NonModal)
         help_dialog.setWindowTitle("VFMC help")
 
-        # Generate help text by inspecting Commands methods
         commands = []
         for name in dir(self.commands):
             if name.startswith("_"):
@@ -830,38 +777,19 @@ class AppWindow(QMainWindow):
         with open(help_file, "r") as f:
             help_dialog.setInformativeText(f.read())
 
-        help_dialog.setText(f"Welcome to VFMC")
+        help_dialog.setText("Welcome to VFMC")
         help_dialog.setStandardButtons(QMessageBox.Ok)
         help_dialog.show()
         self.command_input.setFocus()
 
 
 def main():
-    # Create the Qt Application
     app = QApplication(sys.argv)
-
-    # Set the application name (helps with proper Mac menu bar naming)
     app.setApplicationName("VFMC")
-
     window = AppWindow()
     window.show()
 
-    # Start the application
     sys.exit(app.exec_())
-
-
-def vfmc_command(tag):
-    """Decorator to categorize commands into sections for help text"""
-
-    def decorator(func):
-        @functools.wraps(func)
-        def wrapper(*args, **kwargs):
-            return func(*args, **kwargs)
-
-        wrapper.tag = tag
-        return wrapper
-
-    return decorator
 
 
 class Commands:
@@ -883,7 +811,7 @@ class Commands:
             # Does it match a method in this class?
             if cmd.endswith("'"):
                 cmd = cmd.replace("'", "_prime")
-            cmd_name = re.sub("\(.*$", "", cmd)
+            cmd_name = re.sub("\\(.*$", "", cmd)
             if cmd_name in dir(self):
                 # Add parentheses if missing
                 if cmd.find("(") < 0:
@@ -943,32 +871,24 @@ class Commands:
         self.attempt.solution.z(2)
 
     def eoud(self):
-        """Look for EO on UD axis"""
         self.window.set_step("eo", "ud")
 
     def eofb(self):
-        """Look for EO on FB axis"""
         self.window.set_step("eo", "fb")
 
     def eorl(self):
-        """Look for EO on RL axis"""
         self.window.set_step("eo", "rl")
 
     def drud(self):
-        """Look for DR on UD axis"""
         self.window.set_step("dr", "ud")
 
     def drfb(self):
-        """Look for DR on FB axis"""
         self.window.set_step("dr", "fb")
 
     def drrl(self):
-        """Look for DR on RL axis"""
         self.window.set_step("dr", "rl")
 
     def htr(self):
-        """Look for HTR"""
-        sol = self.attempt.solution
         variant = ""
         for v in ["ud", "fb", "rl"]:
             if StepInfo("dr", v).is_solved(self.window.attempt.cube):
@@ -1240,7 +1160,7 @@ class CurrentSolutionWidget(QListWidget):
                 self.window().set_status("")
                 self.attempt.update_cube()
                 self.history_is_stale = True
-        except:
+        except Exception:
             pass
 
     def sync_history_with_editor(self):
@@ -1309,7 +1229,6 @@ class CurrentSolutionWidget(QListWidget):
     def activate_step(self, target: PartialSolution):
         if target not in self.attempt.solutions_by_kind()[target.kind]:
             return
-        index = self.attempt.solutions_by_kind()[target.kind].index(target) + 1
         # Execute via self.commands to get this into the history
         cmd = self.window().commands
         while self.attempt.solution.kind != target.kind:
@@ -1318,11 +1237,11 @@ class CurrentSolutionWidget(QListWidget):
                 break
         inverse = False
         if target.alg.inverse_moves():
-            cmd.execute(f"set_inverse(True)")
+            cmd.execute("set_inverse(True)")
             cmd.execute(" ".join(target.alg.inverse_moves()))
             inverse = True
         if target.alg.normal_moves():
-            cmd.execute(f"set_inverse(False)")
+            cmd.execute("set_inverse(False)")
             cmd.execute(" ".join(target.alg.normal_moves()))
             inverse = False
         cmd.execute(f"set_inverse({inverse})")
@@ -1338,7 +1257,7 @@ class CommandResult:
 
 if __name__ == "__main__":
     # Configure logging
-    logfile = os.path.expanduser("~/vfmc.log")
+    logfile = prefs.app_dir() / "vfmc.log"
     logging.basicConfig(
         filename=logfile,
         filemode="w",
@@ -1346,15 +1265,10 @@ if __name__ == "__main__":
         format="%(levelname)s - %(message)s",
     )
 
-    # Figure out the application bundle path
-    if getattr(sys, "frozen", False):
-        # We're running from a PyInstaller bundle
+    if getattr(sys, "frozen", False):  # Running from a PyInstaller bundle
         bundle_dir = os.path.dirname(sys.executable)
-        logging.debug(f"Running bundle from {bundle_dir}")
-        # For apps launched from Finder, we need to set the working directory
-        # to the bundle's MacOS directory (where the executable lives)
+        # Set working directory to the home of the executable
         if os.path.basename(bundle_dir) == "MacOS":
-            os.chdir(
-                os.path.dirname(os.path.dirname(bundle_dir))
-            )  # Go up to the .app level
+            logging.debug(f"Running bundle from {bundle_dir}")
+            os.chdir(os.path.dirname(os.path.dirname(bundle_dir)))
     main()

@@ -5,10 +5,8 @@ import sys
 from dataclasses import dataclass, field, asdict
 from functools import cached_property
 from pathlib import Path
-from typing import List, Dict, Tuple
-from enum import Enum
+from typing import List, Tuple
 
-from PyQt5.QtGui import QWindow
 from PyQt5.QtWidgets import (
     QDialog,
     QWidget,
@@ -22,15 +20,7 @@ from PyQt5.QtWidgets import (
 )
 from PyQt5.QtCore import Qt
 
-
-class RecognitionOptionNames:
-    BAD_FACES = "bad faces"
-    BAD_PIECES = "bad pieces"
-    TOP_COLOR = "top color"
-    BOTTOM_COLOR = "bottom color"
-    ALL = "all"
-
-
+# Factory-default cube face colors
 _DEFAULT_COLORS = [
     (255, 255, 255),
     (255, 255, 0),
@@ -41,8 +31,18 @@ _DEFAULT_COLORS = [
 ]
 
 
+class RecognitionOptionNames:
+    BAD_FACES = "bad faces"
+    BAD_PIECES = "bad pieces"
+    TOP_COLOR = "top color"
+    BOTTOM_COLOR = "bottom color"
+    ALL = "all"
+
+
 @dataclass
 class RecognitionOptions:
+    """Preference setting for drawing the cube while solving different steps"""
+
     eo_edges: List[str]
     eo_corners: List[str]
     dr_edges: List[str]
@@ -57,7 +57,10 @@ class RecognitionOptions:
         return RecognitionOptions(
             eo_edges=[RecognitionOptionNames.BAD_PIECES],
             eo_corners=[],
-            dr_edges=[RecognitionOptionNames.BAD_FACES],
+            dr_edges=[
+                RecognitionOptionNames.BAD_FACES,
+                RecognitionOptionNames.BAD_PIECES,
+            ],
             dr_corners=[RecognitionOptionNames.BAD_FACES],
             htr_edges=[RecognitionOptionNames.BAD_FACES],
             htr_corners=[
@@ -84,6 +87,8 @@ class RecognitionOptions:
 
 @dataclass
 class Preferences:
+    """Top-level preferences object"""
+
     opacity: int = 237
     background_color: int = 77
     colors: List[Tuple] = field(default_factory=lambda: _DEFAULT_COLORS)
@@ -111,8 +116,8 @@ class Preferences:
         self.listeners.append(callback)
 
     def notify(self):
-        for l in self.listeners:
-            l()
+        for listener in self.listeners:
+            listener()
 
     @staticmethod
     def load() -> "Preferences":
@@ -144,20 +149,12 @@ class Preferences:
 
     @staticmethod
     def get_preferences_path() -> Path:
-        """Return platform-appropriate preferences file path"""
-        if sys.platform == "darwin":  # macOS
-            return Path.home() / "Library" / "Preferences" / "vfmc" / "preferences.json"
-        elif sys.platform == "win32":  # Windows
-            return (
-                Path(os.environ.get("APPDATA", str(Path.home())))
-                / "vfmc"
-                / "preferences.json"
-            )
-        else:  # Linux/Unix
-            return Path.home() / ".config" / "vfmc" / "preferences.json"
+        return app_dir() / "preferences.json"
 
 
 class PreferencesDialog(QDialog):
+    """Dialog for modifying preferences"""
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Preferences")
@@ -166,7 +163,6 @@ class PreferencesDialog(QDialog):
 
         layout = QVBoxLayout()
         self.setLayout(layout)
-        layout.addWidget(self.opacity_widget)
         layout.addWidget(self.colors_widget)
         layout.addWidget(self.eo_widget)
         layout.addWidget(self.dr_widget)
@@ -232,16 +228,17 @@ class PreferencesDialog(QDialog):
 
     @cached_property
     def colors_widget(self) -> QWidget:
-        w = QWidget()
-        l = QHBoxLayout()
-        w.setLayout(l)
-        l.addWidget(self.cube_colors_widget)
-        l.addWidget(self.background_widget)
-        return w
+        group = QGroupBox("Colors")
+        layout = QHBoxLayout()
+        group.setLayout(layout)
+        layout.addWidget(self.cube_colors_widget)
+        layout.addWidget(self.opacity_widget)
+        layout.addWidget(self.background_widget)
+        return group
 
     @cached_property
     def cube_colors_widget(self) -> QWidget:
-        group = QGroupBox("Colors")
+        group = QGroupBox("Cube")
         layout = QHBoxLayout()
         group.setLayout(layout)
 
@@ -463,4 +460,15 @@ def show_dialog(parent):
     _dialog.activateWindow()  # Set as active window
 
 
+def app_dir() -> Path:
+    """Return platform-appropriate application home directory"""
+    if sys.platform == "darwin":  # macOS
+        return Path.home() / "Library" / "Preferences" / "vfmc"
+    elif sys.platform == "win32":  # Windows
+        return Path(os.environ.get("APPDATA", str(Path.home()))) / "vfmc"
+    else:  # Linux/Unix
+        return Path.home() / ".config" / "vfmc"
+
+
+# Preferences as saved by the user
 preferences = Preferences.load()

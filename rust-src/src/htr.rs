@@ -1,5 +1,5 @@
 use crate::solver::{solve_step_deduplicated, step_config};
-use crate::Visibility::{Any, BadFace, BadPiece, HtrD, HtrU};
+use crate::Visibility::{Any, BadFace, BadPiece, HtrD, TopColor};
 use crate::{
     Algorithm, DrawableCorner, Solvable, CORNER_FB_FACELETS, CORNER_RL_FACELETS,
     CORNER_UD_FACELETS, EDGE_FB_FACELETS, EDGE_RL_FACELETS, EDGE_UD_FACELETS,
@@ -51,7 +51,7 @@ impl Solvable for HTRUD {
             if c.id / 4 == 1 {
                 v |= HtrD as u8;
             } else {
-                v |= HtrU as u8;
+                v |= TopColor as u8;
             }
         }
         if !c.oriented_fb(pos as u8) {
@@ -121,7 +121,7 @@ impl Solvable for HTRFB {
             if vec![0, 1, 6, 7].contains(&c.id) {
                 v |= HtrD as u8; // B sticker
             } else {
-                v |= HtrU as u8;
+                v |= TopColor as u8;
             }
         }
         if !c.oriented_rl(pos as u8) {
@@ -171,7 +171,7 @@ impl Solvable for HTRRL {
             if vec![1, 2, 5, 6].contains(&c.id) {
                 v |= HtrD as u8; // L sticker
             } else {
-                v |= HtrU as u8;
+                v |= TopColor as u8;
             }
         }
         if !c.oriented_ud(pos as u8) {
