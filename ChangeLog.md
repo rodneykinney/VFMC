@@ -1,4 +1,7 @@
-# VFMC Release History
+# Release History
+
+## v1.0
+ - Promote Beta release
 
 ## v0.5
  - Configurable transparency
