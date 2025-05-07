@@ -1,5 +1,16 @@
 .PHONY: clean build install all dist test icons pypi-build pypi-upload
 
+code-check: code-format-check code-lint
+
+code-format-check:
+	black --check src
+
+code-lint:
+	flake8 src
+
+code-format:
+	black src
+
 print-version:
 	@python -c "from importlib.metadata import version; print(version('vfmc'))"
 

@@ -1,10 +1,9 @@
-import math
 from typing import Optional, Dict, List, Callable, Set, Tuple
 from collections import defaultdict
 
-from vfmc.palette import Visibility
-from vfmc_core import Algorithm, StepInfo, debug, Cube
+from vfmc_core import Algorithm, StepInfo, Cube
 
+# Possible continuations for each step
 NEXT_STEPS = {
     ("", ""): [("eo", "fb"), ("eo", "rl"), ("eo", "ud")],
     ("eo", "ud"): [("dr", "fb"), ("dr", "rl")],
@@ -22,8 +21,10 @@ NEXT_STEPS = {
     ("slice", "ud"): [("finish", "")],
     ("slice", "fb"): [("finish", "")],
     ("slice", "rl"): [("finish", "")],
+    ("finish", ""): [("finish", "")],
 }
 
+# Continuations after solving each step
 DEFAULT_NEXT_STEPS = {
     ("htr", "ud"): ("fr", "ud"),
     ("htr", "rl"): ("fr", "rl"),
@@ -33,8 +34,36 @@ DEFAULT_NEXT_STEPS = {
     ("fr", "rl"): ("slice", "rl"),
 }
 
+# Default cube orientations for different steps
+VARIANT_ORIENTATIONS = {
+    "": {"": ("u", "f")},
+    "eo": {
+        "ud": ("b", "u"),
+        "fb": ("u", "f"),
+        "rl": ("u", "r"),
+    },
+    "*": {
+        "ud": ("u", "f"),
+        "fb": ("b", "u"),
+        "rl": ("r", "f"),
+        "*": ("u", "f"),
+    },
+}
+
+# Rotation matrix for different faces
+AXIS_ROTATIONS = {
+    "f": ["u", "l", "d", "r"],
+    "b": ["u", "r", "d", "l"],
+    "r": ["u", "f", "d", "b"],
+    "l": ["u", "b", "d", "f"],
+    "u": ["f", "r", "b", "l"],
+    "d": ["f", "l", "b", "r"],
+}
+
 
 class PartialSolution:
+    """An individual solution step"""
+
     def __init__(
         self,
         kind: str = "",
@@ -100,6 +129,8 @@ class PartialSolution:
 
 
 class Attempt:
+    """Global state of the FMC attempt"""
+
     def __init__(self):
         self.scramble = ""
         self.cube = Cube("")
@@ -339,16 +370,16 @@ class Attempt:
         self.notify_cube_listeners()
 
     def notify_saved_solution_listeners(self):
-        for l in self._saved_solution_listeners:
-            l()
+        for listener in self._saved_solution_listeners:
+            listener()
 
     def notify_solution_attribute_listeners(self):
-        for l in self._solution_attribute_listeners:
-            l()
+        for listener in self._solution_attribute_listeners:
+            listener()
 
     def notify_cube_listeners(self):
-        for l in self._cube_listeners:
-            l()
+        for listener in self._cube_listeners:
+            listener()
 
 
 def step_name(kind, variant):
@@ -356,31 +387,6 @@ def step_name(kind, variant):
     if s not in {"htr", "fr", "slice"}:
         s = f"{s}{variant}"
     return s
-
-
-VARIANT_ORIENTATIONS = {
-    "": {"": ("u", "f")},
-    "eo": {
-        "ud": ("b", "u"),
-        "fb": ("u", "f"),
-        "rl": ("u", "r"),
-    },
-    "*": {
-        "ud": ("u", "f"),
-        "fb": ("b", "u"),
-        "rl": ("r", "f"),
-        "*": ("u", "f"),
-    },
-}
-
-AXIS_ROTATIONS = {
-    "f": ["u", "l", "d", "r"],
-    "b": ["u", "r", "d", "l"],
-    "r": ["u", "f", "d", "b"],
-    "l": ["u", "b", "d", "f"],
-    "u": ["f", "r", "b", "l"],
-    "d": ["f", "l", "b", "r"],
-}
 
 
 class Orientation:

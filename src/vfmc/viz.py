@@ -1,17 +1,15 @@
-from enum import Enum
-
 import math
 import numpy as np
 from PyQt5.QtCore import QTimer, Qt, QEvent
 from PyQt5.QtWidgets import QWidget
 from PyQt5.QtGui import QPainter, QColor, QPen, QBrush, QPolygon
 
-from vfmc.attempt import PartialSolution, Attempt, Orientation, AXIS_ROTATIONS
+from vfmc.attempt import Attempt, Orientation, AXIS_ROTATIONS
 from vfmc.palette import FaceletColors, Visibility, Palette
 from vfmc.prefs import preferences
-from vfmc_core import Cube, StepInfo
 from pyquaternion import Quaternion
 
+# X coordinate of cube facelets
 # U + L + F + R + B + D
 facelet_x = (
     [-1, 0, 1, -1, 0, 1, -1, 0, 1]
@@ -21,6 +19,9 @@ facelet_x = (
     + [1, 0, -1, 1, 0, -1, 1, 0, -1]
     + [-1, 0, 1, -1, 0, 1, -1, 0, 1]
 )
+
+# Y coordinate of cube facelets
+# U + L + F + R + B + D
 facelet_y = (
     [1, 1, 1, 0, 0, 0, -1, -1, -1]
     + [1, 0, -1, 1, 0, -1, 1, 0, -1]
@@ -29,6 +30,9 @@ facelet_y = (
     + [1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5]
     + [-1, -1, -1, 0, 0, 0, 1, 1, 1]
 )
+
+# Z coordinate of cube facelets
+# U + L + F + R + B + D
 facelet_z = (
     [1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5]
     + [1, 1, 1, 0, 0, 0, -1, -1, -1]
@@ -38,6 +42,7 @@ facelet_z = (
     + [-1.5, -1.5, -1.5, -1.5, -1.5, -1.5, -1.5, -1.5, -1.5]
 )
 
+# Coordinates of the facelet in different plains, relative to the facelet center
 FACELET_VERTICES = {
     "xy": [
         np.array([-0.48, -0.48, 0.0]),
@@ -59,9 +64,14 @@ FACELET_VERTICES = {
     ],
 }
 
-axis = ["xy"] * 9 + ["yz"] * 9 + ["xz"] * 9 + ["yz"] * 9 + ["xz"] * 9 + ["xy"] * 9
+# Plane in which each facelet exists
+# U + L + F + R + B + D
+FACELET_AXIS = (
+    ["xy"] * 9 + ["yz"] * 9 + ["xz"] * 9 + ["yz"] * 9 + ["xz"] * 9 + ["xy"] * 9
+)
 
-corner_piece_colors = [
+# Colors of the corner pieces, for orientation 0,1,2
+CORNER_PIECE_COLORS = [
     (FaceletColors.WHITE, FaceletColors.ORANGE, FaceletColors.BLUE),
     (FaceletColors.WHITE, FaceletColors.BLUE, FaceletColors.RED),
     (FaceletColors.WHITE, FaceletColors.RED, FaceletColors.GREEN),
@@ -72,7 +82,8 @@ corner_piece_colors = [
     (FaceletColors.YELLOW, FaceletColors.BLUE, FaceletColors.ORANGE),
 ]
 
-corner_position_facelets = [
+# Index of the facelet (orientation 0,1,2) for each of the corners
+CORNER_POSITION_FACELETS = [
     (0, 9, 38),  # UBL
     (2, 36, 29),  # UBR
     (8, 27, 20),  # UFR
@@ -83,7 +94,8 @@ corner_position_facelets = [
     (51, 44, 15),  # DBL
 ]
 
-edge_piece_colors = [
+# Colors of the edge pieces, for orientation 0,1
+EDGE_PIECE_COLORS = [
     (FaceletColors.WHITE, FaceletColors.BLUE),
     (FaceletColors.WHITE, FaceletColors.RED),
     (FaceletColors.WHITE, FaceletColors.GREEN),
@@ -98,7 +110,8 @@ edge_piece_colors = [
     (FaceletColors.YELLOW, FaceletColors.ORANGE),
 ]
 
-edge_position_facelets = [
+# Index of the facelet (orientation 0,1) for each of the edges
+EDGE_POSITION_FACELETS = [
     (1, 37),  # UB
     (5, 28),  # UR
     (7, 19),  # UF
@@ -113,9 +126,13 @@ edge_position_facelets = [
     (48, 16),  # DL
 ]
 
-home_slice = [0, 2, 0, 2, 1, 1, 1, 1, 0, 2, 0, 2]  # 0 = M, 1 = E, 2 = S
+# The slice where each edge belongs, when the cube is solved
+# 0 = M, 1 = E, 2 = S
+HOME_SLICE = [0, 2, 0, 2, 1, 1, 1, 1, 0, 2, 0, 2]
 
-default_orientation = [
+# Orientation (in cubelib bit representation) for a correctly-oriented edge
+# Index is the combination of the edge's home slice and the slice where it currently is
+DEFAULT_ORIENTATION = [
     0,  # Piece is in its home slice
     5,  # E <-> M
     4,  # M <-> S
@@ -123,14 +140,8 @@ default_orientation = [
 ]
 
 
-class DisplayOption(Enum):
-    ALL = 1
-    NONE = 2
-    BAD = 3
-
-
 class CubeViz:
-    """Cube visualizer"""
+    """Cube visualization logic"""
 
     def __init__(
         self,
@@ -197,20 +208,20 @@ class CubeViz:
             piece_id, orientation = corners[i]
             for side in range(0, 3):
                 face = (side + 3 - orientation) % 3
-                self.colors[corner_position_facelets[i][side]] = (
+                self.colors[CORNER_POSITION_FACELETS[i][side]] = (
                     palette.color_of_corner(
-                        corner_piece_colors[piece_id][face], corner_visibility[i][side]
+                        CORNER_PIECE_COLORS[piece_id][face], corner_visibility[i][side]
                     )
                 )
         edges = self.attempt.cube.edges()
         edge_visibility = self.attempt.edge_visibility()
         for i in range(0, 12):
             piece_id, piece_orientation = edges[i]
-            orientation = default_orientation[home_slice[piece_id] ^ home_slice[i]]
+            orientation = DEFAULT_ORIENTATION[HOME_SLICE[piece_id] ^ HOME_SLICE[i]]
             flipped = 0 if piece_orientation == orientation else 1
             for side in range(0, 2):
-                self.colors[edge_position_facelets[i][side]] = palette.color_of_edge(
-                    edge_piece_colors[edges[i][0]][(side + flipped) % 2],
+                self.colors[EDGE_POSITION_FACELETS[i][side]] = palette.color_of_edge(
+                    EDGE_PIECE_COLORS[edges[i][0]][(side + flipped) % 2],
                     edge_visibility[i][side],
                 )
 
@@ -298,7 +309,7 @@ class CubeViz:
                     facelet_y[i],
                     facelet_z[i],
                     color,
-                    axis[i],
+                    FACELET_AXIS[i],
                 )
 
     def rotate(self, dx, dy=0):
@@ -327,7 +338,7 @@ def rotation_for(o: Orientation) -> Quaternion:
 
 
 class CubeWidget(QWidget):
-    """OpenGL widget that uses the CubeViz drawing methods"""
+    """OpenGL widget that uses CubeViz for rendering"""
 
     def __init__(self, viz: CubeViz, parent=None):
         super(CubeWidget, self).__init__(parent)

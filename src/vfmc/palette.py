@@ -1,7 +1,28 @@
 from enum import Enum
-from typing import Dict, Tuple, List
+from typing import Dict, Tuple
 
 from vfmc.prefs import preferences, RecognitionOptionNames
+
+
+class Visibility:
+    """Bit mask to describe facelets while solving a step"""
+
+    Any = 1
+    BadFace = 2
+    BadPiece = 4
+    BottomColor = 8
+    TopColor = 16
+    All = 255
+
+
+# Map of preference keys to Visibility bit mask
+_VISIBILITY_NAMES = {
+    RecognitionOptionNames.BAD_FACES: Visibility.BadFace,
+    RecognitionOptionNames.BAD_PIECES: Visibility.BadPiece,
+    RecognitionOptionNames.TOP_COLOR: Visibility.TopColor,
+    RecognitionOptionNames.BOTTOM_COLOR: Visibility.BottomColor,
+    RecognitionOptionNames.ALL: Visibility.All,
+}
 
 
 class FaceletColors(Enum):
@@ -14,24 +35,6 @@ class FaceletColors(Enum):
     HIDDEN = 6
 
 
-class Visibility:
-    Any = 1
-    BadFace = 2
-    BadPiece = 4
-    HtrD = 8
-    HtrU = 16
-    All = 255
-
-
-_visibility_options = {
-    RecognitionOptionNames.BAD_FACES: Visibility.BadFace,
-    RecognitionOptionNames.BAD_PIECES: Visibility.BadPiece,
-    RecognitionOptionNames.TOP_COLOR: Visibility.HtrU,
-    RecognitionOptionNames.BOTTOM_COLOR: Visibility.HtrD,
-    RecognitionOptionNames.ALL: Visibility.All,
-}
-
-
 class Palette:
     def __init__(
         self,
@@ -41,6 +44,7 @@ class Palette:
         hidden_color: Tuple,
         opacity: int,
     ):
+        """Colors for drawing the cube"""
         self.colors = colors
         self.edge_visibility_mask = edge_visibility_mask
         self.corner_visibility_mask = corner_visibility_mask
@@ -91,7 +95,7 @@ class Palette:
             p.edge_visibility_mask = Visibility.All
             p.corner_visibility_mask = Visibility.All
         for opt in options[0]:
-            p.edge_visibility_mask |= _visibility_options.get(opt, 0)
+            p.edge_visibility_mask |= _VISIBILITY_NAMES.get(opt, 0)
         for opt in options[1]:
-            p.corner_visibility_mask |= _visibility_options.get(opt, 0)
+            p.corner_visibility_mask |= _VISIBILITY_NAMES.get(opt, 0)
         return p

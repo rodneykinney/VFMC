@@ -385,7 +385,7 @@ pub enum Visibility {
     BadFace = 2,
     BadPiece = 4,
     HtrD = 8,
-    HtrU = 16,
+    TopColor = 16,
 }
 
 trait Solvable {
