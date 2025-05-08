@@ -23,8 +23,8 @@ set-version:
 
 current_version=$(shell grep '^version' pyproject.toml | cut -d\" -f 2)
 push-version:
-	git tag v$(current_version)
-	git push origin v$(current_version)
+	git tag --force v$(current_version)
+	git push --force origin v$(current_version)
 
 all: build
 
