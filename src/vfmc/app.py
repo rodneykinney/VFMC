@@ -784,11 +784,13 @@ class AppWindow(QMainWindow):
         self.command_input.setFocus()
 
 
-def main():
+def main(session_file: Optional[str]):
     app = QApplication(sys.argv)
     app.setApplicationName("VFMC")
     window = AppWindow()
     window.show()
+    if session_file:
+        window.commands.load_session(session_file)
 
     sys.exit(app.exec_())
 
@@ -1272,4 +1274,5 @@ if __name__ == "__main__":
         if os.path.basename(bundle_dir) == "MacOS":
             logging.debug(f"Running bundle from {bundle_dir}")
             os.chdir(os.path.dirname(os.path.dirname(bundle_dir)))
-    main()
+    session_file = os.path.abspath(sys.argv[1]) if len(sys.argv) > 1 else None
+    main(session_file)
