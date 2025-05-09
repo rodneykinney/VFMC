@@ -284,7 +284,7 @@ jobs:
           if [ -n "${{ github.event.inputs.version }}" ]; then
             echo "Using provided version: ${{ github.event.inputs.version }}"
             echo "TAG=v${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
-          elif [ "$GITHUB_REF" = "${GITHUB_REF#refs/tags/}" ]; then
+          elif [ "$GITHUB_REF" == "refs/tags/"* ]; then
             TAG=${GITHUB_REF#refs/tags/}
             echo "Using git tag: ${TAG}"
             echo "TAG=${TAG}" >> $GITHUB_OUTPUT
