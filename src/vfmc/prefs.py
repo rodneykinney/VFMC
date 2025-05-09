@@ -59,13 +59,12 @@ class RecognitionOptions:
             eo_corners=[],
             dr_edges=[
                 RecognitionOptionNames.BAD_FACES,
-                RecognitionOptionNames.BAD_PIECES,
             ],
             dr_corners=[RecognitionOptionNames.BAD_FACES],
             htr_edges=[RecognitionOptionNames.BAD_FACES],
             htr_corners=[
                 RecognitionOptionNames.BAD_FACES,
-                RecognitionOptionNames.TOP_COLOR,
+                RecognitionOptionNames.BOTTOM_COLOR,
             ],
             fr_edges=[RecognitionOptionNames.BAD_FACES],
             fr_corners=[RecognitionOptionNames.BAD_FACES],
