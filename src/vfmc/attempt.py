@@ -342,6 +342,15 @@ class Attempt:
 
     def save_solutions(self, sols: List[PartialSolution]):
         new_sols_by_key = defaultdict(list)
+
+        def sort_key(sol):
+            return (
+                sol.full_alg().len(),
+                len(sol.alg.inverse_moves()) > 0,
+                len(sol.alg.normal_moves()) > 0,
+                str(sol.alg),
+            )
+
         for s in sols:
             new_sols_by_key[s.kind].append(s)
         for kind, sols_for_kind in new_sols_by_key.items():
@@ -350,7 +359,7 @@ class Attempt:
             existing += [
                 s for s in sols_for_kind if not str(s.full_alg()) in existing_algs
             ]
-            existing.sort(key=lambda s: (s.full_alg().len(), s.variant))
+            existing.sort(key=sort_key)
         self.notify_saved_solution_listeners()
 
     def add_saved_solution_listener(self, callback: Callable):
