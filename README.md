@@ -6,7 +6,17 @@ VFMC is a tool for practicing FMC attempts virtually.
 
 Windows and Mac executables can be found [here](https://github.com/rodneykinney/VFMC/releases/latest)
 
-On any platform, you can also install using `pip install vfmc`
+On any platform, you can also install and run from the command line:
+```
+# Requires Python version 3.9 or later:
+python --version
+
+# Install with pip
+python -m pip install vfmc
+
+# Run
+vfmc
+```
 
 # Approach
 
