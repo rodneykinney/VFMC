@@ -2,6 +2,8 @@
 
 VFMC is a tool for practicing FMC attempts virtually.
 
+See video explanation [here](https://www.youtube.com/playlist?list=PLgG41rIZp6JsT2FIP074K6w9nOfUSL3dv)
+
 # Installation
 
 Windows and Mac executables can be found [here](https://github.com/rodneykinney/VFMC/releases/latest)
