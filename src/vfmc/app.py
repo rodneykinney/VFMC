@@ -1222,10 +1222,11 @@ class CurrentSolutionWidget(QListWidget):
         }:
             # Enter key starts editing the current item if any
             current_item = self.currentItem()
-            if current_item and (current_item.flags() & Qt.ItemIsEditable):
-                self.editItem(current_item)
-            else:
-                self.activate_step(current_item.data(SOLUTION))
+            if current_item:
+                if current_item.flags() & Qt.ItemIsEditable:
+                    self.editItem(current_item)
+                else:
+                    self.activate_step(current_item.data(SOLUTION))
         else:
             super().keyPressEvent(event)  # Default behavior for other keys
 
