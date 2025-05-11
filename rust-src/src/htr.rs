@@ -237,11 +237,11 @@ mod tests {
 
     #[test]
     fn test_allowed() {
-        let moves = "R L' U2 R' L U2";
+        let moves = Algorithm::new("R L' U2 R' L U2").unwrap();
         assert_eq!(
             StepInfo::new("htr", "ud")
                 .unwrap()
-                .are_moves_allowed(moves)
+                .are_moves_allowed(&moves)
                 .unwrap(),
             true
         );

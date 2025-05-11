@@ -1,7 +1,7 @@
 use crate::htr::{HTRFB, HTRRL, HTRUD};
 use crate::solver::{solve_step, step_config};
-use crate::Visibility::{Any, BadFace, BadPiece, TopColor};
-use crate::{Algorithm, DrawableEdge, Solvable};
+use crate::Visibility::{Any, BadFace, BadPiece};
+use crate::{Algorithm, Solvable};
 use cubelib::cube::turn::TransformableMut;
 use cubelib::cube::{Cube333, Transformation333};
 use cubelib::defs::StepKind;
@@ -53,7 +53,7 @@ impl Solvable for SliceUD {
         BadFace as u8 | BadPiece as u8
     }
     fn solve(&self, cube: &Cube333, count: usize) -> PyResult<Vec<Algorithm>> {
-        solve_step(cube, step_config(StepKind::FINLS, ""), count, false)
+        solve_step(cube, step_config(StepKind::FINLS, "ud"), count, false)
     }
 }
 pub struct SliceFB;
@@ -85,7 +85,7 @@ impl Solvable for SliceFB {
         BadPiece as u8 | BadFace as u8
     }
     fn solve(&self, cube: &Cube333, count: usize) -> PyResult<Vec<Algorithm>> {
-        solve_step(cube, step_config(StepKind::FINLS, ""), count, false)
+        solve_step(cube, step_config(StepKind::FINLS, "fb"), count, false)
     }
 }
 
@@ -118,7 +118,7 @@ impl Solvable for SliceRL {
         BadPiece as u8 | BadFace as u8
     }
     fn solve(&self, cube: &Cube333, count: usize) -> PyResult<Vec<Algorithm>> {
-        solve_step(cube, step_config(StepKind::FINLS, ""), count, false)
+        solve_step(cube, step_config(StepKind::FINLS, "lr"), count, false)
     }
 }
 
@@ -131,7 +131,14 @@ mod tests {
     #[test]
     fn test_slice_ud() {
         let cube = Cube::new("U2 L' B2 R' U2 F L2 B2 D2 L2 F2 U2 L2 R' F2 U2 R' F2 U B' R2 B R' B R F2 R D' L2 D' B2 R U F2 B2 U L2 D".to_string()).unwrap().0;
+        assert!(SliceUD.is_eligible(&cube));
+    }
+
+    #[test]
+    fn test_solve_slice_ud() {
+        let cube = Cube::new("F2 R L' U2 R' L".to_string()).unwrap().0;
         let slice_ud = SliceUD {};
-        assert!(slice_ud.is_eligible(&cube));
+        let solutions = slice_ud.solve(&cube, 1).unwrap();
+        assert!(!solutions.is_empty());
     }
 }

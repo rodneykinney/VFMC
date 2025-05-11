@@ -506,7 +506,9 @@ class AppWindow(QMainWindow):
             return True
         else:
             if step_info.is_eligible(self.attempt.cube):
+                inverse = self.attempt.inverse
                 self.attempt.advance_to(kind, variant)
+                self.attempt.set_inverse(inverse)
                 return True
             else:
                 self.set_status(f"Cube is not eligible for {kind}{variant}")
@@ -842,6 +844,12 @@ class Commands:
             logging.error(sys.exc_info())
             self.window.set_status(f"Error: {e}")
 
+    def debug(self):
+        from vfmc_core import debug
+
+        self.window.set_status(debug(self.attempt.cube))
+        return CommandResult(add_to_history=[])
+
     def help(self):
         self.window.show_help()
         return CommandResult(add_to_history=[])
@@ -931,7 +939,7 @@ class Commands:
         self.window.set_step("finish", "")
 
     def set_inverse(self, b: bool):
-        self.attempt.inverse = b
+        self.attempt.set_inverse(b)
 
     def niss(self):
         """Switch between normal and inverse scramble"""

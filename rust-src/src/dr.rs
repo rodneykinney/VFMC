@@ -2,7 +2,7 @@ use crate::eo::{EOFB, EORL, EOUD};
 use crate::solver::{solve_step, step_config};
 use crate::Visibility::{Any, BadFace, BadPiece};
 use crate::{
-    Algorithm, DrawableCorner, DrawableEdge, Solvable, EDGE_FB_FACELETS, EDGE_RL_FACELETS,
+    Algorithm, DrawableCorner, Solvable, EDGE_FB_FACELETS, EDGE_RL_FACELETS,
     EDGE_UD_FACELETS,
 };
 use cubelib::cube::turn::TransformableMut;
@@ -35,14 +35,15 @@ impl Solvable for DRUD {
         let bad_edge_count = cube.count_bad_edges_lr() + cube.count_bad_edges_fb();
         format!("{}c{}e", bad_corner_count, bad_edge_count)
     }
-    fn edge_visibility(&self, cube: &Cube333, pos: usize, _facelet: u8) -> u8 {
+    fn edge_visibility(&self, cube: &Cube333, pos: usize, facelet: u8) -> u8 {
         let e = cube.edges.get_edges()[pos];
         let mut v = Any as u8;
         if !e.oriented_fb || !e.oriented_rl {
             v |= BadPiece as u8;
             match pos {
-                4 | 5 | 6 | 7 if Some(_facelet) == e.facelet_showing_ud() => v |= BadFace as u8,
-                _ if Some(_facelet) == EDGE_UD_FACELETS[pos] => v |= BadFace as u8,
+                4 | 5 | 6 | 7 if e.oriented_fb && (Some(facelet) == EDGE_FB_FACELETS[pos]) => v |= BadFace as u8,
+                4 | 5 | 6 | 7 if e.oriented_rl && (Some(facelet) == EDGE_RL_FACELETS[pos]) => v |= BadFace as u8,
+                _ if Some(facelet) == EDGE_UD_FACELETS[pos] => v |= BadFace as u8,
                 _ => (),
             }
         }
@@ -79,14 +80,15 @@ impl Solvable for DRFB {
         cube.transform(Transformation333::X);
         DRUD.case_name(&cube)
     }
-    fn edge_visibility(&self, cube: &Cube333, pos: usize, _facelet: u8) -> u8 {
+    fn edge_visibility(&self, cube: &Cube333, pos: usize, facelet: u8) -> u8 {
         let e = cube.edges.get_edges()[pos];
         let mut v = Any as u8;
         if !e.oriented_ud || !e.oriented_rl {
             v |= BadPiece as u8;
             match pos {
-                1 | 3 | 9 | 11 if Some(_facelet) == e.facelet_showing_fb() => v |= BadFace as u8,
-                _ if Some(_facelet) == EDGE_FB_FACELETS[pos] => v |= BadFace as u8,
+                1 | 3 | 9 | 11 if e.oriented_ud && (Some(facelet) == EDGE_UD_FACELETS[pos]) => v |= BadFace as u8,
+                1 | 3 | 9 | 11 if e.oriented_rl && (Some(facelet) == EDGE_RL_FACELETS[pos]) => v |= BadFace as u8,
+                _ if Some(facelet) == EDGE_FB_FACELETS[pos] => v |= BadFace as u8,
                 _ => (),
             }
         }
@@ -122,14 +124,15 @@ impl Solvable for DRRL {
         cube.transform(Transformation333::Z);
         DRUD.case_name(&cube)
     }
-    fn edge_visibility(&self, cube: &Cube333, pos: usize, _facelet: u8) -> u8 {
+    fn edge_visibility(&self, cube: &Cube333, pos: usize, facelet: u8) -> u8 {
         let e = cube.edges.get_edges()[pos];
         let mut v = Any as u8;
         if !e.oriented_fb || !e.oriented_ud {
             v |= BadPiece as u8;
             match pos {
-                0 | 2 | 8 | 10 if Some(_facelet) == e.facelet_showing_rl() => v |= BadFace as u8,
-                _ if Some(_facelet) == EDGE_RL_FACELETS[pos] => v |= BadFace as u8,
+                0 | 2 | 8 | 10 if e.oriented_fb && (Some(facelet) == EDGE_FB_FACELETS[pos]) => v |= BadFace as u8,
+                0 | 2 | 8 | 10 if e.oriented_ud && (Some(facelet) == EDGE_UD_FACELETS[pos]) => v |= BadFace as u8,
+                _ if Some(facelet) == EDGE_RL_FACELETS[pos] => v |= BadFace as u8,
                 _ => (),
             }
         }
@@ -148,5 +151,24 @@ impl Solvable for DRRL {
     }
     fn solve(&self, cube: &Cube333, count: usize) -> PyResult<Vec<Algorithm>> {
         solve_step(cube, step_config(StepKind::DR, "lr"), count, true)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use cubelib::defs::StepKind::DR;
+    use crate::{Cube, Solvable};
+    use crate::dr::DRUD;
+
+    #[test]
+    fn test_drud_edge_visibility() {
+        let mut cube = Cube::new("R".to_string()).unwrap();
+        let drud = DRUD;
+        for pos in 4..8 {
+            for face in 0..2 {
+                let viz = DRUD.edge_visibility(&cube.0, pos, face);
+                print!("{}", viz);
+            }
+        }
     }
 }

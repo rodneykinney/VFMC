@@ -21,7 +21,7 @@ use crate::solver::scramble;
 use crate::Visibility::Any;
 use cubelib::algs::Algorithm as LibAlgorithm;
 use cubelib::cube::turn::{ApplyAlgorithm, Direction, Invertible, InvertibleMut};
-use cubelib::cube::{Corner, Cube333, Edge, Turn333};
+use cubelib::cube::{Corner, Cube333, Turn333};
 
 #[pyclass]
 struct Algorithm(LibAlgorithm);
@@ -215,33 +215,33 @@ fn vfmc_core(_py: Python, m: &PyModule) -> PyResult<()> {
     Ok(())
 }
 
-trait DrawableEdge {
-    fn facelet_showing_ud(&self) -> Option<u8>;
-    fn facelet_showing_fb(&self) -> Option<u8>;
-    fn facelet_showing_rl(&self) -> Option<u8>;
-}
-impl DrawableEdge for Edge {
-    fn facelet_showing_ud(&self) -> Option<u8> {
-        match self.id / 4 {
-            1 => None,
-            _ => Some(0),
-        }
-    }
-    fn facelet_showing_fb(&self) -> Option<u8> {
-        match self.id / 4 {
-            1 => Some(0),
-            _ if self.id % 2 == 0 => Some(1),
-            _ => None,
-        }
-    }
-    fn facelet_showing_rl(&self) -> Option<u8> {
-        match self.id / 4 {
-            1 => Some(1),
-            _ if self.id % 2 == 1 => Some(1),
-            _ => None,
-        }
-    }
-}
+// trait DrawableEdge {
+//     fn facelet_showing_ud(&self) -> Option<u8>;
+//     fn facelet_showing_fb(&self) -> Option<u8>;
+//     fn facelet_showing_rl(&self) -> Option<u8>;
+// }
+// impl DrawableEdge for Edge {
+//     fn facelet_showing_ud(&self) -> Option<u8> {
+//         match self.id / 4 {
+//             1 => None,
+//             _ => Some(0),
+//         }
+//     }
+//     fn facelet_showing_fb(&self) -> Option<u8> {
+//         match self.id / 4 {
+//             1 => Some(0),
+//             _ if self.id % 2 == 0 => Some(1),
+//             _ => None,
+//         }
+//     }
+//     fn facelet_showing_rl(&self) -> Option<u8> {
+//         match self.id / 4 {
+//             1 => Some(1),
+//             _ if self.id % 2 == 1 => Some(1),
+//             _ => None,
+//         }
+//     }
+// }
 
 #[pyfunction]
 fn debug(cube: &Cube) -> String {
@@ -249,7 +249,10 @@ fn debug(cube: &Cube) -> String {
     let e = cube.edges.get_edges();
     format!(
         "4: {} 5: {} 6: {} 7: {}",
-        e[4].id, e[5].id, e[6].id, e[7].id
+        e[4].id,
+        e[5].id,
+        e[6].id,
+        e[7].id,
     )
 }
 
