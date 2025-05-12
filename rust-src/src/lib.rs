@@ -249,10 +249,7 @@ fn debug(cube: &Cube) -> String {
     let e = cube.edges.get_edges();
     format!(
         "4: {} 5: {} 6: {} 7: {}",
-        e[4].id,
-        e[5].id,
-        e[6].id,
-        e[7].id,
+        e[4].id, e[5].id, e[6].id, e[7].id,
     )
 }
 

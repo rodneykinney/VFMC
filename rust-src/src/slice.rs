@@ -45,7 +45,7 @@ impl Solvable for SliceUD {
     fn edge_visibility(&self, _cube: &Cube333, pos: usize, _facelet: u8) -> u8 {
         match pos {
             4 | 5 | 6 | 7 => Any as u8,
-            _ => BadPiece as u8 | BadFace as u8
+            _ => BadPiece as u8 | BadFace as u8,
         }
     }
 

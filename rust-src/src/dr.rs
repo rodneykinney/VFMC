@@ -2,8 +2,7 @@ use crate::eo::{EOFB, EORL, EOUD};
 use crate::solver::{solve_step, step_config};
 use crate::Visibility::{Any, BadFace, BadPiece};
 use crate::{
-    Algorithm, DrawableCorner, Solvable, EDGE_FB_FACELETS, EDGE_RL_FACELETS,
-    EDGE_UD_FACELETS,
+    Algorithm, DrawableCorner, Solvable, EDGE_FB_FACELETS, EDGE_RL_FACELETS, EDGE_UD_FACELETS,
 };
 use cubelib::cube::turn::TransformableMut;
 use cubelib::cube::{Corner, Cube333, Transformation333};
@@ -41,8 +40,12 @@ impl Solvable for DRUD {
         if !e.oriented_fb || !e.oriented_rl {
             v |= BadPiece as u8;
             match pos {
-                4 | 5 | 6 | 7 if e.oriented_fb && (Some(facelet) == EDGE_FB_FACELETS[pos]) => v |= BadFace as u8,
-                4 | 5 | 6 | 7 if e.oriented_rl && (Some(facelet) == EDGE_RL_FACELETS[pos]) => v |= BadFace as u8,
+                4 | 5 | 6 | 7 if e.oriented_fb && (Some(facelet) == EDGE_FB_FACELETS[pos]) => {
+                    v |= BadFace as u8
+                }
+                4 | 5 | 6 | 7 if e.oriented_rl && (Some(facelet) == EDGE_RL_FACELETS[pos]) => {
+                    v |= BadFace as u8
+                }
                 _ if Some(facelet) == EDGE_UD_FACELETS[pos] => v |= BadFace as u8,
                 _ => (),
             }
@@ -86,8 +89,12 @@ impl Solvable for DRFB {
         if !e.oriented_ud || !e.oriented_rl {
             v |= BadPiece as u8;
             match pos {
-                1 | 3 | 9 | 11 if e.oriented_ud && (Some(facelet) == EDGE_UD_FACELETS[pos]) => v |= BadFace as u8,
-                1 | 3 | 9 | 11 if e.oriented_rl && (Some(facelet) == EDGE_RL_FACELETS[pos]) => v |= BadFace as u8,
+                1 | 3 | 9 | 11 if e.oriented_ud && (Some(facelet) == EDGE_UD_FACELETS[pos]) => {
+                    v |= BadFace as u8
+                }
+                1 | 3 | 9 | 11 if e.oriented_rl && (Some(facelet) == EDGE_RL_FACELETS[pos]) => {
+                    v |= BadFace as u8
+                }
                 _ if Some(facelet) == EDGE_FB_FACELETS[pos] => v |= BadFace as u8,
                 _ => (),
             }
@@ -130,8 +137,12 @@ impl Solvable for DRRL {
         if !e.oriented_fb || !e.oriented_ud {
             v |= BadPiece as u8;
             match pos {
-                0 | 2 | 8 | 10 if e.oriented_fb && (Some(facelet) == EDGE_FB_FACELETS[pos]) => v |= BadFace as u8,
-                0 | 2 | 8 | 10 if e.oriented_ud && (Some(facelet) == EDGE_UD_FACELETS[pos]) => v |= BadFace as u8,
+                0 | 2 | 8 | 10 if e.oriented_fb && (Some(facelet) == EDGE_FB_FACELETS[pos]) => {
+                    v |= BadFace as u8
+                }
+                0 | 2 | 8 | 10 if e.oriented_ud && (Some(facelet) == EDGE_UD_FACELETS[pos]) => {
+                    v |= BadFace as u8
+                }
                 _ if Some(facelet) == EDGE_RL_FACELETS[pos] => v |= BadFace as u8,
                 _ => (),
             }
@@ -156,9 +167,9 @@ impl Solvable for DRRL {
 
 #[cfg(test)]
 mod tests {
-    use cubelib::defs::StepKind::DR;
-    use crate::{Cube, Solvable};
     use crate::dr::DRUD;
+    use crate::{Cube, Solvable};
+    use cubelib::defs::StepKind::DR;
 
     #[test]
     fn test_drud_edge_visibility() {
