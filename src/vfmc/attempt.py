@@ -141,6 +141,7 @@ class Attempt:
         self._comments: Dict[PartialSolution, str] = {}
         self._continuations: Dict[PartialSolution, Tuple[str, str]] = {}
         self._orientations: Dict[PartialSolution, Orientation] = {}
+        self._obscured: Set[PartialSolution] = set()
         self._cube_listeners = []
         self._saved_solution_listeners = []
         self._solution_attribute_listeners = []
@@ -172,6 +173,13 @@ class Attempt:
             self._done.add(sol)
         self.notify_solution_attribute_listeners()
 
+    def toggle_obscured(self, sol: PartialSolution):
+        if sol in self._obscured:
+            self._obscured.remove(sol)
+        else:
+            self._obscured.add(sol)
+        self.notify_solution_attribute_listeners()
+
     def set_comment(self, sol: PartialSolution, s: str):
         self._comments[sol] = s
         self.notify_solution_attribute_listeners()
@@ -183,6 +191,8 @@ class Attempt:
         return sol in self._done
 
     def to_str(self, sol: PartialSolution) -> str:
+        if sol in self._obscured:
+            return " ".join(["?" for i in range(sol.alg.len())])
         comment = self._comments.get(sol)
         if not comment:
             comment = sol.kind

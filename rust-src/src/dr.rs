@@ -167,6 +167,10 @@ impl Solvable for DRRL {
 
 #[cfg(test)]
 mod tests {
+    use cubelib::defs::StepKind::DR;
+    use cubelib::steps::coord::Coord;
+    use cubelib::steps::dr::coords::DRUDEOFBCoord;
+    use crate::{Cube, Solvable, Algorithm};
     use crate::dr::DRUD;
     use crate::{Cube, Solvable};
     use cubelib::defs::StepKind::DR;
@@ -181,5 +185,16 @@ mod tests {
                 print!("{}", viz);
             }
         }
+    }
+
+    #[test]
+    fn test_drud_coord() {
+        let mut cube = Cube::new("".to_string()).unwrap();
+        let mut coord = DRUDEOFBCoord::from(&cube.0);
+        cube.apply(&Algorithm::new("R").unwrap());
+        coord = DRUDEOFBCoord::from(&cube.0);
+        cube.apply(&Algorithm::new("U2").unwrap());
+        coord = DRUDEOFBCoord::from(&cube.0);
+        assert_eq!(coord.val(), 0);
     }
 }

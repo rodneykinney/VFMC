@@ -40,6 +40,7 @@ class Palette:
         self,
         colors: Dict[FaceletColors, Tuple],
         edge_visibility_mask: int,
+        center_visibility_mask: int,
         corner_visibility_mask: int,
         hidden_color: Tuple,
         opacity: int,
@@ -47,12 +48,18 @@ class Palette:
         """Colors for drawing the cube"""
         self.colors = colors
         self.edge_visibility_mask = edge_visibility_mask
+        self.center_visibility_mask = center_visibility_mask
         self.corner_visibility_mask = corner_visibility_mask
         self.hidden_color = hidden_color
         self.opacity = opacity
 
     def color_of_edge(self, f: FaceletColors, visibility: int) -> Tuple:
         if visibility & self.edge_visibility_mask == 0:
+            return self.hidden_color
+        return self.colors[f] + (self.opacity,)
+
+    def color_of_center(self, f: FaceletColors, visibility: int) -> Tuple:
+        if visibility & self.center_visibility_mask == 0:
             return self.hidden_color
         return self.colors[f] + (self.opacity,)
 
@@ -67,9 +74,9 @@ class Palette:
             (FaceletColors(k), tuple(v)) for k, v in enumerate(preferences.colors)
         )
         bg = preferences.background_color
-        h = 0 if bg > 128 else 255
-        hidden = (h, h, h, 51)
-        p = Palette(colors, 0, 0, hidden, preferences.opacity)
+        h, o = (0, 25) if bg > 128 else (255, 51)
+        hidden = (h, h, h, o)
+        p = Palette(colors, 0, 255, 0, hidden, preferences.opacity)
         options = [], []
         if name == "eo":
             options = (
@@ -94,6 +101,25 @@ class Palette:
         elif name == "slice":
             p.edge_visibility_mask = Visibility.BadPiece
             p.corner_visibility_mask = Visibility.BadPiece
+        elif name == "corner-case":
+            p.center_visibility_mask = 0
+            p.opacity = 255
+            p.corner_visibility_mask = Visibility.BadFace
+            p.colors[FaceletColors.ORANGE] = p.colors[FaceletColors.RED]
+            p.colors[FaceletColors.BLUE] = p.colors[FaceletColors.GREEN]
+        elif name == "edge-case":
+            p.center_visibility_mask = 0
+            p.opacity = 255
+            p.edge_visibility_mask = Visibility.BadFace
+            p.colors[FaceletColors.ORANGE] = p.colors[FaceletColors.RED]
+            p.colors[FaceletColors.BLUE] = p.colors[FaceletColors.GREEN]
+        elif name == "corner-edge-case":
+            p.center_visibility_mask = 0
+            p.opacity = 255
+            p.corner_visibility_mask = Visibility.BadFace
+            p.edge_visibility_mask = Visibility.BadFace
+            p.colors[FaceletColors.ORANGE] = p.colors[FaceletColors.RED]
+            p.colors[FaceletColors.BLUE] = p.colors[FaceletColors.GREEN]
         else:
             p.edge_visibility_mask = Visibility.All
             p.corner_visibility_mask = Visibility.All
