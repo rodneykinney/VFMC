@@ -26,12 +26,14 @@ from PyQt5.QtWidgets import (
     QListWidgetItem,
     QAction,
     QFileDialog,
+    QInputDialog,
 )
 from PyQt5.QtCore import Qt, QEvent
 from PyQt5.QtGui import QKeySequence
 
 from vfmc.attempt import PartialSolution, Attempt, step_name
 from vfmc import prefs
+from vfmc.palette import Palette
 from vfmc.prefs import preferences
 from vfmc.viz import CubeViz, CubeWidget
 from vfmc_core import Algorithm, StepInfo, scramble as gen_scramble
@@ -121,8 +123,8 @@ class AppWindow(QMainWindow):
 
         # Graphical Cube
         self.viz = CubeViz(self.attempt)
-        cube_viz_widget = CubeWidget(self.viz)
-        cube_widget.layout().addWidget(cube_viz_widget)
+        self.cube_viz_widget = CubeWidget(self.viz)
+        cube_widget.layout().addWidget(self.cube_viz_widget)
 
         # Status labels below cube graphics
         status_container = QWidget()
@@ -701,13 +703,18 @@ class AppWindow(QMainWindow):
 
         # Save session action
         save_action = QAction("Save Session", self)
-        save_action.triggered.connect(lambda: self.save_session_dialog())
+        save_action.triggered.connect(self.save_session_dialog)
         file_menu.addAction(save_action)
 
         # Load session action
         load_action = QAction("Load Session", self)
-        load_action.triggered.connect(lambda: self.load_session_dialog())
+        load_action.triggered.connect(self.load_session_dialog)
         file_menu.addAction(load_action)
+
+        # Export image
+        export_action = QAction("Export image", self)
+        export_action.triggered.connect(self.export_image_dialog)
+        file_menu.addAction(export_action)
 
         # Exit action
         exit_action = QAction("Exit", self)
@@ -735,7 +742,7 @@ class AppWindow(QMainWindow):
         if filename:
             if not filename.endswith(".vfmc"):
                 filename += ".vfmc"
-            self.commands.execute(f'save_session("{filename}")')
+            self.commands.save_session(filename)
 
     def load_session_dialog(self):
         """Show dialog to load session"""
@@ -743,7 +750,21 @@ class AppWindow(QMainWindow):
             self, "Load Session", "", "VFMC Files (*.vfmc)"
         )
         if filename:
-            self.commands.execute(f'load_session("{filename}")')
+            self.commands.load_session(filename)
+
+    def export_image_dialog(self):
+        """Show dialog to save session"""
+        filename, _ = QFileDialog.getSaveFileName(
+            self, "Export Image", "", "PNG (*.png)"
+        )
+        if filename:
+            if not filename.endswith(".png"):
+                filename += ".png"
+            size, ok = QInputDialog.getInt(
+                self, "Image Size", "Enter size:", 100, 25, 500
+            )
+            if ok:
+                self.commands.export_image(filename, size)
 
     def show_about(self):
         """Show about dialog"""
@@ -994,14 +1015,14 @@ class Commands:
         if not sol:
             return
         self.attempt.set_comment(sol, s)
-        item = self.item_containing(sol)
+        item = self._item_containing(sol)
         if item:
             i = item.listWidget().row(item)
             padding = "   " if i < 9 else ("  " if i < 99 else " ")
             item.setText(f"{i + 1}.{padding}{self.attempt.to_str(sol)}")
             return
 
-    def item_containing(self, sol: PartialSolution) -> Optional[QListWidgetItem]:
+    def _item_containing(self, sol: PartialSolution) -> Optional[QListWidgetItem]:
         for kind in reversed(self.window.step_order):
             widget = self.window.solution_widgets[kind]
             for i in range(widget.count()):
@@ -1013,6 +1034,10 @@ class Commands:
     def done(self):
         sol = self.attempt.solution
         self.attempt.toggle_done(sol)
+
+    def obscure(self):
+        sol = self.attempt.solution
+        self.attempt.toggle_obscured(sol)
 
     def save(self):
         """Save this algorithm and start a new one"""
@@ -1080,6 +1105,21 @@ class Commands:
             self.command_history = h
             self.window.set_status(f"Unable to load '{filename}': {e}")
             return CommandResult(error=e, add_to_history=[])
+
+    def palette(self, name):
+        p = Palette.by_name(name) if name else None
+        self.window.viz.set_palette(p)
+        return CommandResult(add_to_history=[])
+
+    def camera(self, x, y, z, angle=-math.pi / 6):
+        self.window.viz.set_camera(x, y, z)
+        self.window.viz.view_y = angle
+        self.window.viz.refresh()
+        return CommandResult(add_to_history=[])
+
+    def export_image(self, filename, size=None):
+        self.window.cube_viz_widget.export_png(filename, size)
+        return CommandResult(add_to_history=[])
 
 
 class SolutionItemRenderer(QStyledItemDelegate):

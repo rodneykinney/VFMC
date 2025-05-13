@@ -1,8 +1,9 @@
 import math
 import numpy as np
-from PyQt5.QtCore import QTimer, Qt, QEvent
+from PyQt5.QtCore import QTimer, Qt, QEvent, QSize
 from PyQt5.QtWidgets import QWidget
-from PyQt5.QtGui import QPainter, QColor, QPen, QBrush, QPolygon
+from PyQt5.QtGui import QPainter, QColor, QPen, QBrush, QPolygon, QPixmap
+
 
 from vfmc.attempt import Attempt, Orientation, AXIS_ROTATIONS
 from vfmc.palette import FaceletColors, Visibility, Palette
@@ -43,24 +44,25 @@ facelet_z = (
 )
 
 # Coordinates of the facelet in different plains, relative to the facelet center
+FACELET_WIDTH = 0.48  # Distance from center to edge of the facelet
 FACELET_VERTICES = {
     "xy": [
-        np.array([-0.48, -0.48, 0.0]),
-        np.array([0.48, -0.48, 0.0]),
-        np.array([0.48, 0.48, 0.0]),
-        np.array([-0.48, 0.48, 0.0]),
+        np.array([-FACELET_WIDTH, -FACELET_WIDTH, 0.0]),
+        np.array([FACELET_WIDTH, -FACELET_WIDTH, 0.0]),
+        np.array([FACELET_WIDTH, FACELET_WIDTH, 0.0]),
+        np.array([-FACELET_WIDTH, FACELET_WIDTH, 0.0]),
     ],
     "xz": [
-        np.array([-0.48, 0.0, -0.48]),
-        np.array([0.48, 0.0, -0.48]),
-        np.array([0.48, 0.0, 0.48]),
-        np.array([-0.48, 0.0, 0.48]),
+        np.array([-FACELET_WIDTH, 0.0, -FACELET_WIDTH]),
+        np.array([FACELET_WIDTH, 0.0, -FACELET_WIDTH]),
+        np.array([FACELET_WIDTH, 0.0, FACELET_WIDTH]),
+        np.array([-FACELET_WIDTH, 0.0, FACELET_WIDTH]),
     ],
     "yz": [
-        np.array([0.0, -0.48, -0.48]),
-        np.array([0.0, 0.48, -0.48]),
-        np.array([0.0, 0.48, 0.48]),
-        np.array([0.0, -0.48, 0.48]),
+        np.array([0.0, -FACELET_WIDTH, -FACELET_WIDTH]),
+        np.array([0.0, FACELET_WIDTH, -FACELET_WIDTH]),
+        np.array([0.0, FACELET_WIDTH, FACELET_WIDTH]),
+        np.array([0.0, -FACELET_WIDTH, FACELET_WIDTH]),
     ],
 }
 
@@ -152,7 +154,7 @@ class CubeViz:
         preferences.add_listener(self.refresh)
 
         # Initial camera position
-        self.init_camera(0, -10, 6)
+        self.set_camera(0, -10, 6)
         self.view_y = -math.pi / 6
         self.view_x = 0
 
@@ -160,7 +162,7 @@ class CubeViz:
         self.palette = None
         self.hide_nearest_faces = False
 
-    def init_camera(self, x, y, z):
+    def set_camera(self, x, y, z):
         self.camera = np.array([x, y, z])
 
         z_axis = np.array([0, 0, 1])
@@ -196,12 +198,12 @@ class CubeViz:
     def refresh(self):
         palette = self.get_palette()
         self.colors = [palette.hidden_color] * 54
-        self.colors[4] = palette.color_of_edge(FaceletColors.WHITE, Visibility.All)
-        self.colors[13] = palette.color_of_edge(FaceletColors.ORANGE, Visibility.All)
-        self.colors[22] = palette.color_of_edge(FaceletColors.GREEN, Visibility.All)
-        self.colors[31] = palette.color_of_edge(FaceletColors.RED, Visibility.All)
-        self.colors[40] = palette.color_of_edge(FaceletColors.BLUE, Visibility.All)
-        self.colors[49] = palette.color_of_edge(FaceletColors.YELLOW, Visibility.All)
+        self.colors[4] = palette.color_of_center(FaceletColors.WHITE, Visibility.All)
+        self.colors[13] = palette.color_of_center(FaceletColors.ORANGE, Visibility.All)
+        self.colors[22] = palette.color_of_center(FaceletColors.GREEN, Visibility.All)
+        self.colors[31] = palette.color_of_center(FaceletColors.RED, Visibility.All)
+        self.colors[40] = palette.color_of_center(FaceletColors.BLUE, Visibility.All)
+        self.colors[49] = palette.color_of_center(FaceletColors.YELLOW, Visibility.All)
         corners = self.attempt.cube.corners()
         corner_visibility = self.attempt.corner_visibility()
         for i in range(0, 8):
@@ -271,10 +273,11 @@ class CubeViz:
     def update(self):
         self.refresh()
 
-    def draw(self, painter, w, h):
-        # Clear the screen with the background color
-        bg = preferences.background_color
-        painter.fillRect(0, 0, w, h, QColor(bg, bg, bg))
+    def draw(self, painter, w, h, fill_bg=True):
+        if fill_bg:
+            # Clear the screen with the background color
+            bg = preferences.background_color
+            painter.fillRect(0, 0, w, h, QColor(bg, bg, bg))
         # Apply rotation
         q = (
             Quaternion(axis=[1, 0, 0], angle=self.view_x)
@@ -386,3 +389,24 @@ class CubeWidget(QWidget):
             dy = event.y() - self.last_mouse_pos.y()
             self.viz.rotate(dx, dy)
             self.last_mouse_pos = event.pos()
+
+    def export_png(self, file_path, size=None):
+        """Export the cube widget as a PNG image with transparent background.
+
+        Args:
+            file_path (str): Path where the PNG file will be saved
+        """
+        # Create a pixmap with transparent background
+        w, h = self.width(), self.height()
+        if size:
+            w, h = size, size
+        pixmap = QPixmap(QSize(w, h))
+        pixmap.fill(Qt.transparent)
+
+        # Paint the widget onto the pixmap
+        painter = QPainter(pixmap)
+        self.viz.draw(painter, w, h, fill_bg=False)
+        painter.end()
+
+        # Save the pixmap to file
+        pixmap.save(file_path, "PNG")
