@@ -36,15 +36,3 @@ Homepage = "https://github.com/rodneykinney/VFMC"
 
 [project.scripts]
 vfmc = "vfmc.app:main"
-
-#[build-system]
-#requires = ["maturin~=1.8"]
-#build-backend = "maturin"
-#
-#[tool.maturin]
-#python-source = "src"
-#manifest-path = "rust-src/Cargo.toml"
-#module-name = "vfmc_core"
-#include = ["LICENSE"]
-#bindings = "pyo3"
-#sdist-include = ["src/vfmc/**/*", "LICENSE"]
