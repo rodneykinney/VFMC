@@ -1,5 +1,6 @@
 from typing import Optional, Dict, List, Callable, Set, Tuple
 from collections import defaultdict
+from dataclasses import dataclass
 
 from vfmc_core import Algorithm, StepInfo, Cube
 
@@ -128,6 +129,11 @@ class PartialSolution:
         return str(self.full_alg()).__hash__()
 
 
+@dataclass
+class Insertion:
+    range: Tuple[int, int]
+    replacement: Optional[Algorithm]
+
 class Attempt:
     """Global state of the FMC attempt"""
 
@@ -136,12 +142,14 @@ class Attempt:
         self.cube = Cube("")
         self.inverse = False
         self.solution = PartialSolution()
+        self._rniss = None
         self._saved_by_kind: Dict[str, List[PartialSolution]] = defaultdict(list)
         self._done: Set[PartialSolution] = set()
         self._comments: Dict[PartialSolution, str] = {}
         self._continuations: Dict[PartialSolution, Tuple[str, str]] = {}
         self._orientations: Dict[PartialSolution, Orientation] = {}
         self._obscured: Set[PartialSolution] = set()
+        self._insertions: Dict[PartialSolution, List[Insertion]] = defaultdict(list)
         self._cube_listeners = []
         self._saved_solution_listeners = []
         self._solution_attribute_listeners = []
@@ -289,6 +297,7 @@ class Attempt:
         o = self._orientations.get(sol)
         if o:
             self.solution.orientation = o
+        self._rniss = None
         self.update_cube()
         self.notify_solution_attribute_listeners()
 
@@ -381,11 +390,35 @@ class Attempt:
     def add_cube_listener(self, callback: Callable):
         self._cube_listeners.append(callback)
 
+    def insertions(self) -> List[Tuple[PartialSolution, Insertion]]:
+        insertions_list = []
+        steps = self.solution.substeps()
+        for step in steps:
+            step_insertions = self._insertions[step]
+            if step_insertions:
+                insertions_list.extend(((step, i) for i in step_insertions))
+        return insertions_list
+
+    def rniss(self, index, inverse: bool = False):
+        self._rniss = (index, inverse) if index >= 0 else None
+        self.update_cube()
+
     def update_cube(self):
-        self.cube = Cube(self.scramble)
-        self.cube.apply(self.solution.full_alg())
-        if self.inverse:
-            self.cube.invert()
+        if not self._rniss:
+            self.cube = Cube(self.scramble)
+            self.cube.apply(self.solution.full_alg())
+            if self.inverse:
+                self.cube.invert()
+        else:
+            index, invers = self._rniss
+            steps = self.solution.substeps()
+            alg = steps[index].full_alg()
+            self.cube = Cube(self.scramble)
+            for step in reversed(steps[index+1:]):
+                inverted_normal_moves = Algorithm(f"{' '.join(step.alg.normal_moves())}").inverted()
+                rniss_alg = Algorithm(f"({' '.join(step.alg.inverse_moves())} {inverted_normal_moves})")
+                alg = alg.merge(rniss_alg)
+            self.cube.apply(alg)
         self.notify_cube_listeners()
 
     def notify_saved_solution_listeners(self):

@@ -1041,7 +1041,7 @@ class Commands:
 
     def save(self):
         """Save this algorithm and start a new one"""
-        self.window.current_solution_widget.sync_history_with_editor()
+        self.window.current_solution_widget.sync_command_history_with_editor()
         saved = self.attempt.save()
         if not saved:
             self.window.set_status("Complete at least one step before saving")
@@ -1121,6 +1121,8 @@ class Commands:
         self.window.cube_viz_widget.export_png(filename, size)
         return CommandResult(add_to_history=[])
 
+    def rniss(self, index):
+        self.attempt.rniss(index)
 
 class SolutionItemRenderer(QStyledItemDelegate):
     def __init__(self):
@@ -1193,9 +1195,9 @@ class CurrentSolutionWidget(QListWidget):
         if not self.current_editor:
             return
         edited_text = self.current_editor.text().split("//")
-        alg_str = edited_text[0].strip()
+        alg_str = edited_text[0].strip().replace("[","").replace("]","")
         self.comment = edited_text[1].strip() if len(edited_text) > 1 else None
-        if "(" in alg_str and ")" not in alg_str:
+        if "(" in alg_str ^ ")" in alg_str:
             return
         if not alg_str and self.attempt.inverse:
             self.current_editor.setText("( )")
@@ -1214,7 +1216,7 @@ class CurrentSolutionWidget(QListWidget):
         except Exception:
             pass
 
-    def sync_history_with_editor(self):
+    def sync_command_history_with_editor(self):
         if not self.history_is_stale or not self.original_alg:
             return
         # Reset solution to original state, before we started editing
@@ -1238,7 +1240,7 @@ class CurrentSolutionWidget(QListWidget):
 
     def closeEditor(self, editor, hint):
         # Called when editing is finished
-        self.sync_history_with_editor()
+        self.sync_command_history_with_editor()
         self.parent().window().command_input.setFocus()
 
         self.current_editor = None
