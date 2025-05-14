@@ -134,6 +134,7 @@ class Insertion:
     range: Tuple[int, int]
     replacement: Optional[Algorithm]
 
+
 class Attempt:
     """Global state of the FMC attempt"""
 
@@ -142,7 +143,7 @@ class Attempt:
         self.cube = Cube("")
         self.inverse = False
         self.solution = PartialSolution()
-        self._rniss = None
+        self.rniss = None
         self._saved_by_kind: Dict[str, List[PartialSolution]] = defaultdict(list)
         self._done: Set[PartialSolution] = set()
         self._comments: Dict[PartialSolution, str] = {}
@@ -297,7 +298,7 @@ class Attempt:
         o = self._orientations.get(sol)
         if o:
             self.solution.orientation = o
-        self._rniss = None
+        self.rniss = None
         self.update_cube()
         self.notify_solution_attribute_listeners()
 
@@ -356,12 +357,11 @@ class Attempt:
                 self.reset()
             else:
                 self.advance()
-        self.save_solutions([to_be_saved])
+        for step in to_be_saved.substeps():
+            self.save_solution(step)
         return to_be_saved
 
-    def save_solutions(self, sols: List[PartialSolution]):
-        new_sols_by_key = defaultdict(list)
-
+    def save_solution(self, sol: PartialSolution):
         def sort_key(sol):
             return (
                 sol.full_alg().len(),
@@ -370,16 +370,10 @@ class Attempt:
                 str(sol.alg),
             )
 
-        for s in sols:
-            new_sols_by_key[s.kind].append(s)
-        for kind, sols_for_kind in new_sols_by_key.items():
-            existing = self._saved_by_kind[kind]
-            existing_algs = set(str(s.full_alg()) for s in existing)
-            existing += [
-                s for s in sols_for_kind if not str(s.full_alg()) in existing_algs
-            ]
+        existing = self._saved_by_kind[sol.kind]
+        if sol not in existing:
+            existing.append(sol)
             existing.sort(key=sort_key)
-        self.notify_saved_solution_listeners()
 
     def add_saved_solution_listener(self, callback: Callable):
         self._saved_solution_listeners.append(callback)
@@ -399,24 +393,24 @@ class Attempt:
                 insertions_list.extend(((step, i) for i in step_insertions))
         return insertions_list
 
-    def rniss(self, index, inverse: bool = False):
-        self._rniss = (index, inverse) if index >= 0 else None
-        self.update_cube()
-
     def update_cube(self):
-        if not self._rniss:
+        if self.rniss is None:
             self.cube = Cube(self.scramble)
             self.cube.apply(self.solution.full_alg())
             if self.inverse:
                 self.cube.invert()
         else:
-            index, invers = self._rniss
+            index = self.rniss
             steps = self.solution.substeps()
             alg = steps[index].full_alg()
             self.cube = Cube(self.scramble)
-            for step in reversed(steps[index+1:]):
-                inverted_normal_moves = Algorithm(f"{' '.join(step.alg.normal_moves())}").inverted()
-                rniss_alg = Algorithm(f"({' '.join(step.alg.inverse_moves())} {inverted_normal_moves})")
+            for step in reversed(steps[index + 1 :]):
+                inverted_normal_moves = Algorithm(
+                    f"{' '.join(step.alg.normal_moves())}"
+                ).inverted()
+                rniss_alg = Algorithm(
+                    f"({' '.join(step.alg.inverse_moves())} {inverted_normal_moves})"
+                )
                 alg = alg.merge(rniss_alg)
             self.cube.apply(alg)
         self.notify_cube_listeners()

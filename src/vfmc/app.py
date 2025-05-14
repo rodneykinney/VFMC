@@ -167,7 +167,12 @@ class AppWindow(QMainWindow):
             step_label.setText(step_text)
 
             # Update NISS label
-            niss_label.setText("(inverse)" if self.attempt.inverse else "")
+            niss_text = ""
+            if self.attempt.rniss is not None:
+                niss_text = "rniss"
+            elif self.attempt.inverse:
+                niss_text = "(inverse)"
+            niss_label.setText(niss_text)
             # Update case name
             if not sol.step_info.is_solved(self.attempt.cube):
                 case_text = sol.step_info.case_name(self.attempt.cube)
@@ -1046,6 +1051,7 @@ class Commands:
         if not saved:
             self.window.set_status("Complete at least one step before saving")
             return
+        self.attempt.notify_saved_solution_listeners()
         self.window.scroll_to(saved)
         self.window.command_input.setFocus()
 
@@ -1121,8 +1127,28 @@ class Commands:
         self.window.cube_viz_widget.export_png(filename, size)
         return CommandResult(add_to_history=[])
 
-    def rniss(self, index):
-        self.attempt.rniss(index)
+    def rniss(self, index, moves=None):
+        self.attempt.rniss = index
+        if index is not None and moves is not None:
+            alg = Algorithm(moves)
+            sol = None
+            steps = self.attempt.solution.substeps()
+            for step in steps[:index]:
+                sol = step
+            sol = PartialSolution(
+                kind=steps[index].kind,
+                variant=steps[index].variant,
+                alg=alg,
+                previous=sol,
+            )
+            for step in steps[index + 1 :]:
+                sol = PartialSolution(
+                    kind=step.kind, variant=step.variant, alg=step.alg, previous=sol
+                )
+            self.attempt.set_solution(sol)
+        else:
+            self.attempt.update_cube()
+
 
 class SolutionItemRenderer(QStyledItemDelegate):
     def __init__(self):
@@ -1195,7 +1221,7 @@ class CurrentSolutionWidget(QListWidget):
         if not self.current_editor:
             return
         edited_text = self.current_editor.text().split("//")
-        alg_str = edited_text[0].strip().replace("[","").replace("]","")
+        alg_str = edited_text[0].strip().replace("[", "").replace("]", "")
         self.comment = edited_text[1].strip() if len(edited_text) > 1 else None
         if "(" in alg_str ^ ")" in alg_str:
             return
