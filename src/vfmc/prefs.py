@@ -96,7 +96,6 @@ class Preferences:
 
     def save(self):
         prefs_path = Preferences.get_preferences_path()
-        prefs_path.parent.mkdir(parents=True, exist_ok=True)
 
         prefs = {
             "opacity": self.opacity,
@@ -462,11 +461,13 @@ def show_dialog(parent):
 def app_dir() -> Path:
     """Return platform-appropriate application home directory"""
     if sys.platform == "darwin":  # macOS
-        return Path.home() / "Library" / "Preferences" / "vfmc"
+        path = Path.home() / "Library" / "Preferences" / "vfmc"
     elif sys.platform == "win32":  # Windows
-        return Path(os.environ.get("APPDATA", str(Path.home()))) / "vfmc"
+        path = Path(os.environ.get("APPDATA", str(Path.home()))) / "vfmc"
     else:  # Linux/Unix
-        return Path.home() / ".config" / "vfmc"
+        path = Path.home() / ".config" / "vfmc"
+    path.mkdir(parents=True, exist_ok=True)
+    return path
 
 
 # Preferences as saved by the user
