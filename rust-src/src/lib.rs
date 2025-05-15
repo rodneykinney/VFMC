@@ -92,6 +92,11 @@ impl Algorithm {
         Algorithm(alg)
     }
 
+    fn all_on_normal(&self) -> Algorithm {
+        let alg = self.0.clone();
+        Algorithm(alg.to_uninverted())
+    }
+
     fn __repr__(&self) -> String {
         format!("{}", self.0)
     }

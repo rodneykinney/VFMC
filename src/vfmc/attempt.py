@@ -1,5 +1,7 @@
 from typing import Optional, Dict, List, Callable, Set, Tuple
 from collections import defaultdict
+from difflib import SequenceMatcher
+from dataclasses import dataclass
 
 from vfmc_core import Algorithm, StepInfo, Cube
 
@@ -65,11 +67,11 @@ class PartialSolution:
     """An individual solution step"""
 
     def __init__(
-        self,
-        kind: str = "",
-        variant: str = "",
-        alg: Algorithm = Algorithm(""),
-        previous: Optional["PartialSolution"] = None,
+            self,
+            kind: str = "",
+            variant: str = "",
+            alg: Algorithm = Algorithm(""),
+            previous: Optional["PartialSolution"] = None,
     ):
         self.kind = kind
         self.variant = variant
@@ -449,3 +451,61 @@ class Orientation:
                     sol.previous.orientation.top, sol.previous.orientation.front
                 )
         return orientation
+
+
+@dataclass
+class Insertion:
+    pos: int
+    alg: Algorithm
+
+
+@dataclass
+class Replacement:
+    start: int
+    end: int
+    alg: Algorithm
+
+
+class Insertions:
+    def __init__(self, sol: PartialSolution):
+        self.solution = sol
+        self._original = sol.full_alg().all_on_normal()
+        self._replacement = sol.full_alg().all_on_normal()
+
+    def set_replacement(self, alg):
+        assert len(alg.inverse_moves()) == 0
+        self._replacement = alg
+
+    def net_alg(self) -> Algorithm:
+        return self._original.inverted().merge(self._replacement)
+
+    def get_edits(self) -> Tuple[List[Insertion], List[Replacement]]:
+        old_moves = self._original.normal_moves()
+        new_moves = self._replacement.normal_moves()
+        m = SequenceMatcher(a=old_moves, b=new_moves)
+        insertions = []
+        replacements = []
+        for tag, i1, i2, j1, j2 in m.get_opcodes():
+            if tag == "equal":
+                pass
+            elif tag == "replace":
+                replacements.append(
+                    Replacement(
+                        start = i1,
+                        end=i2,
+                        alg=Algorithm(" ".join(new_moves[j1:j2]))
+                    )
+                )
+                pass
+            elif tag == "delete":
+                insertions.append(
+                    Insertion(
+                        pos=i1,
+                        alg=Algorithm(" ".join(old_moves[i1:i2])).inverted()
+                    )
+                )
+            elif tag == "insert":
+                insertions.append(Insertion(pos=i1, alg=Algorithm(" ".join(new_moves[j1:j2]))))
+            else:
+                raise f"Unknown tag: {tag}"
+        return insertions, replacements
