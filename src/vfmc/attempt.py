@@ -530,7 +530,11 @@ import re
 
 def parse_wide_alg(moves_str):
     """Parse an algorithm that accepts wide moves"""
-    move_pattern = r"([rRuUfFlLdDbB])([wW]?)([2']?)(?:\s*)"
+    moves_str = moves_str.lower()
+    alg_pattern = r"^\s*([rufldb][w]?[2']?\s*)*$"
+    if not re.fullmatch(alg_pattern, moves_str):
+        raise ValueError("Invalid algorithm")
+    move_pattern = r"([rufldb])([w]?)([2']?)(?:\s*)"
     moves = re.findall(move_pattern, moves_str)
 
     def create_transform(f, r):
@@ -549,8 +553,7 @@ def parse_wide_alg(moves_str):
     transformations = []
     parsed_moves = ""
     for face, wide, rotation in moves:
-        face = face.lower()
-        is_wide = wide.lower() == "w"
+        is_wide = wide == "w"
         for t in transformations:
             face = t(face)
 
