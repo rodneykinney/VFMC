@@ -1223,7 +1223,7 @@ class CurrentSolutionWidget(QListWidget):
         edited_text = self.current_editor.text().split("//")
         alg_str = edited_text[0].strip().replace("[", "").replace("]", "")
         self.comment = edited_text[1].strip() if len(edited_text) > 1 else None
-        if "(" in alg_str ^ ")" in alg_str:
+        if ("(" in alg_str) ^ (")" in alg_str):
             return
         if not alg_str and self.attempt.inverse:
             self.current_editor.setText("( )")
