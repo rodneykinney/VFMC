@@ -27,10 +27,13 @@ from PyQt5.QtWidgets import (
     QAction,
     QFileDialog,
     QInputDialog,
+    QDialog,
+    QScrollArea,
 )
 from PyQt5.QtCore import Qt, QEvent
 from PyQt5.QtGui import QKeySequence
 
+from vfmc import catch_errors, catch_and_return
 from vfmc.attempt import PartialSolution, Attempt, step_name
 from vfmc import prefs
 from vfmc.palette import Palette
@@ -83,7 +86,7 @@ class AppWindow(QMainWindow):
         self.command_history = []  # As entered by the user
         self.history_pointer = -1  # For traversing command history via up/down keys
 
-        self.step_order = ["eo", "dr", "htr", "fr", "slice", "finish"]
+        self.step_order = ["eo", "dr", "htr", "fr", "finish", "insertions"]
 
         self._create_menus()
 
@@ -96,7 +99,7 @@ class AppWindow(QMainWindow):
         w.layout().setContentsMargins(10, 0, 10, 0)
         w.layout().setSpacing(10)
         w.layout().addWidget(self.cube_widget)
-        w.layout().addWidget(self.current_solution_widget)
+        w.layout().addWidget(self.current_solution_scroll_widget)
         r2 = self._empty_container(QHBoxLayout())
         v = self._empty_container(QVBoxLayout())
         v.layout().addWidget(self.text_input_widget)
@@ -186,16 +189,27 @@ class AppWindow(QMainWindow):
         return w
 
     @cached_property
-    def edit_widget(self) -> QWidget:
-        # GUI for editing the current solution
-        w = self._empty_container(QVBoxLayout())
+    def current_solution_scroll_widget(self):
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        scroll_area.setWidget(self.current_solution_widget)
+        scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        # Force scrollbars to be visible
+        scroll_area.setStyleSheet(
+            """
+            QScrollBar:vertical {
+                width: 16px;
+                background: #f0f0f0;
+            }
+            QScrollBar:horizontal {
+                height: 16px;
+                background: #f0f0f0;
+            }
+        """
+        )
 
-        # Text widget showing full set of moves in the current solution
-        self.current_solution = CurrentSolutionWidget(self.attempt)
-        w.layout().addWidget(self.current_solution_widget, 1)
-        # Buttons for executing commands
-        w.layout().addWidget(self.gui_commands_widget, 0)
-        return w
+        return scroll_area
 
     def _empty_container(self, layout) -> QWidget:
         w = QWidget()
@@ -212,7 +226,12 @@ class AppWindow(QMainWindow):
             if name is None:
                 name = cmd
             b = QPushButton(name)
-            b.clicked.connect(lambda: self.commands.execute(cmd))
+
+            @catch_errors
+            def execute(*args, **kwargs):
+                self.commands.execute(cmd)
+
+            b.clicked.connect(execute)
             return b
 
         step_selector = QComboBox()
@@ -228,13 +247,14 @@ class AppWindow(QMainWindow):
                 "drfb",
                 "htr",
                 "fr",
-                "slice",
                 "finish",
+                "insertions",
             ]
         )
         step_selector.setCurrentText("")
 
-        def selection_changed():
+        @catch_errors
+        def selection_changed(*args, **kwargs):
             text = step_selector.currentText()
             if text:
                 self.commands.execute(text)
@@ -244,9 +264,12 @@ class AppWindow(QMainWindow):
         solve_button = QPushButton("solve")
         solve_count = QComboBox()
         solve_count.addItems([str(i) for i in range(1, 21)])
-        solve_button.clicked.connect(
-            lambda: self.commands.execute(f"solve({solve_count.currentIndex()+1})")
-        )
+
+        @catch_errors
+        def solve(*args, **kwargs):
+            self.commands.execute(f"solve({solve_count.currentIndex()+1})")
+
+        solve_button.clicked.connect(solve)
 
         gui_widget = self._empty_container(QHBoxLayout())
 
@@ -256,7 +279,12 @@ class AppWindow(QMainWindow):
 
         # Preferences button
         pref_button = QPushButton("Display Preferences")
-        pref_button.clicked.connect(lambda: prefs.show_dialog(self))
+
+        @catch_errors
+        def show(*args, **kwargs):
+            prefs.show_dialog(self)
+
+        pref_button.clicked.connect(show)
         w.layout().addWidget(pref_button)
 
         gui_widget.layout().addWidget(w)
@@ -325,7 +353,12 @@ class AppWindow(QMainWindow):
         self.command_input = QLineEdit()
         self.command_input.setText("help")
         self.command_input.setSelection(0, 4)
-        self.command_input.returnPressed.connect(self.execute_command)
+
+        @catch_errors
+        def execute(*args, **kwargs):
+            self.execute_command()
+
+        self.command_input.returnPressed.connect(execute)
         self.command_input.installEventFilter(self)
 
         w.layout().addWidget(command_label)
@@ -381,9 +414,19 @@ class AppWindow(QMainWindow):
             container.layout().addWidget(QLabel(f"{label}:"))
             list = QListWidget()
             list.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-            list.itemDoubleClicked.connect(self.activate_item)
-            list.itemClicked.connect(lambda item: self.item_selected(list))
-            list.itemSelectionChanged.connect(lambda: self.item_selected(list))
+
+            @catch_errors
+            def activate(item, *args, **kwargs):
+                self.activate_item(item)
+
+            list.itemDoubleClicked.connect(activate)
+
+            @catch_errors
+            def selected(*args, **kwargs):
+                self.item_selected(list)
+
+            list.itemClicked.connect(selected)
+            list.itemSelectionChanged.connect(selected)
             list.installEventFilter(self)
             list.setStyleSheet(list_style)
             list.setItemDelegate(SolutionItemRenderer())
@@ -397,11 +440,11 @@ class AppWindow(QMainWindow):
         solution_lists_layout.addWidget(build_solution_widget("dr"))
         htr_slice = self._empty_container(QVBoxLayout())
         htr_slice.layout().addWidget(build_solution_widget("htr"))
-        htr_slice.layout().addWidget(build_solution_widget("slice", "Slice"))
+        htr_slice.layout().addWidget(build_solution_widget("finish", "Finish"))
         solution_lists_layout.addWidget(htr_slice)
         fr_finish = self._empty_container(QVBoxLayout())
         fr_finish.layout().addWidget(build_solution_widget("fr"))
-        fr_finish.layout().addWidget(build_solution_widget("finish", "Finish"))
+        fr_finish.layout().addWidget(build_solution_widget("insertions", "Insertions"))
         solution_lists_layout.addWidget(fr_finish)
 
         solutions_container.layout().addLayout(solution_lists_layout)
@@ -576,116 +619,134 @@ class AppWindow(QMainWindow):
 
     def eventFilter(self, obj, event):
         """Handle keyboard events for navigating between solution lists"""
-        if self.viz.handle_toggle_view_event(obj, event):
-            return True
-        # Check if this is a key event for one of our solution lists
-        if event.type() == QEvent.KeyPress:
-            key = event.key()
-            if event.isAutoRepeat():
-                return False
-            if key == Qt.Key_Return or key == Qt.Key_Enter:
-                if obj in list(self.solution_widgets.values()):
-                    kind = obj.property("kind")
-                    if not kind:
-                        return False
-                    # Enter key to check the currently selected solution
-                    if obj.currentItem():
-                        self.activate_item(obj.currentItem())
-                        return True
-                return False
-            elif key == Qt.Key_Tab or key == Qt.Key_Backtab:
-                # Handle Tab and Shift+Tab to move between solution lists
-                if (
-                    obj not in self.solution_widgets.values()
-                    and obj != self.command_input
-                ):
+        delegate = super()
+
+        @catch_and_return(False)
+        def handle(*args, **kwargs):
+            if self.viz.handle_toggle_view_event(obj, event):
+                return True
+            # Check if this is a key event for one of our solution lists
+            if event.type() == QEvent.KeyPress:
+                key = event.key()
+                if event.isAutoRepeat():
                     return False
+                if key == Qt.Key_Return or key == Qt.Key_Enter:
+                    if obj in list(self.solution_widgets.values()):
+                        kind = obj.property("kind")
+                        if not kind:
+                            return False
+                        # Enter key to check the currently selected solution
+                        if obj.currentItem():
+                            self.activate_item(obj.currentItem())
+                            return True
+                    return False
+                elif key == Qt.Key_Tab or key == Qt.Key_Backtab:
+                    # Handle Tab and Shift+Tab to move between solution lists
+                    if (
+                        obj not in self.solution_widgets.values()
+                        and obj != self.command_input
+                    ):
+                        return False
 
-                def select_widget(widget):
-                    if widget.count():
-                        widget.clearSelection()
-                        widget.setCurrentItem(None)
-                        selection = 0
-                        for i in range(0, widget.count()):
-                            if (
-                                widget.item(i).data(SOLUTION)
-                                in self.attempt.solution.substeps()
-                            ):
-                                selection = i
-                                break
-                        widget.setCurrentItem(widget.item(selection))
-                        widget.setFocus()
-                        widget.update()
-                        return True
-                    else:
-                        self.command_input.setFocus()
-                        return True
+                    def select_widget(widget):
+                        if widget.count():
+                            widget.clearSelection()
+                            widget.setCurrentItem(None)
+                            selection = 0
+                            for i in range(0, widget.count()):
+                                if (
+                                    widget.item(i).data(SOLUTION)
+                                    in self.attempt.solution.substeps()
+                                ):
+                                    selection = i
+                                    break
+                            widget.setCurrentItem(widget.item(selection))
+                            widget.setFocus()
+                            widget.update()
+                            return True
+                        else:
+                            self.command_input.setFocus()
+                            return True
 
-                if obj == self.command_input:
-                    # Shift-tab navigates to current_solution_widget
-                    if key == Qt.Key_Backtab:
-                        self.current_solution_widget.setCurrentItem(
-                            self.current_solution_widget.item(
-                                self.current_solution_widget.count() - 1
+                    if obj == self.command_input:
+                        # Shift-tab navigates to current_solution_widget
+                        if key == Qt.Key_Backtab:
+                            self.current_solution_widget.setCurrentItem(
+                                self.current_solution_widget.item(
+                                    self.current_solution_widget.count() - 1
+                                )
                             )
-                        )
-                        self.current_solution_widget.setFocus()
-                        return True
-                    # Otherwise navigate to the last active step
-                    for k in reversed(self.step_order):
-                        w = self.solution_widgets[k]
-                        for i in range(0, w.count()):
-                            if (
-                                w.item(i).data(SOLUTION)
-                                in self.attempt.solution.substeps()
-                            ):
-                                return select_widget(w)
-                    return select_widget(self.solution_widgets["eo"])
-                # Navigate between solution steps
-                index = self.step_order.index(obj.property("kind"))
-                if key == Qt.Key_Backtab:
-                    if index == 0:
-                        self.command_input.setFocus()
-                        return True
+                            self.current_solution_widget.setFocus()
+                            return True
+                        # Otherwise navigate to the last active step
+                        for k in reversed(self.step_order):
+                            w = self.solution_widgets[k]
+                            for i in range(0, w.count()):
+                                if (
+                                    w.item(i).data(SOLUTION)
+                                    in self.attempt.solution.substeps()
+                                ):
+                                    return select_widget(w)
+                        return select_widget(self.solution_widgets["eo"])
+                    # Navigate between solution steps
+                    index = self.step_order.index(obj.property("kind"))
+                    if key == Qt.Key_Backtab:
+                        if index == 0:
+                            self.command_input.setFocus()
+                            return True
+                        else:
+                            next_index = index
+                            while True:
+                                next_index = (next_index - 1) % len(self.step_order)
+                                widget = self.solution_widgets[
+                                    self.step_order[next_index]
+                                ]
+                                if next_index == 0 or widget.count() > 0:
+                                    break
+                            return select_widget(widget)
                     else:
-                        next_index = index
-                        while True:
-                            next_index = (next_index - 1) % len(self.step_order)
-                            widget = self.solution_widgets[self.step_order[next_index]]
-                            if next_index == 0 or widget.count() > 0:
-                                break
-                        return select_widget(widget)
-                else:
-                    if index == len(self.step_order) - 1:
-                        self.command_input.setFocus()
+                        if index == len(self.step_order) - 1:
+                            self.command_input.setFocus()
+                            return True
+                        else:
+                            next_index = index
+                            while True:
+                                next_index = (next_index + 1) % len(self.step_order)
+                                widget = self.solution_widgets[
+                                    self.step_order[next_index]
+                                ]
+                                if (
+                                    next_index == len(self.step_order) - 1
+                                    or widget.count() > 0
+                                ):
+                                    break
+                            return select_widget(widget)
+                # Command history
+                elif obj == self.command_input and key == Qt.Key_Up:
+                    if self.history_pointer < 0:
                         return True
-                    else:
-                        next_index = (index + 1) % len(self.step_order)
-                        return select_widget(
-                            self.solution_widgets[self.step_order[next_index]]
-                        )
-            # Command history
-            elif obj == self.command_input and key == Qt.Key_Up:
-                if self.history_pointer < 0:
+                    previous_command = self.command_history[self.history_pointer]
+                    self.command_input.setText(previous_command)
+                    self.history_pointer = max(0, self.history_pointer - 1)
                     return True
-                previous_command = self.command_history[self.history_pointer]
-                self.command_input.setText(previous_command)
-                self.history_pointer = max(0, self.history_pointer - 1)
-                return True
-            elif obj == self.command_input and key == Qt.Key_Down:
-                self.history_pointer = min(
-                    self.history_pointer + 1, len(self.command_history)
-                )
-                previous_command = ""
-                if self.history_pointer < len(self.command_history) - 1:
-                    previous_command = self.command_history[self.history_pointer + 1]
-                self.command_input.setText(previous_command)
-                self.history_pointer = min(
-                    self.history_pointer, len(self.command_history) - 1
-                )
-                return True
+                elif obj == self.command_input and key == Qt.Key_Down:
+                    self.history_pointer = min(
+                        self.history_pointer + 1, len(self.command_history)
+                    )
+                    previous_command = ""
+                    if self.history_pointer < len(self.command_history) - 1:
+                        previous_command = self.command_history[
+                            self.history_pointer + 1
+                        ]
+                    self.command_input.setText(previous_command)
+                    self.history_pointer = min(
+                        self.history_pointer, len(self.command_history) - 1
+                    )
+                    return True
 
-        return super().eventFilter(obj, event)
+            return delegate.eventFilter(obj, event)
+
+        return handle()
 
     def check_solution(self, solution):
         """Load a selected solution"""
@@ -703,22 +764,42 @@ class AppWindow(QMainWindow):
 
         # Save session action
         save_action = QAction("Save Session", self)
-        save_action.triggered.connect(self.save_session_dialog)
+
+        @catch_errors
+        def save(*args, **kwargs):
+            self.save_session_dialog()
+
+        save_action.triggered.connect(save)
         file_menu.addAction(save_action)
 
         # Load session action
         load_action = QAction("Load Session", self)
-        load_action.triggered.connect(self.load_session_dialog)
+
+        @catch_errors
+        def load(*args, **kwargs):
+            self.load_session_dialog()
+
+        load_action.triggered.connect(load)
         file_menu.addAction(load_action)
 
         # Export image
         export_action = QAction("Export image", self)
-        export_action.triggered.connect(self.export_image_dialog)
+
+        @catch_errors
+        def export(*args, **kwargs):
+            self.export_image_dialog()
+
+        export_action.triggered.connect(export)
         file_menu.addAction(export_action)
 
         # Exit action
         exit_action = QAction("Exit", self)
-        exit_action.triggered.connect(self.close)
+
+        @catch_errors
+        def close(*args, **kwargs):
+            self.close()
+
+        exit_action.triggered.connect(close)
         file_menu.addAction(exit_action)
 
         # Help menu
@@ -726,12 +807,22 @@ class AppWindow(QMainWindow):
 
         # Help action
         help_action = QAction("Help", self)
-        help_action.triggered.connect(self.show_help)
+
+        @catch_errors
+        def show_help(*args, **kwargs):
+            self.show_help()
+
+        help_action.triggered.connect(show_help)
         help_menu.addAction(help_action)
 
         # About action
         about_action = QAction("About", self)
-        about_action.triggered.connect(self.show_about)
+
+        @catch_errors
+        def show_about(*args, **kwargs):
+            self.show_about()
+
+        about_action.triggered.connect(show_about)
         help_menu.addAction(about_action)
 
     def save_session_dialog(self):
@@ -805,6 +896,77 @@ class AppWindow(QMainWindow):
         help_dialog.setStandardButtons(QMessageBox.Ok)
         help_dialog.show()
         self.command_input.setFocus()
+
+
+class InsertionsDialog(QDialog):
+    def __init__(self, window, step):
+        super().__init__(parent=window)
+        self.window = window
+        self.step = step
+        self.setWindowTitle("Insertions")
+        self.setModal(True)
+        self.resize(800, 100)
+
+        layout = QVBoxLayout(self)
+        self.attempt = Attempt()
+        self.attempt.set_scramble(self.window.attempt.scramble)
+        self.attempt.set_solution(self.step)
+        viz = CubeViz(self.attempt)
+        layout.addWidget(CubeWidget(viz))
+
+        self.save_button = QPushButton("Save", self)
+
+        @catch_errors
+        def save(*args, **kwargs):
+            self.save()
+
+        self.save_button.clicked.connect(save)
+        self.save_button.setEnabled(False)
+
+        # Editable text field
+        self.text_edit = QLineEdit(self)
+
+        @catch_errors
+        def refresh(*args, **kwargs):
+            self.refresh()
+
+        self.text_edit.cursorPositionChanged.connect(refresh)
+        self.text_edit.textChanged.connect(refresh)
+        self.text_edit.setText(
+            str(Algorithm("").merge(self.step.insertions.replacement.all_on_normal()))
+        )
+        layout.addWidget(self.text_edit)
+
+        # Buttons
+        buttons = QHBoxLayout()
+        layout.addLayout(buttons)
+        buttons.addStretch(1)
+        buttons.addWidget(self.save_button)
+        cancel_button = QPushButton("Cancel", self)
+
+        @catch_errors
+        def close(*args, **kwargs):
+            self.close()
+
+        cancel_button.clicked.connect(close)
+        buttons.addWidget(cancel_button)
+
+        self.setLayout(layout)
+
+    def refresh(self):
+        self.step.set_replacement(
+            self.text_edit.text(), self.text_edit.cursorPosition()
+        )
+        self.attempt.update_cube()
+        self.save_button.setEnabled(self.step.step_info.is_solved(self.attempt.cube))
+
+    def save(self):
+        self.step.set_replacement(self.text_edit.text(), len(self.text_edit.text()))
+        self.step.add_markers()
+        self.window.attempt.set_comment(self.step, "solved")
+        self.window.attempt.set_solution(self.step)
+        self.window.attempt.save()
+        self.close()
 
 
 def main(session_file: Optional[str]):
@@ -945,19 +1107,11 @@ class Commands:
                 """No DR step found. Specify axis="..." to set the FR axis"""
             )
 
-    def slice(self, axis=None):
-        variant = next(
-            s.variant for s in self.attempt.solution.substeps() if s.kind == "dr"
-        )
-        if variant is not None:
-            self.window.set_step("slice", variant)
-        else:
-            self.window.set_status(
-                """No DR step found. Specify axis="..." to set the slice axis"""
-            )
-
     def finish(self, axis=None):
         self.window.set_step("finish", "")
+
+    def insertions(self):
+        self.window.set_step("insertions", "")
 
     def set_inverse(self, b: bool):
         self.attempt.set_inverse(b)
@@ -1158,36 +1312,48 @@ class CurrentSolutionWidget(QListWidget):
         self.addItem(self.attempt.scramble)
         self.addItem("")
         for step in self.attempt.solution.substeps():
-            text = f"{step.alg}"
+            text = f"{step.alg_str(verbose=True)}"
             if step.kind != "":
                 if step.step_info.is_solved(self.attempt.cube):
-                    text = f"{self.attempt.to_str(step)}"
+                    text = f"{self.attempt.to_str(step, verbose=True)}"
                 else:
                     parentheses = f"{' ' if step.alg.len() else ''}{'( )' if not step.alg.inverse_moves() and self.attempt.inverse else ''}"
                     comment = self.attempt.get_comment(step)
                     if not comment or step.alg.len() == 0:
-                        comment = f"{step.kind}{step.variant}-{step.step_info.case_name(self.attempt.cube)}"
+                        comment = step.default_comment(self.attempt.cube)
                     text = f"{text}{parentheses} // {comment} ({step.full_alg().len()})"
             item = QListWidgetItem(text)
             item.setData(SOLUTION, step)
             self.addItem(item)
         last_item = self.item(self.count() - 1)
-        last_item.setFlags(last_item.flags() | Qt.ItemIsEditable)
+        if last_item.data(SOLUTION).kind != "insertions":
+            last_item.setFlags(last_item.flags() | Qt.ItemIsEditable)
 
     def edit(self, index, trigger, event):
-        result = super().edit(index, trigger, event)
-        if result:
-            editor = self.indexWidget(index)
-            if editor:
-                self.current_editor = editor
-                text = editor.text().split("//")[0].strip()
-                editor.setText(text)
-                if ")" in text and self.attempt.inverse:
-                    editor.setCursorPosition(text.index(")"))
-                self.original_alg = self.attempt.solution.alg
-                self.current_editor.textEdited.connect(self.sync_cube_with_editor)
-                self.comment = None
-        return result
+        delegate = super()
+
+        @catch_and_return(False)
+        def handle(*args, **kwargs):
+            result = delegate.edit(index, trigger, event)
+            if result:
+                editor = self.indexWidget(index)
+                if editor:
+                    self.current_editor = editor
+                    text = editor.text().split("//")[0].strip()
+                    editor.setText(text)
+                    if ")" in text and self.attempt.inverse:
+                        editor.setCursorPosition(text.index(")"))
+                    self.original_alg = self.attempt.solution.alg
+
+                    @catch_errors
+                    def sync(*args, **kwargs):
+                        self.sync_cube_with_editor()
+
+                    self.current_editor.textEdited.connect(sync)
+                    self.comment = None
+            return result
+
+        return handle()
 
     def sync_cube_with_editor(self):
         if not self.current_editor:
@@ -1238,47 +1404,67 @@ class CurrentSolutionWidget(QListWidget):
 
     def closeEditor(self, editor, hint):
         # Called when editing is finished
-        self.sync_history_with_editor()
-        self.parent().window().command_input.setFocus()
+        delegate = super()
 
-        self.current_editor = None
-        self.original_alg = None
+        @catch_errors
+        def handle(*args, **kwargs):
+            self.sync_history_with_editor()
+            self.parent().window().command_input.setFocus()
 
-        super().closeEditor(editor, hint)
-        self.sync_widget_with_cube()
+            self.current_editor = None
+            self.original_alg = None
+
+            delegate.closeEditor(editor, hint)
+            self.sync_widget_with_cube()
+
+        handle()
 
     def mouseDoubleClickEvent(self, event):
-        item = self.itemAt(event.pos())
-        if item:
-            self.activate_step(item.data(SOLUTION))
-        super().mouseDoubleClickEvent(
-            event
-        )  # Call the parent class method if you still want default behavior
+        delegate = super()
+
+        @catch_errors
+        def handle(*args, **kwargs):
+            item = self.itemAt(event.pos())
+            if item:
+                self.activate_step(item.data(SOLUTION))
+            delegate.mouseDoubleClickEvent(event)
+
+        handle()
 
     # Override key event to handle copy and editing
     def keyPressEvent(self, event):
-        if event.matches(QKeySequence.Copy):
-            selected_items = self.selectedItems()
-            if selected_items:
-                clipboard_text = "\n".join(item.text() for item in selected_items)
-                QApplication.clipboard().setText(clipboard_text)
-        elif event.key() in {
-            Qt.Key_Enter,
-            Qt.Key_Return,
-            Qt.Key_Delete,
-            Qt.Key_Backspace,
-        }:
-            # Enter key starts editing the current item if any
-            current_item = self.currentItem()
-            if current_item:
-                if current_item.flags() & Qt.ItemIsEditable:
-                    self.editItem(current_item)
-                else:
-                    self.activate_step(current_item.data(SOLUTION))
-        else:
-            super().keyPressEvent(event)  # Default behavior for other keys
+        delegate = super()
+
+        @catch_errors
+        def handle(*args, **kwargs):
+            if event.matches(QKeySequence.Copy):
+                selected_items = self.selectedItems()
+                if selected_items:
+                    clipboard_text = "\n".join(item.text() for item in selected_items)
+                    QApplication.clipboard().setText(clipboard_text)
+            elif event.key() in {
+                Qt.Key_Enter,
+                Qt.Key_Return,
+                Qt.Key_Delete,
+                Qt.Key_Backspace,
+            }:
+                # Enter key starts editing the current item if any
+                current_item = self.currentItem()
+                if current_item:
+                    if current_item.flags() & Qt.ItemIsEditable:
+                        self.editItem(current_item)
+                    else:
+                        self.activate_step(current_item.data(SOLUTION))
+            else:
+                delegate.keyPressEvent(event)  # Default behavior for other keys
+
+        handle()
 
     def activate_step(self, target: PartialSolution):
+        if target.kind == "insertions":
+            if not self.attempt.solution.step_info.is_solved(self.attempt.cube):
+                InsertionsDialog(self.window(), self.attempt.solution).exec()
+            return
         if target not in self.attempt.solutions_by_kind()[target.kind]:
             return
         # Execute via self.commands to get this into the history

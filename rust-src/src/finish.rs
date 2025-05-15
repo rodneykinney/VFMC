@@ -1,6 +1,6 @@
 use crate::htr::HTRUD;
 use crate::solver::{solve_step, step_config};
-use crate::Visibility::{BadFace, BadPiece};
+use crate::Visibility::{Any, BadFace, BadPiece};
 use crate::{Algorithm, Solvable};
 use cubelib::cube::Cube333;
 use cubelib::defs::StepKind;
@@ -44,12 +44,20 @@ impl Solvable for Finish {
         format!("{}{}", c_string, e_string)
     }
 
-    fn edge_visibility(&self, _cube: &Cube333, _pos: usize, _facelet: u8) -> u8 {
-        BadPiece as u8 | BadFace as u8
+    fn edge_visibility(&self, cube: &Cube333, pos: usize, _facelet: u8) -> u8 {
+        let mut v = Any as u8;
+        if cube.edges.get_edges()[pos].id as usize != pos {
+            v |= BadPiece as u8 | BadFace as u8;
+        }
+        v
     }
 
-    fn corner_visibility(&self, _cube: &Cube333, _pos: usize, _facelet: u8) -> u8 {
-        BadPiece as u8 | BadFace as u8
+    fn corner_visibility(&self, cube: &Cube333, pos: usize, _facelet: u8) -> u8 {
+        let mut v = Any as u8;
+        if cube.corners.get_corners()[pos].id as usize != pos {
+            v |= BadPiece as u8 | BadFace as u8;
+        }
+        v
     }
     fn solve(&self, cube: &Cube333, count: usize) -> PyResult<Vec<Algorithm>> {
         let mut cfg = step_config(StepKind::FIN, "");
