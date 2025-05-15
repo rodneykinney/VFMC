@@ -62,16 +62,25 @@ AXIS_ROTATIONS = {
     "d": ["f", "l", "b", "r"],
 }
 
+OPPOSITES = {
+    "f": "b",
+    "b": "f",
+    "r": "l",
+    "l": "r",
+    "u": "d",
+    "d": "u",
+}
+
 
 class PartialSolution:
     """An individual solution step"""
 
     def __init__(
-            self,
-            kind: str = "",
-            variant: str = "",
-            alg: Algorithm = Algorithm(""),
-            previous: Optional["PartialSolution"] = None,
+        self,
+        kind: str = "",
+        variant: str = "",
+        alg: Algorithm = Algorithm(""),
+        previous: Optional["PartialSolution"] = None,
     ):
         self.kind = kind
         self.variant = variant
@@ -469,12 +478,18 @@ class Replacement:
 class Insertions:
     def __init__(self, sol: PartialSolution):
         self.solution = sol
-        self._original = sol.full_alg().all_on_normal()
-        self._replacement = sol.full_alg().all_on_normal()
+        self._original = sol.full_alg()
+        self._replacement = sol.full_alg()
 
-    def set_replacement(self, alg):
-        assert len(alg.inverse_moves()) == 0
-        self._replacement = alg
+    def set_replacement(self, moves_str: str, pos: int):
+        assert "(" not in moves_str and ")" not in moves_str
+        try:
+            before_cursor = parse_wide_alg(moves_str[:pos])
+            after_cursor = parse_wide_alg(moves_str[pos:])
+            alg = Algorithm(f"{before_cursor} ({Algorithm(after_cursor).inverted()})")
+            self._replacement = alg
+        except Exception as e:
+            pass
 
     def net_alg(self) -> Algorithm:
         return self._original.inverted().merge(self._replacement)
@@ -491,21 +506,66 @@ class Insertions:
             elif tag == "replace":
                 replacements.append(
                     Replacement(
-                        start = i1,
-                        end=i2,
-                        alg=Algorithm(" ".join(new_moves[j1:j2]))
+                        start=i1, end=i2, alg=Algorithm(" ".join(new_moves[j1:j2]))
                     )
                 )
                 pass
             elif tag == "delete":
                 insertions.append(
                     Insertion(
-                        pos=i1,
-                        alg=Algorithm(" ".join(old_moves[i1:i2])).inverted()
+                        pos=i1, alg=Algorithm(" ".join(old_moves[i1:i2])).inverted()
                     )
                 )
             elif tag == "insert":
-                insertions.append(Insertion(pos=i1, alg=Algorithm(" ".join(new_moves[j1:j2]))))
+                insertions.append(
+                    Insertion(pos=i1, alg=Algorithm(" ".join(new_moves[j1:j2])))
+                )
             else:
                 raise f"Unknown tag: {tag}"
         return insertions, replacements
+
+
+import re
+
+
+def parse_wide_alg(moves_str):
+    """Parse an algorithm that accepts wide moves"""
+    move_pattern = r"([rRuUfFlLdDbB])([wW]?)([2']?)(?:\s*)"
+    moves = re.findall(move_pattern, moves_str)
+
+    def create_transform(f, r):
+        rot = AXIS_ROTATIONS[f]
+        ticks = 3 if r == "'" else (2 if r == "2" else 1)
+
+        def transform(f):
+            if f in rot:
+                ft = rot[(rot.index(f) + ticks) % 4]
+            else:
+                ft = f
+            return ft
+
+        return transform
+
+    transformations = []
+    parsed_moves = ""
+    for face, wide, rotation in moves:
+        face = face.lower()
+        is_wide = wide.lower() == "w"
+        for t in transformations:
+            face = t(face)
+
+        if is_wide:
+            transformations.append(create_transform(face, rotation))
+
+        if is_wide:
+            face = OPPOSITES[face]
+        parsed_moves += f"{face}{rotation} "
+
+    return parsed_moves
+
+
+# Example usage
+if __name__ == "__main__":
+    test_input = "R U R' U' rw U2 F L' Dw2"
+    result = parse_wide_alg(test_input)
+    print(result)

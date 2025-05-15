@@ -27,11 +27,12 @@ from PyQt5.QtWidgets import (
     QAction,
     QFileDialog,
     QInputDialog,
+    QDialog,
 )
 from PyQt5.QtCore import Qt, QEvent
 from PyQt5.QtGui import QKeySequence
 
-from vfmc.attempt import PartialSolution, Attempt, step_name
+from vfmc.attempt import PartialSolution, Attempt, Insertions, step_name
 from vfmc import prefs
 from vfmc.palette import Palette
 from vfmc.prefs import preferences
@@ -806,6 +807,50 @@ class AppWindow(QMainWindow):
         help_dialog.show()
         self.command_input.setFocus()
 
+    def show_insertions(self):
+        """Show controls for building insertions"""
+        dialog = InsertionsDialog(self)
+        dialog.exec_()
+
+
+class InsertionsDialog(QDialog):
+    def __init__(self, window):
+        super().__init__()
+        self.window = window
+        self.insertions = Insertions(self.window.attempt.solution)
+        self.setWindowTitle("Insertions")
+        self.setModal(True)
+        self.resize(800, 100)
+
+        layout = QVBoxLayout(self)
+
+        # Editable text field
+        self.text_edit = QLineEdit(self)
+        self.text_edit.cursorPositionChanged.connect(self.refresh)
+        self.text_edit.textChanged.connect(self.refresh)
+        self.text_edit.setText(str(self.insertions._original.all_on_normal()))
+        layout.addWidget(self.text_edit)
+
+        # Buttons
+        buttons = QHBoxLayout()
+        layout.addLayout(buttons)
+        buttons.addStretch(1)
+        ok_button = QPushButton("Ok", self)
+        ok_button.clicked.connect(self.close)
+        buttons.addWidget(ok_button)
+        cancel_button = QPushButton("Cancel", self)
+        cancel_button.clicked.connect(self.close)
+        buttons.addWidget(cancel_button)
+
+        self.setLayout(layout)
+
+    def refresh(self):
+        self.insertions.set_replacement(
+            self.text_edit.text(), self.text_edit.cursorPosition()
+        )
+        self.window.attempt.solution.alg = self.insertions.net_alg()
+        self.window.attempt.update_cube()
+
 
 def main(session_file: Optional[str]):
     app = QApplication(sys.argv)
@@ -873,6 +918,10 @@ class Commands:
 
     def help(self):
         self.window.show_help()
+        return CommandResult(add_to_history=[])
+
+    def insertions(self):
+        self.window.show_insertions()
         return CommandResult(add_to_history=[])
 
     def x(self):
