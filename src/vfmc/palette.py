@@ -32,7 +32,6 @@ class FaceletColors(Enum):
     BLUE = 3
     RED = 4
     ORANGE = 5
-    HIDDEN = 6
 
 
 class Palette:
@@ -56,17 +55,20 @@ class Palette:
     def color_of_edge(self, f: FaceletColors, visibility: int) -> Tuple:
         if visibility & self.edge_visibility_mask == 0:
             return self.hidden_color
-        return self.colors[f] + (self.opacity,)
+        c = self.colors[f]
+        return self.colors[f] + (self.opacity,) if len(c) < 4 else c
 
     def color_of_center(self, f: FaceletColors, visibility: int) -> Tuple:
         if visibility & self.center_visibility_mask == 0:
             return self.hidden_color
-        return self.colors[f] + (self.opacity,)
+        c = self.colors[f]
+        return self.colors[f] + (self.opacity,) if len(c) < 4 else c
 
     def color_of_corner(self, f: FaceletColors, visibility: int) -> Tuple:
         if visibility & self.corner_visibility_mask == 0:
             return self.hidden_color
-        return self.colors[f] + (self.opacity,)
+        c = self.colors[f]
+        return self.colors[f] + (self.opacity,) if len(c) < 4 else c
 
     @staticmethod
     def by_name(name) -> "Palette":
@@ -74,7 +76,7 @@ class Palette:
             (FaceletColors(k), tuple(v)) for k, v in enumerate(preferences.colors)
         )
         bg = preferences.background_color
-        h, o = (0, 25) if bg > 128 else (255, 51)
+        h, o = (0, 51) if bg > 128 else (255, 51)
         hidden = (h, h, h, o)
         p = Palette(colors, 0, 255, 0, hidden, preferences.opacity)
         options = [], []
@@ -98,16 +100,39 @@ class Palette:
                 preferences.recognition.fr_edges,
                 preferences.recognition.fr_corners,
             )
-        elif name == "slice":
+        elif name == "finish":
+            p.edge_visibility_mask = Visibility.All
+            p.corner_visibility_mask = Visibility.All
+        elif name == "insertions":
             p.edge_visibility_mask = Visibility.BadPiece
             p.corner_visibility_mask = Visibility.BadPiece
-        elif name == "corner-case":
+        elif name == "cp-case":
+            p.center_visibility_mask = 0
+            p.opacity = 255
+            p.corner_visibility_mask = Visibility.BadPiece
+            p.colors = dict((FaceletColors(i), (0, 0, 0)) for i in range(6))
+            p.colors.update(
+                {
+                    FaceletColors.BLUE: p.hidden_color,
+                    FaceletColors.GREEN: p.hidden_color,
+                }
+            )
+            # p.corner_visibility_mask = Visibility.BadFace
+            # p.colors = dict((FaceletColors(i),(0,0,0)) for i in range(6))
+        elif name == "co-case":
             p.center_visibility_mask = 0
             p.opacity = 255
             p.corner_visibility_mask = Visibility.BadFace
             p.colors[FaceletColors.ORANGE] = p.colors[FaceletColors.RED]
             p.colors[FaceletColors.BLUE] = p.colors[FaceletColors.GREEN]
-        elif name == "edge-case":
+            p.colors[FaceletColors.YELLOW] = p.colors[FaceletColors.WHITE]
+        elif name == "htr-corner-case":
+            p.center_visibility_mask = 0
+            p.opacity = 255
+            p.corner_visibility_mask = Visibility.BadFace
+            p.colors[FaceletColors.ORANGE] = p.colors[FaceletColors.RED]
+            p.colors[FaceletColors.BLUE] = p.colors[FaceletColors.GREEN]
+        elif name == "htr-case":
             p.center_visibility_mask = 0
             p.opacity = 255
             p.edge_visibility_mask = Visibility.BadFace

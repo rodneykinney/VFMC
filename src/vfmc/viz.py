@@ -1,3 +1,4 @@
+import os
 import math
 import numpy as np
 from PyQt5.QtCore import QTimer, Qt, QEvent, QSize
@@ -5,7 +6,8 @@ from PyQt5.QtWidgets import QWidget
 from PyQt5.QtGui import QPainter, QColor, QPen, QBrush, QPolygon, QPixmap
 
 
-from vfmc.attempt import Attempt, Orientation, AXIS_ROTATIONS
+from vfmc.attempt import Attempt
+from vfmc.orientation import Orientation, AXIS_ROTATIONS
 from vfmc.palette import FaceletColors, Visibility, Palette
 from vfmc.prefs import preferences
 from pyquaternion import Quaternion
@@ -44,7 +46,9 @@ facelet_z = (
 )
 
 # Coordinates of the facelet in different plains, relative to the facelet center
-FACELET_WIDTH = 0.48  # Distance from center to edge of the facelet
+FACELET_WIDTH = float(
+    os.getenv("FACELET_WIDTH", "0.48")
+)  # Distance from center to edge of the facelet
 FACELET_VERTICES = {
     "xy": [
         np.array([-FACELET_WIDTH, -FACELET_WIDTH, 0.0]),

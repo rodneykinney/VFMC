@@ -5,6 +5,7 @@ mod fr;
 mod htr;
 mod slice;
 mod solver;
+mod insertions;
 
 use pyo3::prelude::*;
 use std::str::FromStr;
@@ -14,6 +15,7 @@ use pyo3::exceptions::PyValueError;
 use crate::dr::{DRFB, DRRL, DRUD};
 use crate::eo::{EOFB, EORL, EOUD};
 use crate::finish::Finish;
+use crate::insertions::Insertions;
 use crate::fr::{FRFB, FRRL, FRUD};
 use crate::htr::{HTRFB, HTRRL, HTRUD};
 use crate::slice::{SliceFB, SliceRL, SliceUD};
@@ -90,6 +92,11 @@ impl Algorithm {
             inverse_moves: alg.normal_moves,
         };
         Algorithm(alg)
+    }
+
+    fn all_on_normal(&self) -> Algorithm {
+        let alg = self.0.clone();
+        Algorithm(alg.to_uninverted())
     }
 
     fn __repr__(&self) -> String {
@@ -431,6 +438,7 @@ impl StepBuilder {
                 _ => Err(format!("Unknown variant '{}' for dr", variant).into()),
             },
             "finish" => Ok(Box::new(Finish)),
+            "insertions" => Ok(Box::new(Insertions)),
             "" => Ok(Box::new(SCRAMBLED)),
             _ => Err(format!("Unknown step '{}'", kind).into()),
         }
