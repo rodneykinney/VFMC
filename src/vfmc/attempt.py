@@ -2,6 +2,8 @@ from typing import Optional, Dict, List, Callable, Set, Tuple
 from collections import defaultdict
 
 from vfmc_core import Algorithm, StepInfo, Cube
+from vfmc.insertions import Insertions, Insertion, Replacement
+from vfmc.orientation import Orientation
 
 # Possible continuations for each step
 NEXT_STEPS = {
@@ -12,16 +14,14 @@ NEXT_STEPS = {
     ("dr", "ud"): [("htr", "ud")],
     ("dr", "rl"): [("htr", "rl")],
     ("dr", "fb"): [("htr", "fb")],
-    ("htr", "ud"): [("fr", "ud"), ("slice", "ud"), ("finish", "")],
-    ("htr", "rl"): [("fr", "rl"), ("slice", "rl"), ("finish", "")],
-    ("htr", "fb"): [("fr", "fb"), ("slice", "rl"), ("finish", "")],
-    ("fr", "ud"): [("slice", "ud"), ("finish", "")],
-    ("fr", "fb"): [("slice", "fb"), ("finish", "")],
-    ("fr", "rl"): [("slice", "rl"), ("finish", "")],
-    ("slice", "ud"): [("finish", "")],
-    ("slice", "fb"): [("finish", "")],
-    ("slice", "rl"): [("finish", "")],
-    ("finish", ""): [("finish", "")],
+    ("htr", "ud"): [("fr", "ud"), ("finish", ""), ("insertions", "")],
+    ("htr", "rl"): [("fr", "rl"), ("finish", ""), ("insertions", "")],
+    ("htr", "fb"): [("fr", "fb"), ("finish", ""), ("insertions", "")],
+    ("fr", "ud"): [("finish", ""), ("insertions", "")],
+    ("fr", "fb"): [("finish", ""), ("insertions", "")],
+    ("fr", "rl"): [("finish", ""), ("insertions", "")],
+    ("finish", ""): [("insertions", "")],
+    ("insertions", ""): [("insertions", "")],
 }
 
 # Continuations after solving each step
@@ -29,35 +29,10 @@ DEFAULT_NEXT_STEPS = {
     ("htr", "ud"): ("fr", "ud"),
     ("htr", "rl"): ("fr", "rl"),
     ("htr", "fb"): ("fr", "fb"),
-    ("fr", "ud"): ("slice", "ud"),
-    ("fr", "fb"): ("slice", "fb"),
-    ("fr", "rl"): ("slice", "rl"),
-}
-
-# Default cube orientations for different steps
-VARIANT_ORIENTATIONS = {
-    "": {"": ("u", "f")},
-    "eo": {
-        "ud": ("b", "u"),
-        "fb": ("u", "f"),
-        "rl": ("u", "r"),
-    },
-    "*": {
-        "ud": ("u", "f"),
-        "fb": ("b", "u"),
-        "rl": ("r", "f"),
-        "*": ("u", "f"),
-    },
-}
-
-# Rotation matrix for different faces
-AXIS_ROTATIONS = {
-    "f": ["u", "l", "d", "r"],
-    "b": ["u", "r", "d", "l"],
-    "r": ["u", "f", "d", "b"],
-    "l": ["u", "b", "d", "f"],
-    "u": ["f", "r", "b", "l"],
-    "d": ["f", "l", "b", "r"],
+    ("fr", "ud"): ("finish", ""),
+    ("fr", "fb"): ("finish", ""),
+    ("fr", "rl"): ("finish", ""),
+    ("finish", ""): ("insertions", ""),
 }
 
 
@@ -76,7 +51,19 @@ class PartialSolution:
         self.step_info = StepInfo(kind, variant)
         self.previous = previous
         self.alg = alg
-        self.orientation = Orientation.default_for(self)
+        self.orientation = self.default_orientation()
+
+    def default_orientation(self):
+        orientation = Orientation.default_for(self.kind, self.variant)
+        if self.previous is not None:
+            if self.previous.kind == "eo":
+                if orientation.front not in self.previous.variant:
+                    orientation = orientation.y(1)
+            else:
+                orientation = Orientation(
+                    self.previous.orientation.top, self.previous.orientation.front
+                )
+        return orientation
 
     def append(self, alg: Algorithm) -> bool:
         if not self.allows_moves(alg):
@@ -115,6 +102,14 @@ class PartialSolution:
     def z(self, ticks: int):
         self.orientation = self.orientation.z(ticks)
 
+    def alg_str(self, verbose: bool = False):
+        return str(self.alg)
+
+    def default_comment(self, cube) -> str:
+        if self.step_info.is_solved(cube):
+            return self.kind
+        return f"{step_name(self.kind, self.variant)}-{self.step_info.case_name(cube)}"
+
     def __repr__(self):
         return f"{self.alg} // ({self.full_alg().len()})"
 
@@ -126,6 +121,18 @@ class PartialSolution:
 
     def __hash__(self):
         return str(self.full_alg()).__hash__()
+
+    @staticmethod
+    def create(
+        kind: str = "",
+        variant: str = "",
+        alg: Algorithm = Algorithm(""),
+        previous: Optional["PartialSolution"] = None,
+    ) -> "PartialSolution":
+        sol = PartialSolution(kind, variant, alg, previous)
+        if kind == "insertions":
+            sol = InsertionsStep(previous=previous)
+        return sol
 
 
 class Attempt:
@@ -190,13 +197,13 @@ class Attempt:
     def is_done(self, sol: PartialSolution):
         return sol in self._done
 
-    def to_str(self, sol: PartialSolution) -> str:
+    def to_str(self, sol: PartialSolution, verbose: bool = False) -> str:
         if sol in self._obscured:
             return " ".join(["?" for i in range(sol.alg.len())])
         comment = self._comments.get(sol)
         if not comment:
-            comment = sol.kind
-        return f"{sol.alg} // {comment} ({sol.full_alg().len()})"
+            comment = sol.default_comment(self.cube)
+        return f"{sol.alg_str(verbose)} // {comment} ({sol.full_alg().len()})"
 
     def append(self, alg: Algorithm) -> bool:
         if self.inverse:
@@ -212,7 +219,7 @@ class Attempt:
             return
 
         if self.solution.alg.len() > 0:
-            sol = PartialSolution(
+            sol = PartialSolution.create(
                 self.solution.kind,
                 self.solution.variant,
                 previous=self.solution.previous,
@@ -231,6 +238,8 @@ class Attempt:
         return NEXT_STEPS[(kind, variant)]
 
     def advance_to(self, kind: str, variant: str):
+        if (kind, variant) == (self.solution.kind, self.solution.variant):
+            return
         previous = (
             self.solution
             if not self.solution.alg.is_empty()
@@ -241,7 +250,8 @@ class Attempt:
                 self.inverse = False
             else:
                 self.inverse = len(previous.alg.normal_moves()) == 0
-        self.set_solution(PartialSolution(kind, variant, previous=previous))
+        sol = PartialSolution.create(kind, variant, previous=previous)
+        self.set_solution(sol)
 
     def advance(self):
         next = self._continuations.get(self.solution)
@@ -276,7 +286,7 @@ class Attempt:
             alg = Algorithm(" ".join(alg.normal_moves()))
         else:
             alg = Algorithm(f"({' '.join(alg.inverse_moves())})")
-        new_solution = PartialSolution(
+        new_solution = PartialSolution.create(
             self.solution.kind,
             self.solution.variant,
             previous=self.solution.previous,
@@ -303,7 +313,7 @@ class Attempt:
         for alg in algs:
             base_alg = Algorithm(str(sol.alg))
             base_alg.merge(alg)
-            s = PartialSolution(
+            s = PartialSolution.create(
                 kind=sol.kind,
                 variant=sol.variant,
                 previous=sol.previous,
@@ -322,7 +332,7 @@ class Attempt:
         if not is_solved:
             if to_be_saved.kind == "" or to_be_saved.previous is None:
                 return None
-            to_be_saved = PartialSolution(
+            to_be_saved = PartialSolution.create(
                 kind=self.solution.previous.kind,
                 variant=self.solution.previous.variant,
                 previous=self.solution.previous.previous,
@@ -343,7 +353,7 @@ class Attempt:
             )
             self._orientations[to_be_saved] = self.solution.orientation
         if is_solved:
-            if to_be_saved.kind in {"eo", "dr", "finish"}:
+            if to_be_saved.kind in {"eo", "dr"}:
                 self.reset()
             else:
                 self.advance()
@@ -401,51 +411,83 @@ class Attempt:
             listener()
 
 
+class InsertionsStep(PartialSolution):
+    def __init__(self, previous):
+        super().__init__(kind="insertions", previous=previous)
+        self.insertions = Insertions(previous.full_alg())
+        self.inserted_algs: Dict[str, str] = {}
+        self.alg_with_markers = str(self.insertions.original.all_on_normal())
+
+    def insertion_symbol(self, index):
+        choices = "^#*@"
+        n = int(index / len(choices)) + 1
+        return choices[index % len(choices)] * n
+
+    def replacement_symbol(self, index):
+        open = "[{"
+        close = "]}"
+        n = int(index / len(open)) + 1
+        open = open[index % len(open)] * n
+        close = close[index % len(close)] * n
+        return f"{open}{close}"
+
+    def alg_str(self, verbose: bool = False):
+        lines = []
+        if not verbose:
+            return " ".join(self.inserted_algs.keys())
+
+        lines += [""] + [self.alg_with_markers]
+        if self.inserted_algs:
+            lines += [f"{symbol} = {alg}" for symbol, alg in self.inserted_algs.items()]
+            lines += [""] + [str(Algorithm("").merge(self.insertions.replacement))]
+        return "\n".join(lines + [""])
+
+    def default_comment(self, cube) -> str:
+        if self.step_info.is_solved(cube):
+            return "solved"
+        return self.step_info.case_name(cube)
+
+    def append(self, alg: Algorithm) -> bool:
+        return False
+
+    def set_replacement(self, text, pos):
+        self.insertions.set_replacement(text, pos)
+        self.alg = self.insertions.net_alg()
+
+    def add_markers(self):
+        # Add placeholders for insertions in preceding steps
+        self.alg_with_markers = ""
+        self.inserted_algs.clear()
+        orig = self.insertions.original.all_on_normal().normal_moves()
+        final = []
+        pos = 0
+        n_insert = -1
+        n_replace = -1
+        edits = self.insertions.get_edits()
+        for edit in edits:
+            if isinstance(edit, Insertion):
+                n_insert += 1
+                symbol = self.insertion_symbol(n_insert)
+                final.extend(orig[pos : edit.pos])
+                pos = edit.pos
+                final.append(symbol)
+                self.inserted_algs[symbol] = " ".join(edit.moves)
+            elif isinstance(edit, Replacement):
+                n_replace += 1
+                symbol = self.replacement_symbol(n_replace)
+                final.extend(orig[pos : edit.start])
+                pos = edit.start
+                final.append(symbol[: int(len(symbol) / 2)])
+                final.extend(orig[pos : edit.end])
+                pos = edit.end
+                final.append(symbol[int(len(symbol) / 2) :])
+                self.inserted_algs[symbol] = " ".join(edit.moves)
+        final.extend(orig[pos:])
+        self.alg_with_markers = " ".join(final)
+
+
 def step_name(kind, variant):
     s = kind
-    if s not in {"htr", "fr", "slice"}:
+    if s not in {"htr", "fr"}:
         s = f"{s}{variant}"
     return s
-
-
-class Orientation:
-    def __init__(self, top: str, front: str):
-        self.top = top
-        self.front = front
-
-    def x(self, ticks: int) -> "Orientation":
-        rot = AXIS_ROTATIONS[self.right]
-        return Orientation(
-            top=rot[(rot.index(self.top) + ticks) % 4],
-            front=rot[(rot.index(self.front) + ticks) % 4],
-        )
-
-    @property
-    def right(self):
-        rot = AXIS_ROTATIONS[self.top]
-        return rot[(rot.index(self.front) + 1) % 4]
-
-    def z(self, ticks: int) -> "Orientation":
-        rot = AXIS_ROTATIONS[self.front]
-        return Orientation(top=rot[(rot.index(self.top) + ticks) % 4], front=self.front)
-
-    def y(self, ticks: int) -> "Orientation":
-        rot = AXIS_ROTATIONS[self.top]
-        return Orientation(top=self.top, front=rot[(rot.index(self.front) + ticks) % 4])
-
-    def __repr__(self):
-        return f"top={self.top}, front={self.front}"
-
-    @staticmethod
-    def default_for(sol: PartialSolution):
-        d = VARIANT_ORIENTATIONS.get(sol.kind, VARIANT_ORIENTATIONS.get("*"))
-        orientation = Orientation(*d.get(sol.variant, d.get("*")))
-        if sol.previous is not None:
-            if sol.previous.kind == "eo":
-                if orientation.front not in sol.previous.variant:
-                    orientation = orientation.y(1)
-            else:
-                orientation = Orientation(
-                    sol.previous.orientation.top, sol.previous.orientation.front
-                )
-        return orientation
