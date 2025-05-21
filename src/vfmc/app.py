@@ -39,7 +39,7 @@ from vfmc import prefs
 from vfmc.palette import Palette
 from vfmc.prefs import preferences
 from vfmc.viz import CubeViz, CubeWidget
-from vfmc_core import Algorithm, StepInfo, scramble as gen_scramble
+from vfmc_core import Cube, Algorithm, StepInfo, scramble as gen_scramble
 
 # Basic set of cube moves
 MOVE_REGEX = r"[rRuUfFlLdDbB '2]*"
@@ -608,7 +608,8 @@ class AppWindow(QMainWindow):
             w.setSelectionMode(QListWidget.SingleSelection)
             w.blockSignals(False)
         for _, w in self.solution_widgets.items():
-            w.scrollToItem(w.currentItem())
+            if w != list_widget:
+                w.scrollToItem(w.currentItem())
 
     def execute_command(self):
         cmd = self.command_input.text().strip()
@@ -751,7 +752,8 @@ class AppWindow(QMainWindow):
     def check_solution(self, solution):
         """Load a selected solution"""
         self.attempt.set_solution(solution)
-        self.attempt.advance()
+        if solution.step_info.is_solved(self.attempt.cube):
+            self.attempt.advance()
         self.command_input.setFocus()
 
     def _create_menus(self):
@@ -957,15 +959,18 @@ class InsertionsDialog(QDialog):
         self.step.set_replacement(
             self.text_edit.text(), self.text_edit.cursorPosition()
         )
-        self.attempt.update_cube()
-        self.save_button.setEnabled(self.step.step_info.is_solved(self.attempt.cube))
+        self.attempt.set_solution(self.step)
+        step = self.step.clone()
+        step.set_replacement(self.text_edit.text(), len(self.text_edit.text()))
+        is_solved = step.step_info.is_solved(
+            Cube(f"{self.attempt.scramble} {step.full_alg()}")
+        )
+        self.save_button.setEnabled(is_solved)
 
     def save(self):
-        self.step.set_replacement(self.text_edit.text(), len(self.text_edit.text()))
-        self.step.add_markers()
-        self.window.attempt.set_comment(self.step, "solved")
-        self.window.attempt.set_solution(self.step)
-        self.window.attempt.save()
+        self.window.commands.execute(f'compute_insertions("{self.text_edit.text()}")')
+        self.window.commands.execute('comment("solved")')
+        self.window.commands.execute("save")
         self.close()
 
 
@@ -1064,6 +1069,9 @@ class Commands:
     def z2(self):
         self.attempt.solution.z(2)
 
+    def set_step(self, kind, variant):
+        self.window.set_step(kind, variant)
+
     def eoud(self):
         self.window.set_step("eo", "ud")
 
@@ -1112,6 +1120,12 @@ class Commands:
 
     def insertions(self):
         self.window.set_step("insertions", "")
+
+    def compute_insertions(self, moves_str: str):
+        if self.attempt.solution.kind != "insertions":
+            return CommandResult(add_to_history=[])
+        self.attempt.solution.set_replacement(moves_str, len(moves_str))
+        self.attempt.solution.add_markers()
 
     def set_inverse(self, b: bool):
         self.attempt.set_inverse(b)
@@ -1197,11 +1211,9 @@ class Commands:
         """Save this algorithm and start a new one"""
         self.window.current_solution_widget.sync_history_with_editor()
         saved = self.attempt.save()
-        if not saved:
-            self.window.set_status("Complete at least one step before saving")
-            return
-        self.window.scroll_to(saved)
-        self.window.command_input.setFocus()
+        if saved:
+            self.window.scroll_to(saved)
+            self.window.command_input.setFocus()
 
     def reset(self):
         """Reset the cube to the beginning of the current step"""
@@ -1220,7 +1232,7 @@ class Commands:
         if index < 1 or index > len(solutions):
             self.window.set_status(f"Couldn't find {kind} #{index}")
             return
-        self.window.check_solution(solutions[index - 1])
+        self.window.check_solution(solutions[index - 1].clone())
 
     def scramble(self, scramble: str = None):
         """
@@ -1320,7 +1332,7 @@ class CurrentSolutionWidget(QListWidget):
                     parentheses = f"{' ' if step.alg.len() else ''}{'( )' if not step.alg.inverse_moves() and self.attempt.inverse else ''}"
                     comment = self.attempt.get_comment(step)
                     if not comment or step.alg.len() == 0:
-                        comment = step.default_comment(self.attempt.cube)
+                        comment = step.default_comment()
                     text = f"{text}{parentheses} // {comment} ({step.full_alg().len()})"
             item = QListWidgetItem(text)
             item.setData(SOLUTION, step)
@@ -1469,19 +1481,14 @@ class CurrentSolutionWidget(QListWidget):
             return
         # Execute via self.commands to get this into the history
         cmd = self.window().commands
-        while self.attempt.solution.kind != target.kind:
-            cmd.execute("back")
-            if self.attempt.solution.kind == "":
-                break
-        inverse = False
+        cmd.execute(f'set_step("{target.kind}","{target.variant}")')
+        inverse = self.attempt.inverse
         if target.alg.inverse_moves():
             cmd.execute("set_inverse(True)")
             cmd.execute(" ".join(target.alg.inverse_moves()))
-            inverse = True
         if target.alg.normal_moves():
             cmd.execute("set_inverse(False)")
             cmd.execute(" ".join(target.alg.normal_moves()))
-            inverse = False
         cmd.execute(f"set_inverse({inverse})")
         self.editItem(self.item(self.count() - 1))
         self.window().format_saved_solutions()
