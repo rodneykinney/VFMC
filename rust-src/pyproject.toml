@@ -4,7 +4,7 @@ build-backend = "maturin"
 
 [project]
 name = "vfmc_core"
-version = "1.0.3"
+version = "1.0.2"
 description = "Rust core implementation for VFMC"
 authors = [
   { name="Rodney Kinney", email="rodney.m.kinney@gmail.com" },
