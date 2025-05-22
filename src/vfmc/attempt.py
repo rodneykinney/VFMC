@@ -184,7 +184,7 @@ class Attempt:
 
     def toggle_done(self, sol: PartialSolution):
         if sol not in self._saved_by_kind[sol.kind]:
-            if sol.previous and not sol.alg.len():
+            if sol.previous:
                 self.toggle_done(sol.previous)
             return
         if sol in self._done:
@@ -446,7 +446,7 @@ class InsertionsStep(PartialSolution):
         return "\n".join(lines + [""])
 
     def append(self, alg: Algorithm) -> bool:
-        return False
+        raise ValueError("Double-click on solution to find insertions")
 
     def set_replacement(self, text, pos):
         self.insertions.set_replacement(text, pos)

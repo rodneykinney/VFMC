@@ -10,7 +10,7 @@
 <h3>Solving Individual Steps</h3>
 <p>
     Move from step to step by entering the name of the step you want to work on.<br>
-    Available steps are: <b>eofb</b>,<b>eorl</b>,<b>eoud</b>,<b>drud</b>,<b>drrl</b>,<b>drfb</b>,<b>htr</b>,<b>fr</b>,<b>slice</b>,<b>finish</b>
+    Available steps are: <b>eofb</b>,<b>eorl</b>,<b>eoud</b>,<b>drud</b>,<b>drrl</b>,<b>drfb</b>,<b>htr</b>,<b>fr</b>,<b>finish</b>,<b>insertions</b>
 </p>
 <h4>Display</h4>
 <p>
@@ -40,9 +40,6 @@
 <h3>Building a Full Solution</h3>
 <p>
     Enter <b>save</b> to save the current cube to the list of solutions at the bottom.<br>
-    Enter <b>back</b> to return to the previous step.
-</p>
-<p>
     Enter <b>comment("...")</b> to specify a comment for the current step<br>
     Enter <b>done</b> to mark the current step with a strike-through
 </p>
@@ -50,6 +47,13 @@
     Click on any step at the bottom to see the steps that precede or follow it.<br>
     Double click to load a step and start working on it.<br>
     The steps that are active in the display are drawn in bold.
+</p>
+<p>
+    The <b>insertions</b> step rewrites the solution to be all on normal and brings up a dialog
+    showing the remaining bad pieces. The view changes depending on the cursor
+    position, as if you had rniss-ed at that position. You can widen moves by adding 'w' and
+    otherwise edit the moves. The edits will be automatically converted into insertion markers
+    when saving.
 </p>
 <h3>Saving/Loading Your Session</h3>
 <p>
