@@ -96,7 +96,7 @@ impl Algorithm {
 
     fn all_on_normal(&self) -> Algorithm {
         let alg = self.0.clone();
-        Algorithm(alg.to_uninverted())
+        Algorithm::new("").unwrap().merge(&Algorithm(alg.to_uninverted()))
     }
 
     fn __repr__(&self) -> String {

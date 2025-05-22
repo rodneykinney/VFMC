@@ -105,22 +105,32 @@ class PartialSolution:
     def alg_str(self, verbose: bool = False):
         return str(self.alg)
 
-    def default_comment(self, cube) -> str:
-        if self.step_info.is_solved(cube):
-            return self.kind
-        return f"{step_name(self.kind, self.variant)}-{self.step_info.case_name(cube)}"
+    def default_comment(self) -> str:
+        return step_name(self.kind, self.variant)
+
+    def clone(self) -> "PartialSolution":
+        return PartialSolution.create(
+            kind=self.kind,
+            variant=self.variant,
+            alg=self.alg,
+            previous=self.previous,
+        )
 
     def __repr__(self):
         return f"{self.alg} // ({self.full_alg().len()})"
 
     def __eq__(self, other):
         if self.__class__ == other.__class__:
-            return str(self.full_alg()) == str(other.full_alg())
+            return (
+                self.kind == other.kind
+                and self.variant == other.variant
+                and str(self.full_alg()) == str(other.full_alg())
+            )
         else:
             return False
 
     def __hash__(self):
-        return str(self.full_alg()).__hash__()
+        return f"{self.kind}{self.variant}:{self.full_alg()}".__hash__()
 
     @staticmethod
     def create(
@@ -129,10 +139,9 @@ class PartialSolution:
         alg: Algorithm = Algorithm(""),
         previous: Optional["PartialSolution"] = None,
     ) -> "PartialSolution":
-        sol = PartialSolution(kind, variant, alg, previous)
         if kind == "insertions":
-            sol = InsertionsStep(previous=previous)
-        return sol
+            return InsertionsStep(previous=previous)
+        return PartialSolution(kind, variant, alg, previous)
 
 
 class Attempt:
@@ -174,6 +183,10 @@ class Attempt:
             self.update_cube()
 
     def toggle_done(self, sol: PartialSolution):
+        if sol not in self._saved_by_kind[sol.kind]:
+            if sol.previous and not sol.alg.len():
+                self.toggle_done(sol.previous)
+            return
         if sol in self._done:
             self._done.remove(sol)
         else:
@@ -202,7 +215,7 @@ class Attempt:
             return " ".join(["?" for i in range(sol.alg.len())])
         comment = self._comments.get(sol)
         if not comment:
-            comment = sol.default_comment(self.cube)
+            comment = sol.default_comment()
         return f"{sol.alg_str(verbose)} // {comment} ({sol.full_alg().len()})"
 
     def append(self, alg: Algorithm) -> bool:
@@ -327,38 +340,20 @@ class Attempt:
         return solutions
 
     def save(self) -> Optional[PartialSolution]:
-        to_be_saved = self.solution
-        is_solved = to_be_saved.step_info.is_solved(self.cube)
-        if not is_solved:
-            if to_be_saved.kind == "" or to_be_saved.previous is None:
-                return None
-            to_be_saved = PartialSolution.create(
-                kind=self.solution.previous.kind,
-                variant=self.solution.previous.variant,
-                previous=self.solution.previous.previous,
-                alg=self.solution.previous.alg.merge(self.solution.alg),
-            )
-            options = self.possible_next_steps(to_be_saved)
+        sol = self.solution.clone()
+        is_solved = sol.step_info.is_solved(self.cube)
+        if not is_solved and not self.get_comment(sol):
             case = self.solution.step_info.case_name(self.cube)
-            if not self.get_comment(to_be_saved):
-                comment = (
-                    f"{self.solution.kind}{self.solution.variant}-{case}"
-                    if len(options) > 1
-                    else case
-                )
-                self.set_comment(to_be_saved, comment)
-            self._continuations[to_be_saved] = (
-                self.solution.kind,
-                self.solution.variant,
-            )
-            self._orientations[to_be_saved] = self.solution.orientation
+            comment = f"{step_name(self.solution.kind, self.solution.variant)}-{case}"
+            self.set_comment(sol, comment)
         if is_solved:
-            if to_be_saved.kind in {"eo", "dr"}:
+            if sol.kind in {"eo", "dr"}:
                 self.reset()
             else:
                 self.advance()
-        self.save_solutions([to_be_saved])
-        return to_be_saved
+        self.save_solutions([sol])
+        self.solution
+        return sol
 
     def save_solutions(self, sols: List[PartialSolution]):
         new_sols_by_key = defaultdict(list)
@@ -431,6 +426,14 @@ class InsertionsStep(PartialSolution):
         close = close[index % len(close)] * n
         return f"{open}{close}"
 
+    def clone(self) -> "PartialSolution":
+        step = InsertionsStep(previous=self.previous)
+        step.alg = self.alg
+        step.alg_with_markers = self.alg_with_markers
+        step.insertions = self.insertions
+        step.inserted_algs = self.inserted_algs
+        return step
+
     def alg_str(self, verbose: bool = False):
         lines = []
         if not verbose:
@@ -441,11 +444,6 @@ class InsertionsStep(PartialSolution):
             lines += [f"{symbol} = {alg}" for symbol, alg in self.inserted_algs.items()]
             lines += [""] + [str(Algorithm("").merge(self.insertions.replacement))]
         return "\n".join(lines + [""])
-
-    def default_comment(self, cube) -> str:
-        if self.step_info.is_solved(cube):
-            return "solved"
-        return self.step_info.case_name(cube)
 
     def append(self, alg: Algorithm) -> bool:
         return False
