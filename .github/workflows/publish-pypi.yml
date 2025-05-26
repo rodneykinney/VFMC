@@ -11,7 +11,6 @@ jobs:
   build-vfmc-core:
     name: Build vfmc_core wheels on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
-    if: github.event.inputs.version == ''
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest]
@@ -40,7 +39,6 @@ jobs:
   build-vfmc-core-macos:
     name: Build vfmc_core wheels on macOS
     runs-on: macos-latest
-    if: github.event.inputs.version == ''
     steps:
       - uses: actions/checkout@v4
         with:
@@ -78,7 +76,6 @@ jobs:
   build-vfmc-core-sdist:
     name: Build vfmc_core source distribution
     runs-on: ubuntu-latest
-    if: github.event.inputs.version == ''
     steps:
       - uses: actions/checkout@v4
         with:
@@ -100,7 +97,6 @@ jobs:
   publish-vfmc-core:
     name: Publish vfmc_core to PyPI
     runs-on: ubuntu-latest
-    if: github.event.inputs.version == ''
     needs: [build-vfmc-core, build-vfmc-core-macos, build-vfmc-core-sdist]
     steps:
       - uses: actions/checkout@v4
@@ -120,7 +116,7 @@ jobs:
   publish-vfmc:
     name: Publish vfmc to PyPI
     runs-on: ubuntu-latest
-    if: github.event.inputs.version == ''
+    needs: [publish-vfmc-core]
     environment: pypi
     steps:
       - uses: actions/checkout@v4
