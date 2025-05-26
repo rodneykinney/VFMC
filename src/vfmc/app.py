@@ -974,7 +974,7 @@ class InsertionsDialog(QDialog):
         self.close()
 
 
-def main(session_file: Optional[str]):
+def run(session_file: Optional[str] = None):
     app = QApplication(sys.argv)
     app.setApplicationName("VFMC")
     window = AppWindow()
@@ -1500,7 +1500,7 @@ class CommandResult:
     add_to_history: List[str] = None
 
 
-if __name__ == "__main__":
+def main():
     # Configure logging
     logfile = prefs.app_dir() / "vfmc.log"
     logging.basicConfig(
@@ -1517,4 +1517,8 @@ if __name__ == "__main__":
             logging.debug(f"Running bundle from {bundle_dir}")
             os.chdir(os.path.dirname(os.path.dirname(bundle_dir)))
     session_file = os.path.abspath(sys.argv[1]) if len(sys.argv) > 1 else None
-    main(session_file)
+    run(session_file)
+
+
+if __name__ == "__main__":
+    main()
