@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'PyPI version number (publish new version if empty)'
+        description: 'PyPI version number'
         required: true
         type: string
 
@@ -13,35 +13,10 @@ permissions:
   id-token: write  # For PyPI trusted publishing
 
 jobs:
-  # Verify vfmc is available on PyPI
-  verify-vfmc-pypi:
-    name: Verify vfmc is available on PyPI
-    runs-on: ubuntu-latest
-    needs: publish-vfmc
-    if: ${{ !failure() && !cancelled() }}
-    steps:
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y curl jq
-
-      - name: Wait for package to be available on PyPI
-        run: |
-          VERSION="${{ github.event.inputs.version }}"
-          echo "Looking for vfmc v$VERSION on PyPI..."
-          if curl -s "https://pypi.org/pypi/vfmc/json" | jq -e '.releases | keys' | grep $VERSION > /dev/null; then
-            echo "vfmc package is available on PyPI!"
-            exit 0
-          fi
-          echo "Error: Package not available"
-          exit 1
-
   # Build pre-compiled binaries
   build-windows:
     name: Build Windows executable
     runs-on: windows-latest
-    needs: verify-vfmc-pypi
-    if: ${{ !failure() && !cancelled() }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -69,8 +44,7 @@ jobs:
           .\.venv\Scripts\Activate.ps1
           cd dist\win-x86
           cp ../../resources/README-win.txt README.txt
-          $VERSION = { "${{ github.event.inputs.version }}" }
-          Compress-Archive -Path .\VFMC.exe .\README.txt -DestinationPath VFMC-v$VERSION-Windows.zip
+          Compress-Archive -Path .\VFMC.exe,.\README.txt -DestinationPath VFMC-v${{ github.event.inputs.version }}-Windows.zip
           
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
@@ -81,8 +55,6 @@ jobs:
   build-macos-arm:
     name: Build macOS ARM executable
     runs-on: macos-latest
-    needs: verify-vfmc-pypi
-    if: ${{ !failure() && !cancelled() }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -104,10 +76,9 @@ jobs:
         run: |
           . .venv/bin/activate
           pyinstaller macos-arm.spec
-          VERSION="${{ github.event.inputs.version }}"
           cd dist/macos-arm
           cp ../../resources/README-mac.txt README.txt
-          zip -q VFMC-v${VERSION}-Mac-ARM.zip -r README.txt vfmc.app
+          zip -q VFMC-v${{ github.event.inputs.version }}-Mac-ARM.zip -r README.txt vfmc.app
 
       - name: Upload ARM build artifact
         uses: actions/upload-artifact@v4
@@ -120,7 +91,6 @@ jobs:
     name: Create release and upload assets
     runs-on: ubuntu-latest
     needs: [build-windows, build-macos-arm]
-    if: ${{ !failure() && !cancelled() }}
     steps:
       - uses: actions/checkout@v4
       
