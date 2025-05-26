@@ -68,8 +68,9 @@ jobs:
         run: |
           .\.venv\Scripts\Activate.ps1
           cd dist\win-x86
+          cp ../../resources/README-win.txt README.txt
           $VERSION = { "${{ github.event.inputs.version }}" }
-          Compress-Archive -Path .\VFMC.exe -DestinationPath VFMC-v$VERSION-Windows.zip
+          Compress-Archive -Path .\VFMC.exe .\README.txt -DestinationPath VFMC-v$VERSION-Windows.zip
           
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
@@ -105,8 +106,8 @@ jobs:
           pyinstaller macos-arm.spec
           VERSION="${{ github.event.inputs.version }}"
           cd dist/macos-arm
-          cp ../../resources/VFMC-Readme.txt .
-          zip -q VFMC-v${VERSION}-Mac-ARM.zip -r VFMC-Readme.txt vfmc.app
+          cp ../../resources/README-mac.txt README.txt
+          zip -q VFMC-v${VERSION}-Mac-ARM.zip -r README.txt vfmc.app
 
       - name: Upload ARM build artifact
         uses: actions/upload-artifact@v4

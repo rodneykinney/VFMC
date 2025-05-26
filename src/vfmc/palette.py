@@ -117,8 +117,6 @@ class Palette:
                     FaceletColors.GREEN: p.hidden_color,
                 }
             )
-            # p.corner_visibility_mask = Visibility.BadFace
-            # p.colors = dict((FaceletColors(i),(0,0,0)) for i in range(6))
         elif name == "co-case":
             p.center_visibility_mask = 0
             p.opacity = 255
