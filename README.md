@@ -22,7 +22,7 @@ vfmc
 
 # Approach
 
-VFMC tracks all the steps of an FMC attempt: EO - DR - HTR - (FR) - Slice - Finish. 
+VFMC tracks all the steps of an FMC attempt: EO - DR - HTR - (FR) - Finish - Insertions. 
 
 ## A realistic alternative to pencil+paper+cube
 
@@ -42,7 +42,7 @@ that must be solved to get there.
 
 ## Optimal solutions for each step
 
-Use the integrated solver to find the shortest solution for reaching the next step that 
+Use the integrated solver, from [cubelib](https://github.com/Jobarion/cubelib), to find the shortest solution for reaching the next step that 
 hasn't been written down already.
 
 <img width="1312" alt="image" src="https://github.com/user-attachments/assets/bd1ba408-0f60-4090-a116-59d5496add15" />
