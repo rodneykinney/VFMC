@@ -649,15 +649,15 @@ class AppWindow(QMainWindow):
                     ):
                         return False
 
-                    def select_widget(widget):
+                    def select_related_solution(widget, sol):
                         if widget.count():
                             widget.clearSelection()
                             widget.setCurrentItem(None)
                             selection = 0
                             for i in range(0, widget.count()):
                                 if (
-                                    widget.item(i).data(SOLUTION)
-                                    in self.attempt.solution.substeps()
+                                    widget.item(i).data(SOLUTION) in sol.substeps()
+                                    or sol in widget.item(i).data(SOLUTION).substeps()
                                 ):
                                     selection = i
                                     break
@@ -683,12 +683,12 @@ class AppWindow(QMainWindow):
                         for k in reversed(self.step_order):
                             w = self.solution_widgets[k]
                             for i in range(0, w.count()):
-                                if (
-                                    w.item(i).data(SOLUTION)
-                                    in self.attempt.solution.substeps()
-                                ):
-                                    return select_widget(w)
-                        return select_widget(self.solution_widgets["eo"])
+                                sol = w.item(i).data(SOLUTION)
+                                if sol in self.attempt.solution.substeps():
+                                    return select_related_solution(w, sol)
+                        return select_related_solution(
+                            self.solution_widgets["eo"], self.attempt.solution
+                        )
                     # Navigate between solution steps
                     index = self.step_order.index(obj.property("kind"))
                     if key == Qt.Key_Backtab:
@@ -697,31 +697,37 @@ class AppWindow(QMainWindow):
                             return True
                         else:
                             next_index = index
+                            sol = self.attempt.solution
                             while True:
                                 next_index = (next_index - 1) % len(self.step_order)
                                 widget = self.solution_widgets[
                                     self.step_order[next_index]
                                 ]
+                                if widget.selectedItems():
+                                    sol = widget.selectedItems()[0].data(SOLUTION)
                                 if next_index == 0 or widget.count() > 0:
                                     break
-                            return select_widget(widget)
+                            return select_related_solution(widget, sol)
                     else:
                         if index == len(self.step_order) - 1:
                             self.command_input.setFocus()
                             return True
                         else:
                             next_index = index
+                            sol = self.attempt.solution
                             while True:
                                 next_index = (next_index + 1) % len(self.step_order)
                                 widget = self.solution_widgets[
                                     self.step_order[next_index]
                                 ]
+                                if widget.selectedItems():
+                                    sol = widget.selectedItems()[0].data(SOLUTION)
                                 if (
                                     next_index == len(self.step_order) - 1
                                     or widget.count() > 0
                                 ):
                                     break
-                            return select_widget(widget)
+                            return select_related_solution(widget, sol)
                 # Command history
                 elif obj == self.command_input and key == Qt.Key_Up:
                     if self.history_pointer < 0:
