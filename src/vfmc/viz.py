@@ -200,6 +200,7 @@ class CubeViz:
         return False
 
     def refresh(self):
+        self.hide_nearest_faces = False
         palette = self.get_palette()
         self.colors = [palette.hidden_color] * 54
         self.colors[4] = palette.color_of_center(FaceletColors.WHITE, Visibility.All)
