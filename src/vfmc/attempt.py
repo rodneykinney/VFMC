@@ -7,13 +7,13 @@ from vfmc.orientation import Orientation
 
 # Possible continuations for each step
 NEXT_STEPS = {
-    ("", ""): [("eo", "fb"), ("eo", "rl"), ("eo", "ud")],
-    ("eo", "ud"): [("dr", "fb"), ("dr", "rl")],
-    ("eo", "rl"): [("dr", "ud"), ("dr", "fb")],
-    ("eo", "fb"): [("dr", "ud"), ("dr", "rl")],
-    ("dr", "ud"): [("htr", "ud")],
-    ("dr", "rl"): [("htr", "rl")],
-    ("dr", "fb"): [("htr", "fb")],
+    ("", ""): [("eo", "fb"), ("eo", "rl"), ("eo", "ud"), ("finish", "")],
+    ("eo", "ud"): [("dr", "fb"), ("dr", "rl"), ("finish", "")],
+    ("eo", "rl"): [("dr", "ud"), ("dr", "fb"), ("finish", "")],
+    ("eo", "fb"): [("dr", "ud"), ("dr", "rl"), ("finish", "")],
+    ("dr", "ud"): [("htr", "ud"), ("finish", "")],
+    ("dr", "rl"): [("htr", "rl"), ("finish", "")],
+    ("dr", "fb"): [("htr", "fb"), ("finish", "")],
     ("htr", "ud"): [("fr", "ud"), ("finish", ""), ("insertions", "")],
     ("htr", "rl"): [("fr", "rl"), ("finish", ""), ("insertions", "")],
     ("htr", "fb"): [("fr", "fb"), ("finish", ""), ("insertions", "")],

@@ -1,4 +1,3 @@
-use crate::htr::HTRUD;
 use crate::solver::{solve_step, step_config};
 use crate::Visibility::{Any, BadFace, BadPiece};
 use crate::{Algorithm, Solvable};
@@ -14,8 +13,8 @@ impl Solvable for Finish {
         HTRFinishCoord::from(cube).val() == 0
     }
 
-    fn is_eligible(&self, cube: &Cube333) -> bool {
-        HTRUD.is_solved(cube)
+    fn is_eligible(&self, _cube: &Cube333) -> bool {
+        true
     }
 
     fn case_name(&self, cube: &Cube333) -> String {

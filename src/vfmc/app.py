@@ -325,10 +325,10 @@ class AppWindow(QMainWindow):
                 valid_steps.add(f"{kind}{variant}")
             for step in reversed(self.attempt.solution.substeps()):
                 valid_steps.add(step_name(step.kind, step.variant))
-                if step.step_info.is_solved(self.attempt.cube):
-                    for kind, variant in self.attempt.possible_steps_following(
-                        step.kind, step.variant
-                    ):
+                for kind, variant in self.attempt.possible_steps_following(
+                    step.kind, step.variant
+                ):
+                    if step.step_info.is_eligible(self.attempt.cube):
                         valid_steps.add(step_name(kind, variant))
             current_step = step_name(
                 self.attempt.solution.kind, self.attempt.solution.variant
