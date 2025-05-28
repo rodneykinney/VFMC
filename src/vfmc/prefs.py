@@ -90,6 +90,7 @@ class Preferences:
 
     opacity: int = 237
     background_color: int = 77
+    sticker_width: float = 0.48
     colors: List[Tuple] = field(default_factory=lambda: _DEFAULT_COLORS)
     recognition: RecognitionOptions = field(default_factory=RecognitionOptions.default)
     listeners: List = field(default_factory=list)
@@ -101,6 +102,7 @@ class Preferences:
             "opacity": self.opacity,
             "recognition": asdict(self.recognition),
             "colors": self.colors,
+            "sticker_width": self.sticker_width,
             "background": self.background_color,
         }
 
@@ -129,6 +131,7 @@ class Preferences:
                     recognition = asdict(RecognitionOptions.default())
                     recognition.update(prefs.get("recognition", {}))
                     opacity = prefs.get("opacity", 237)
+                    sticker_width = prefs.get("sticker_width", 0.48)
                     colors = prefs.get("colors", [])
                     if len(colors) != len(_DEFAULT_COLORS):
                         colors = _DEFAULT_COLORS
@@ -136,6 +139,7 @@ class Preferences:
                     return Preferences(
                         opacity=opacity,
                         colors=colors,
+                        sticker_width=sticker_width,
                         recognition=RecognitionOptions(**recognition),
                         background_color=bg,
                     )
@@ -226,17 +230,18 @@ class PreferencesDialog(QDialog):
 
     @cached_property
     def colors_widget(self) -> QWidget:
-        group = QGroupBox("Colors")
+        group = QGroupBox("Cube")
         layout = QHBoxLayout()
         group.setLayout(layout)
         layout.addWidget(self.cube_colors_widget)
         layout.addWidget(self.opacity_widget)
         layout.addWidget(self.background_widget)
+        layout.addWidget(self.sticker_width_widget)
         return group
 
     @cached_property
     def cube_colors_widget(self) -> QWidget:
-        group = QGroupBox("Cube")
+        group = QGroupBox("Colors")
         layout = QHBoxLayout()
         group.setLayout(layout)
 
@@ -437,6 +442,26 @@ class PreferencesDialog(QDialog):
 
         def update():
             preferences.opacity = 255 - slider.value()
+            preferences.notify()
+
+        slider.valueChanged.connect(update)
+
+        return group
+
+    @cached_property
+    def sticker_width_widget(self) -> QWidget:
+        group = QGroupBox("Sticker Size")
+        layout = QHBoxLayout()
+        group.setLayout(layout)
+        slider = QSlider(Qt.Horizontal)
+        layout.addWidget(slider)
+        layout.addStretch(1)
+        slider.setMinimum(38)
+        slider.setMaximum(50)
+        slider.setValue(preferences.sticker_width * 100)
+
+        def update():
+            preferences.sticker_width = slider.value() / 100
             preferences.notify()
 
         slider.valueChanged.connect(update)

@@ -1,7 +1,6 @@
-import os
 import math
 import numpy as np
-from PyQt5.QtCore import QTimer, Qt, QEvent, QSize
+from PyQt5.QtCore import QTimer, Qt, QEvent, QSize, QPoint
 from PyQt5.QtWidgets import QWidget
 from PyQt5.QtGui import QPainter, QColor, QPen, QBrush, QPolygon, QPixmap
 
@@ -45,30 +44,30 @@ facelet_z = (
     + [-1.5, -1.5, -1.5, -1.5, -1.5, -1.5, -1.5, -1.5, -1.5]
 )
 
-# Coordinates of the facelet in different plains, relative to the facelet center
-FACELET_WIDTH = float(
-    os.getenv("FACELET_WIDTH", "0.48")
-)  # Distance from center to edge of the facelet
-FACELET_VERTICES = {
-    "xy": [
-        np.array([-FACELET_WIDTH, -FACELET_WIDTH, 0.0]),
-        np.array([FACELET_WIDTH, -FACELET_WIDTH, 0.0]),
-        np.array([FACELET_WIDTH, FACELET_WIDTH, 0.0]),
-        np.array([-FACELET_WIDTH, FACELET_WIDTH, 0.0]),
-    ],
-    "xz": [
-        np.array([-FACELET_WIDTH, 0.0, -FACELET_WIDTH]),
-        np.array([FACELET_WIDTH, 0.0, -FACELET_WIDTH]),
-        np.array([FACELET_WIDTH, 0.0, FACELET_WIDTH]),
-        np.array([-FACELET_WIDTH, 0.0, FACELET_WIDTH]),
-    ],
-    "yz": [
-        np.array([0.0, -FACELET_WIDTH, -FACELET_WIDTH]),
-        np.array([0.0, FACELET_WIDTH, -FACELET_WIDTH]),
-        np.array([0.0, FACELET_WIDTH, FACELET_WIDTH]),
-        np.array([0.0, -FACELET_WIDTH, FACELET_WIDTH]),
-    ],
-}
+
+# Coordinates of the facelet in different planes, relative to the facelet center
+def facelet_vertices(width: float):
+    return {
+        "xy": [
+            np.array([-width, -width, 0.0]),
+            np.array([width, -width, 0.0]),
+            np.array([width, width, 0.0]),
+            np.array([-width, width, 0.0]),
+        ],
+        "xz": [
+            np.array([-width, 0.0, -width]),
+            np.array([width, 0.0, -width]),
+            np.array([width, 0.0, width]),
+            np.array([-width, 0.0, width]),
+        ],
+        "yz": [
+            np.array([0.0, -width, -width]),
+            np.array([0.0, width, -width]),
+            np.array([0.0, width, width]),
+            np.array([0.0, -width, width]),
+        ],
+    }
+
 
 # Plane in which each facelet exists
 # U + L + F + R + B + D
@@ -163,6 +162,8 @@ class CubeViz:
         self.view_x = 0
 
         self.colors = [(1, 1, 1, 0.2)] * 54
+        self.sticker_vertices = facelet_vertices(preferences.sticker_width)
+        self.facelet_vertices = facelet_vertices(0.5)
         self.palette = None
         self.hide_nearest_faces = False
 
@@ -201,6 +202,7 @@ class CubeViz:
 
     def refresh(self):
         self.hide_nearest_faces = False
+        self.sticker_vertices = facelet_vertices(preferences.sticker_width)
         palette = self.get_palette()
         self.colors = [palette.hidden_color] * 54
         self.colors[4] = palette.color_of_center(FaceletColors.WHITE, Visibility.All)
@@ -236,11 +238,29 @@ class CubeViz:
         # Define the vertices of the square face based on axis
 
         vertex_center = np.array([x, y, z])
+        is_hidden = color == self.get_palette().hidden_color
         # Transform vertices to world coordinates
-        transformed_vertices = [
-            rotation_matrix @ (v + vertex_center) for v in FACELET_VERTICES[axis]
+        facelet_v = self.facelet_vertices[axis]
+        sticker_v = self.sticker_vertices[axis]
+        sticker_vertices = [
+            rotation_matrix @ (v + vertex_center)
+            for v in (facelet_v if is_hidden else sticker_v)
         ]
+        self.draw_world_polygon(painter, w, h, color, sticker_vertices)
 
+        if not is_hidden:
+            # Draw a black border around the sticker
+            bg_vertices = [
+                [facelet_v[0], facelet_v[1], sticker_v[1], sticker_v[0]],
+                [facelet_v[1], facelet_v[2], sticker_v[2], sticker_v[1]],
+                [facelet_v[2], facelet_v[3], sticker_v[3], sticker_v[2]],
+                [facelet_v[3], facelet_v[0], sticker_v[0], sticker_v[3]],
+            ]
+            for bg_v in bg_vertices:
+                vv = [rotation_matrix @ (v + vertex_center) for v in bg_v]
+                self.draw_world_polygon(painter, w, h, (0, 0, 0, color[3]), vv)
+
+    def draw_world_polygon(self, painter, w, h, color, vertices):
         scale_factor = min(w, h) * np.linalg.norm(self.camera) / 5
         screen_vertices = [
             (
@@ -253,23 +273,24 @@ class CubeViz:
                 * np.dot(v, self.screen_y_dir)
                 / np.linalg.norm(v - self.camera),
             )
-            for v in transformed_vertices
+            for v in vertices
         ]
 
         # Enable antialiasing for smoother edges
         painter.setRenderHint(QPainter.Antialiasing)
 
-        # Create a semi-transparent pen with alpha channel (RGBA)
-        qcol = QColor(*color)
-        pen = QPen(QColor(255, 255, 255, 16), 1)
+        # The pen draws a sharp border around the polygon
+        # We don't want this, so make it transparent
+        pen_color = QColor(*self.get_palette().hidden_color)
+        pen_color.setAlpha(0)
+        pen = QPen(pen_color, 1)
         painter.setPen(pen)
 
-        # Create a semi-transparent brush with alpha channel
-        brush = QBrush(qcol)
+        # Draw the polygon
+        brush = QBrush(QColor(*color))
         painter.setBrush(brush)
-        from PyQt5 import QtCore
 
-        polygon = QPolygon([QtCore.QPoint(*v) for v in screen_vertices])
+        polygon = QPolygon([QPoint(*v) for v in screen_vertices])
         painter.drawPolygon(polygon)
 
     def set_inverse(self, inverse: bool):
