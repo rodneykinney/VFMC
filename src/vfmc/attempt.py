@@ -1,9 +1,11 @@
 from typing import Optional, Dict, List, Callable, Set, Tuple
+import time
 from collections import defaultdict
 
 from vfmc_core import Algorithm, StepInfo, Cube
 from vfmc.insertions import Insertions, Insertion, Replacement
 from vfmc.orientation import Orientation
+from vfmc.prefs import SortOrder, SortKeys
 
 # Possible continuations for each step
 NEXT_STEPS = {
@@ -158,6 +160,8 @@ class Attempt:
         self._continuations: Dict[PartialSolution, Tuple[str, str]] = {}
         self._orientations: Dict[PartialSolution, Orientation] = {}
         self._obscured: Set[PartialSolution] = set()
+        self._sort_order = SortOrder()
+        self._save_timestamps: Dict[PartialSolution, float] = {}
         self._cube_listeners = []
         self._saved_solution_listeners = []
         self._solution_attribute_listeners = []
@@ -181,6 +185,13 @@ class Attempt:
         if b != self.inverse:
             self.inverse = b
             self.update_cube()
+
+    def set_sort_order(self, order: SortOrder):
+        if self._sort_order != order:
+            self._sort_order = order
+            for saved in self._saved_by_kind.values():
+                saved.sort(key=self.sort_key())
+            self.notify_saved_solution_listeners()
 
     def toggle_done(self, sol: PartialSolution):
         if sol not in self._saved_by_kind[sol.kind]:
@@ -278,7 +289,7 @@ class Attempt:
         return self._saved_by_kind
 
     def solutions_for_step(self, kind: str, variant: str) -> List[PartialSolution]:
-        return [s for s in self._saved_by_kind.get(kind, []) if s.variant == s.variant]
+        return [s for s in self._saved_by_kind.get(kind, []) if s.variant == variant]
 
     def corner_visibility(self) -> List[Tuple[int, int, int]]:
         return self.solution.step_info.corner_visibility(self.cube)
@@ -351,14 +362,24 @@ class Attempt:
                 self.reset()
             else:
                 self.advance()
-        self.save_solutions([sol])
-        self.solution
+        self.save_solution(sol)
         return sol
 
-    def save_solutions(self, sols: List[PartialSolution]):
-        new_sols_by_key = defaultdict(list)
+    def get_save_timestamps(self, sols: List[PartialSolution]) -> List[float]:
+        return [self._save_timestamps[s] for s in sols]
 
-        def sort_key(sol):
+    def sort_key(self):
+        def sort_by_axis_move_count(sol):
+            return (
+                sol.kind,
+                sol.variant,
+                sol.full_alg().len(),
+                len(sol.alg.inverse_moves()) > 0,
+                len(sol.alg.normal_moves()) > 0,
+                str(sol.alg),
+            )
+
+        def sort_by_move_count(sol):
             return (
                 sol.full_alg().len(),
                 len(sol.alg.inverse_moves()) > 0,
@@ -366,15 +387,28 @@ class Attempt:
                 str(sol.alg),
             )
 
-        for s in sols:
-            new_sols_by_key[s.kind].append(s)
-        for kind, sols_for_kind in new_sols_by_key.items():
-            existing = self._saved_by_kind[kind]
-            existing_algs = set(str(s.full_alg()) for s in existing)
-            existing += [
-                s for s in sols_for_kind if not str(s.full_alg()) in existing_algs
-            ]
-            existing.sort(key=sort_key)
+        def sort_by_axis_time(sol):
+            return (sol.kind, sol.variant, self._save_timestamps[sol])
+
+        def sort_by_time(sol):
+            return self._save_timestamps[sol]
+
+        if self._sort_order.key == SortKeys.TIME:
+            return sort_by_axis_time if self._sort_order.group_by_axis else sort_by_time
+        else:
+            return (
+                sort_by_axis_move_count
+                if self._sort_order.group_by_axis
+                else sort_by_move_count
+            )
+
+    def save_solution(self, sol: PartialSolution):
+        self._save_timestamps[sol] = time.monotonic()
+
+        existing = self._saved_by_kind[sol.kind]
+        if sol not in existing:
+            existing.append(sol)
+        existing.sort(key=self.sort_key())
         self.notify_saved_solution_listeners()
 
     def add_saved_solution_listener(self, callback: Callable):

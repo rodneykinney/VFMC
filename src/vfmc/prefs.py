@@ -17,6 +17,9 @@ from PyQt5.QtWidgets import (
     QCheckBox,
     QDialogButtonBox,
     QSlider,
+    QLabel,
+    QButtonGroup,
+    QRadioButton,
 )
 from PyQt5.QtCore import Qt
 
@@ -37,6 +40,17 @@ class RecognitionOptionNames:
     TOP_COLOR = "top color"
     BOTTOM_COLOR = "bottom color"
     ALL = "all"
+
+
+class SortKeys:
+    MOVE_COUNT = "move_count"
+    TIME = "time"
+
+
+@dataclass
+class SortOrder:
+    key: str = SortKeys.MOVE_COUNT
+    group_by_axis: bool = False
 
 
 @dataclass
@@ -93,6 +107,7 @@ class Preferences:
     sticker_width: float = 0.48
     colors: List[Tuple] = field(default_factory=lambda: _DEFAULT_COLORS)
     recognition: RecognitionOptions = field(default_factory=RecognitionOptions.default)
+    sort_order: SortOrder = SortOrder()
     listeners: List = field(default_factory=list)
 
     def save(self):
@@ -103,6 +118,7 @@ class Preferences:
             "recognition": asdict(self.recognition),
             "colors": self.colors,
             "sticker_width": self.sticker_width,
+            "sort_order": asdict(self.sort_order),
             "background": self.background_color,
         }
 
@@ -132,6 +148,7 @@ class Preferences:
                     recognition.update(prefs.get("recognition", {}))
                     opacity = prefs.get("opacity", 237)
                     sticker_width = prefs.get("sticker_width", 0.48)
+                    sort_order = SortOrder(**prefs.get("sort_order", {}))
                     colors = prefs.get("colors", [])
                     if len(colors) != len(_DEFAULT_COLORS):
                         colors = _DEFAULT_COLORS
@@ -140,6 +157,7 @@ class Preferences:
                         opacity=opacity,
                         colors=colors,
                         sticker_width=sticker_width,
+                        sort_order=sort_order,
                         recognition=RecognitionOptions(**recognition),
                         background_color=bg,
                     )
@@ -165,7 +183,8 @@ class PreferencesDialog(QDialog):
 
         layout = QVBoxLayout()
         self.setLayout(layout)
-        layout.addWidget(self.colors_widget)
+        layout.addWidget(self.cube_widget)
+        layout.addWidget(self.sort_widget)
         layout.addWidget(self.eo_widget)
         layout.addWidget(self.dr_widget)
         layout.addWidget(self.htr_widget)
@@ -229,7 +248,7 @@ class PreferencesDialog(QDialog):
         return group
 
     @cached_property
-    def colors_widget(self) -> QWidget:
+    def cube_widget(self) -> QWidget:
         group = QGroupBox("Cube")
         layout = QHBoxLayout()
         group.setLayout(layout)
@@ -327,6 +346,37 @@ class PreferencesDialog(QDialog):
         self._current_color_picker.finished.connect(lambda: self.activateWindow())
         self._current_color_picker.setModal(False)  # Make it non-modal
         self._current_color_picker.show()
+
+    @cached_property
+    def sort_widget(self) -> QWidget:
+        w = QGroupBox("Sort")
+        layout = QHBoxLayout()
+        w.setLayout(layout)
+        layout.addWidget(QLabel("Sort solutions by:"))
+        # Create a button group for radio buttons
+        button_group = QButtonGroup(self)
+        move_count = QRadioButton("Move Count")
+        move_count.setChecked(preferences.sort_order.key == SortKeys.MOVE_COUNT)
+        layout.addWidget(move_count)
+        button_group.addButton(move_count)
+        time = QRadioButton("When Found")
+        time.setChecked(preferences.sort_order.key != SortKeys.MOVE_COUNT)
+        layout.addWidget(time)
+        button_group.addButton(time)
+        axis = QCheckBox("Group by axis")
+        axis.setChecked(preferences.sort_order.group_by_axis)
+        layout.addWidget(axis)
+
+        def update_sort_order():
+            preferences.sort_order = SortOrder(
+                key=SortKeys.MOVE_COUNT if move_count.isChecked() else SortKeys.TIME,
+                group_by_axis=axis.isChecked(),
+            )
+            preferences.notify()
+
+        button_group.buttonClicked.connect(update_sort_order)
+        axis.clicked.connect(update_sort_order)
+        return w
 
     @cached_property
     def eo_widget(self) -> QWidget:
