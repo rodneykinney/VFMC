@@ -37,7 +37,7 @@ from vfmc import catch_errors, catch_and_return
 from vfmc.attempt import PartialSolution, Attempt, step_name
 from vfmc import prefs
 from vfmc.palette import Palette
-from vfmc.prefs import preferences
+from vfmc.prefs import preferences, SortOrder
 from vfmc.viz import CubeViz, CubeWidget
 from vfmc_core import Cube, Algorithm, StepInfo, scramble as gen_scramble
 
@@ -66,6 +66,7 @@ AXIS_ORIENTATIONS = {
 SOLUTION = Qt.UserRole
 BOLD = Qt.UserRole + 1
 STRIKETHROUGH = Qt.UserRole + 2
+PRIORITY = Qt.UserRole + 3
 
 
 class AppWindow(QMainWindow):
@@ -112,6 +113,17 @@ class AppWindow(QMainWindow):
 
         # Set initial scramble
         self.commands.execute("scramble")
+        self.commands.execute(
+            f'sort("{preferences.sort_order.key}",{preferences.sort_order.group_by_axis})'
+        )
+
+        def update():
+            if preferences.sort_order != self.attempt._sort_order:
+                self.commands.execute(
+                    f'sort("{preferences.sort_order.key}",{preferences.sort_order.group_by_axis})'
+                )
+
+        preferences.add_listener(update)
 
         # Set focus to command input
         self.command_input.setFocus()
@@ -1095,6 +1107,9 @@ class Commands:
 
     def drrl(self):
         self.window.set_step("dr", "rl")
+
+    def sort(self, key: str, group_by_axis: bool = False):
+        self.attempt.set_sort_order(SortOrder(key, group_by_axis))
 
     def htr(self):
         variant = ""
