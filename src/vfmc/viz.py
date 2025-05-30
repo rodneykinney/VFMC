@@ -186,14 +186,14 @@ class CubeViz:
     def handle_toggle_view_event(self, obj, event):
         if (
             event.type() == QEvent.KeyPress
-            and event.key() == Qt.Key_Alt
+            and event.key() in [Qt.Key_Alt, Qt.Key_Control, Qt.Key_Meta]
             and not event.isAutoRepeat()
         ):
             self.hide_nearest_faces = True
             return True
         if (
             event.type() == QEvent.KeyRelease
-            and event.key() == Qt.Key_Alt
+            and event.key() in [Qt.Key_Alt, Qt.Key_Control, Qt.Key_Meta]
             and not event.isAutoRepeat()
         ):
             self.hide_nearest_faces = False
