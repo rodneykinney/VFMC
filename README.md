@@ -20,6 +20,11 @@ python -m pip install vfmc
 vfmc
 ```
 
+If the above installation fails on Linux, try:
+```commandline
+RUSTFLAGS="-C target-feature=+avx2" pip install vfmc
+```
+
 # Approach
 
 VFMC tracks all the steps of an FMC attempt: EO - DR - HTR - (FR) - Finish - Insertions. 
