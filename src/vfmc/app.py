@@ -1,10 +1,10 @@
-import dataclasses
 import os
 import sys
 import math
 import logging
 import traceback
 import re
+from dataclasses import dataclass
 from functools import cached_property
 from typing import List, Set, Optional
 from importlib.metadata import version
@@ -1515,7 +1515,7 @@ class CurrentSolutionWidget(QListWidget):
         self.window().format_saved_solutions()
 
 
-@dataclasses.dataclass
+@dataclass
 class CommandResult:
     error: Optional[Exception] = None
     add_to_history: List[str] = None

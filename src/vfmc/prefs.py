@@ -107,7 +107,7 @@ class Preferences:
     sticker_width: float = 0.48
     colors: List[Tuple] = field(default_factory=lambda: _DEFAULT_COLORS)
     recognition: RecognitionOptions = field(default_factory=RecognitionOptions.default)
-    sort_order: SortOrder = SortOrder()
+    sort_order: SortOrder = field(default_factory=SortOrder)
     listeners: List = field(default_factory=list)
 
     def save(self):
