@@ -106,6 +106,11 @@ class Palette:
         elif name == "insertions":
             p.edge_visibility_mask = Visibility.BadPiece
             p.corner_visibility_mask = Visibility.BadPiece
+        elif name == "eo-case":
+            p.center_visibility_mask = 0
+            p.opacity = 255
+            p.edge_visibility_mask = Visibility.BadPiece
+            p.colors = dict((FaceletColors(i), (0, 0, 0)) for i in range(6))
         elif name == "cp-case":
             p.center_visibility_mask = 0
             p.opacity = 255

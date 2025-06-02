@@ -290,7 +290,7 @@ class CubeViz:
         brush = QBrush(QColor(*color))
         painter.setBrush(brush)
 
-        polygon = QPolygon([QPoint(*v) for v in screen_vertices])
+        polygon = QPolygon([QPoint(int(v[0]), int(v[1])) for v in screen_vertices])
         painter.drawPolygon(polygon)
 
     def set_inverse(self, inverse: bool):
