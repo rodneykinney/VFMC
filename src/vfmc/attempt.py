@@ -74,7 +74,7 @@ class PartialSolution:
         return True
 
     def allows_moves(self, alg: Algorithm) -> bool:
-        if self.previous is None:
+        if self.previous is None or self.kind == "finish":
             return True
         return self.previous.step_info.are_moves_allowed(alg)
 
