@@ -1,5 +1,6 @@
 import math
 import numpy as np
+from typing import Optional
 from PyQt5.QtCore import QTimer, Qt, QEvent, QSize, QPoint
 from PyQt5.QtWidgets import QWidget
 from PyQt5.QtGui import QPainter, QColor, QPen, QBrush, QPolygon, QPixmap
@@ -7,7 +8,7 @@ from PyQt5.QtGui import QPainter, QColor, QPen, QBrush, QPolygon, QPixmap
 
 from vfmc.attempt import Attempt
 from vfmc.orientation import Orientation, AXIS_ROTATIONS
-from vfmc.palette import FaceletColors, Visibility, Palette
+from vfmc.palette import FaceletColor, Visibility, Palette
 from vfmc.prefs import preferences
 from pyquaternion import Quaternion
 
@@ -77,14 +78,14 @@ FACELET_AXIS = (
 
 # Colors of the corner pieces, for orientation 0,1,2
 CORNER_PIECE_COLORS = [
-    (FaceletColors.WHITE, FaceletColors.ORANGE, FaceletColors.BLUE),
-    (FaceletColors.WHITE, FaceletColors.BLUE, FaceletColors.RED),
-    (FaceletColors.WHITE, FaceletColors.RED, FaceletColors.GREEN),
-    (FaceletColors.WHITE, FaceletColors.GREEN, FaceletColors.ORANGE),
-    (FaceletColors.YELLOW, FaceletColors.ORANGE, FaceletColors.GREEN),
-    (FaceletColors.YELLOW, FaceletColors.GREEN, FaceletColors.RED),
-    (FaceletColors.YELLOW, FaceletColors.RED, FaceletColors.BLUE),
-    (FaceletColors.YELLOW, FaceletColors.BLUE, FaceletColors.ORANGE),
+    (FaceletColor.WHITE, FaceletColor.ORANGE, FaceletColor.BLUE),
+    (FaceletColor.WHITE, FaceletColor.BLUE, FaceletColor.RED),
+    (FaceletColor.WHITE, FaceletColor.RED, FaceletColor.GREEN),
+    (FaceletColor.WHITE, FaceletColor.GREEN, FaceletColor.ORANGE),
+    (FaceletColor.YELLOW, FaceletColor.ORANGE, FaceletColor.GREEN),
+    (FaceletColor.YELLOW, FaceletColor.GREEN, FaceletColor.RED),
+    (FaceletColor.YELLOW, FaceletColor.RED, FaceletColor.BLUE),
+    (FaceletColor.YELLOW, FaceletColor.BLUE, FaceletColor.ORANGE),
 ]
 
 # Index of the facelet (orientation 0,1,2) for each of the corners
@@ -101,18 +102,18 @@ CORNER_POSITION_FACELETS = [
 
 # Colors of the edge pieces, for orientation 0,1
 EDGE_PIECE_COLORS = [
-    (FaceletColors.WHITE, FaceletColors.BLUE),
-    (FaceletColors.WHITE, FaceletColors.RED),
-    (FaceletColors.WHITE, FaceletColors.GREEN),
-    (FaceletColors.WHITE, FaceletColors.ORANGE),
-    (FaceletColors.GREEN, FaceletColors.RED),
-    (FaceletColors.GREEN, FaceletColors.ORANGE),
-    (FaceletColors.BLUE, FaceletColors.RED),
-    (FaceletColors.BLUE, FaceletColors.ORANGE),
-    (FaceletColors.YELLOW, FaceletColors.GREEN),
-    (FaceletColors.YELLOW, FaceletColors.RED),
-    (FaceletColors.YELLOW, FaceletColors.BLUE),
-    (FaceletColors.YELLOW, FaceletColors.ORANGE),
+    (FaceletColor.WHITE, FaceletColor.BLUE),
+    (FaceletColor.WHITE, FaceletColor.RED),
+    (FaceletColor.WHITE, FaceletColor.GREEN),
+    (FaceletColor.WHITE, FaceletColor.ORANGE),
+    (FaceletColor.GREEN, FaceletColor.RED),
+    (FaceletColor.GREEN, FaceletColor.ORANGE),
+    (FaceletColor.BLUE, FaceletColor.RED),
+    (FaceletColor.BLUE, FaceletColor.ORANGE),
+    (FaceletColor.YELLOW, FaceletColor.GREEN),
+    (FaceletColor.YELLOW, FaceletColor.RED),
+    (FaceletColor.YELLOW, FaceletColor.BLUE),
+    (FaceletColor.YELLOW, FaceletColor.ORANGE),
 ]
 
 # Index of the facelet (orientation 0,1) for each of the edges
@@ -164,7 +165,7 @@ class CubeViz:
         self.colors = [(1, 1, 1, 0.2)] * 54
         self.sticker_vertices = facelet_vertices(preferences.sticker_width)
         self.facelet_vertices = facelet_vertices(0.5)
-        self.palette = None
+        self.palette: Optional[Palette] = None
         self.hide_nearest_faces = False
 
     def set_camera(self, x, y, z):
@@ -205,12 +206,12 @@ class CubeViz:
         self.sticker_vertices = facelet_vertices(preferences.sticker_width)
         palette = self.get_palette()
         self.colors = [palette.hidden_color] * 54
-        self.colors[4] = palette.color_of_center(FaceletColors.WHITE, Visibility.All)
-        self.colors[13] = palette.color_of_center(FaceletColors.ORANGE, Visibility.All)
-        self.colors[22] = palette.color_of_center(FaceletColors.GREEN, Visibility.All)
-        self.colors[31] = palette.color_of_center(FaceletColors.RED, Visibility.All)
-        self.colors[40] = palette.color_of_center(FaceletColors.BLUE, Visibility.All)
-        self.colors[49] = palette.color_of_center(FaceletColors.YELLOW, Visibility.All)
+        self.colors[4] = palette.color_of_center(FaceletColor.WHITE, Visibility.All)
+        self.colors[13] = palette.color_of_center(FaceletColor.ORANGE, Visibility.All)
+        self.colors[22] = palette.color_of_center(FaceletColor.GREEN, Visibility.All)
+        self.colors[31] = palette.color_of_center(FaceletColor.RED, Visibility.All)
+        self.colors[40] = palette.color_of_center(FaceletColor.BLUE, Visibility.All)
+        self.colors[49] = palette.color_of_center(FaceletColor.YELLOW, Visibility.All)
         corners = self.attempt.cube.corners()
         corner_visibility = self.attempt.corner_visibility()
         for i in range(0, 8):

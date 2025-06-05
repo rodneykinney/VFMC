@@ -25,7 +25,7 @@ _VISIBILITY_NAMES = {
 }
 
 
-class FaceletColors(Enum):
+class FaceletColor(Enum):
     WHITE = 0
     YELLOW = 1
     GREEN = 2
@@ -37,7 +37,7 @@ class FaceletColors(Enum):
 class Palette:
     def __init__(
         self,
-        colors: Dict[FaceletColors, Tuple],
+        colors: Dict[FaceletColor, Tuple],
         edge_visibility_mask: int,
         center_visibility_mask: int,
         corner_visibility_mask: int,
@@ -51,29 +51,49 @@ class Palette:
         self.corner_visibility_mask = corner_visibility_mask
         self.hidden_color = hidden_color
         self.opacity = opacity
+        self.hidden_opacity = 0
+        self.hidden_saturation = 0
 
-    def color_of_edge(self, f: FaceletColors, visibility: int) -> Tuple:
+    def set_hidden_render(self, opacity, saturation):
+        self.hidden_opacity = opacity
+        self.hidden_saturation = saturation
+
+    def color_of_edge(self, f: FaceletColor, visibility: int) -> Tuple:
         if visibility & self.edge_visibility_mask == 0:
-            return self.hidden_color
+            return self.color_when_hidden(f)
         c = self.colors[f]
         return self.colors[f] + (self.opacity,) if len(c) < 4 else c
 
-    def color_of_center(self, f: FaceletColors, visibility: int) -> Tuple:
+    def color_when_hidden(self, f: FaceletColor) -> Tuple:
+        if self.hidden_opacity == 0:
+            return self.hidden_color
+        else:
+            r,g,b = self.colors[f]
+            grey = (r+g+b) / 3
+            sat = 1 - min(r,g,b) / max(r,g,b)
+            new_sat = sat * self.hidden_saturation
+            r = grey + new_sat * (r - grey)
+            g = grey + new_sat * (g - grey)
+            b = grey + new_sat * (b - grey)
+            c = (r,g,b,self.hidden_opacity)
+            return c
+
+    def color_of_center(self, f: FaceletColor, visibility: int) -> Tuple:
         if visibility & self.center_visibility_mask == 0:
-            return self.hidden_color
+            return self.color_when_hidden(f)
         c = self.colors[f]
         return self.colors[f] + (self.opacity,) if len(c) < 4 else c
 
-    def color_of_corner(self, f: FaceletColors, visibility: int) -> Tuple:
+    def color_of_corner(self, f: FaceletColor, visibility: int) -> Tuple:
         if visibility & self.corner_visibility_mask == 0:
-            return self.hidden_color
+            return self.color_when_hidden(f)
         c = self.colors[f]
         return self.colors[f] + (self.opacity,) if len(c) < 4 else c
 
     @staticmethod
     def by_name(name) -> "Palette":
         colors = dict(
-            (FaceletColors(k), tuple(v)) for k, v in enumerate(preferences.colors)
+            (FaceletColor(k), tuple(v)) for k, v in enumerate(preferences.colors)
         )
         bg = preferences.background_color
         h, o = (0, 51) if bg > 128 else (255, 51)
@@ -110,44 +130,44 @@ class Palette:
             p.center_visibility_mask = 0
             p.opacity = 255
             p.edge_visibility_mask = Visibility.BadPiece
-            p.colors = dict((FaceletColors(i), (0, 0, 0)) for i in range(6))
+            p.colors = dict((FaceletColor(i), (0, 0, 0)) for i in range(6))
         elif name == "cp-case":
             p.center_visibility_mask = 0
             p.opacity = 255
             p.corner_visibility_mask = Visibility.BadPiece
-            p.colors = dict((FaceletColors(i), (0, 0, 0)) for i in range(6))
+            p.colors = dict((FaceletColor(i), (0, 0, 0)) for i in range(6))
             p.colors.update(
                 {
-                    FaceletColors.BLUE: p.hidden_color,
-                    FaceletColors.GREEN: p.hidden_color,
+                    FaceletColor.BLUE: p.hidden_color,
+                    FaceletColor.GREEN: p.hidden_color,
                 }
             )
         elif name == "co-case":
             p.center_visibility_mask = 0
             p.opacity = 255
             p.corner_visibility_mask = Visibility.BadFace
-            p.colors[FaceletColors.ORANGE] = p.colors[FaceletColors.RED]
-            p.colors[FaceletColors.BLUE] = p.colors[FaceletColors.GREEN]
-            p.colors[FaceletColors.YELLOW] = p.colors[FaceletColors.WHITE]
+            p.colors[FaceletColor.ORANGE] = p.colors[FaceletColor.RED]
+            p.colors[FaceletColor.BLUE] = p.colors[FaceletColor.GREEN]
+            p.colors[FaceletColor.YELLOW] = p.colors[FaceletColor.WHITE]
         elif name == "htr-corner-case":
             p.center_visibility_mask = 0
             p.opacity = 255
             p.corner_visibility_mask = Visibility.BadFace
-            p.colors[FaceletColors.ORANGE] = p.colors[FaceletColors.RED]
-            p.colors[FaceletColors.BLUE] = p.colors[FaceletColors.GREEN]
+            p.colors[FaceletColor.ORANGE] = p.colors[FaceletColor.RED]
+            p.colors[FaceletColor.BLUE] = p.colors[FaceletColor.GREEN]
         elif name == "htr-case":
             p.center_visibility_mask = 0
             p.opacity = 255
             p.edge_visibility_mask = Visibility.BadFace
-            p.colors[FaceletColors.ORANGE] = p.colors[FaceletColors.RED]
-            p.colors[FaceletColors.BLUE] = p.colors[FaceletColors.GREEN]
+            p.colors[FaceletColor.ORANGE] = p.colors[FaceletColor.RED]
+            p.colors[FaceletColor.BLUE] = p.colors[FaceletColor.GREEN]
         elif name == "corner-edge-case":
             p.center_visibility_mask = 0
             p.opacity = 255
             p.corner_visibility_mask = Visibility.BadFace
             p.edge_visibility_mask = Visibility.BadFace
-            p.colors[FaceletColors.ORANGE] = p.colors[FaceletColors.RED]
-            p.colors[FaceletColors.BLUE] = p.colors[FaceletColors.GREEN]
+            p.colors[FaceletColor.ORANGE] = p.colors[FaceletColor.RED]
+            p.colors[FaceletColor.BLUE] = p.colors[FaceletColor.GREEN]
         else:
             p.edge_visibility_mask = Visibility.All
             p.corner_visibility_mask = Visibility.All

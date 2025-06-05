@@ -1298,6 +1298,14 @@ class Commands:
         self.window.viz.set_palette(p)
         return CommandResult(add_to_history=[])
 
+    def good_viz(self, opacity, saturation):
+        if opacity < 0:
+            self.window.viz.set_palette(None)
+            return
+        p = Palette.by_name(self.attempt.solution.kind)
+        p.set_hidden_render(opacity, saturation)
+        self.window.viz.set_palette(p)
+
     def camera(self, x, y, z, angle=-math.pi / 6):
         self.window.viz.set_camera(x, y, z)
         self.window.viz.view_y = angle
