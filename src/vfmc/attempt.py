@@ -211,6 +211,12 @@ class Attempt:
             self._obscured.add(sol)
         self.notify_solution_attribute_listeners()
 
+    def forget(self, sol: PartialSolution):
+        self._saved_by_kind[sol.kind].remove(sol)
+        self.notify_saved_solution_listeners()
+        if sol == self.solution:
+            self.back()
+
     def set_comment(self, sol: PartialSolution, s: str):
         self._comments[sol] = s
         self.notify_solution_attribute_listeners()

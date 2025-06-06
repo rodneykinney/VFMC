@@ -653,6 +653,21 @@ class AppWindow(QMainWindow):
                             self.activate_item(obj.currentItem())
                             return True
                     return False
+                elif key == Qt.Key_Delete or key == Qt.Key_Backspace:
+                    if obj in list(self.solution_widgets.values()):
+                        kind = obj.property("kind")
+                        if not kind:
+                            return False
+                        # Forget the selected solution
+                        if obj.currentItem():
+                            sol = obj.currentItem().data(SOLUTION)
+                            index = (
+                                self.attempt.solutions_by_kind()[sol.kind].index(sol)
+                                + 1
+                            )
+                            self.commands.execute(f'forget("{sol.kind}",{index})')
+                            return True
+                    return False
                 elif key == Qt.Key_Tab or key == Qt.Key_Backtab:
                     # Handle Tab and Shift+Tab to move between solution lists
                     if (
@@ -1254,6 +1269,23 @@ class Commands:
             self.window.set_status(f"Couldn't find {kind} #{index}")
             return
         self.window.check_solution(solutions[index - 1].clone())
+
+    def forget(self, kind: Optional[str] = None, index: Optional[int] = None):
+        if kind is None and index is None:
+            self.attempt.forget(self.attempt.solution)
+            return
+        if kind is None or index is None:
+            self.window.set_status("Must specify both step type and position")
+            return
+        k = kind.lower()
+        if k not in self.attempt.solutions_by_kind():
+            self.window.set_status(f"Bad step type: {kind}")
+            return
+        solutions = self.attempt.solutions_by_kind()[kind.lower()]
+        if index < 1 or index > len(solutions):
+            self.window.set_status(f"Couldn't find {kind} #{index}")
+            return
+        self.attempt.forget(solutions[index - 1])
 
     def scramble(self, scramble: str = None):
         """
