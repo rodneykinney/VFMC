@@ -215,7 +215,12 @@ class Attempt:
         self._saved_by_kind[sol.kind].remove(sol)
         self.notify_saved_solution_listeners()
         if sol == self.solution:
-            self.back()
+            if self.solution.previous:
+                self.set_solution(self.solution.previous)
+                if self.solution.step_info.is_solved(self.cube):
+                    self.advance()
+            else:
+                self.back()
 
     def set_comment(self, sol: PartialSolution, s: str):
         self._comments[sol] = s

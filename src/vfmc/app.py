@@ -1286,6 +1286,7 @@ class Commands:
             self.window.set_status(f"Couldn't find {kind} #{index}")
             return
         self.attempt.forget(solutions[index - 1])
+        self.window.command_input.setFocus()
 
     def scramble(self, scramble: str = None):
         """
