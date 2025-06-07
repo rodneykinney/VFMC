@@ -378,7 +378,13 @@ class CubeWidget(QWidget):
         self.timer.timeout.connect(self.update_surface)
         self.timer.start(30)  # ~60 FPS
 
-        self.setMinimumSize(400, 400)
+        self.setMinimumSize(preferences.cube_size, preferences.cube_size)
+
+        def update():
+            if preferences.cube_size != self.size():
+                self.setMinimumSize(preferences.cube_size, preferences.cube_size)
+
+        preferences.add_listener(update)
 
         self.viz = viz
         self.viz.attempt.add_cube_listener(self.refresh)

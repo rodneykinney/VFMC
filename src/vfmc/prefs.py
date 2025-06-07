@@ -105,6 +105,7 @@ class Preferences:
     opacity: int = 237
     background_color: int = 77
     sticker_width: float = 0.48
+    cube_size: int = 400
     colors: List[Tuple] = field(default_factory=lambda: _DEFAULT_COLORS)
     recognition: RecognitionOptions = field(default_factory=RecognitionOptions.default)
     sort_order: SortOrder = field(default_factory=SortOrder)
@@ -118,6 +119,7 @@ class Preferences:
             "recognition": asdict(self.recognition),
             "colors": self.colors,
             "sticker_width": self.sticker_width,
+            "cube_size": self.cube_size,
             "sort_order": asdict(self.sort_order),
             "background": self.background_color,
         }
@@ -146,6 +148,7 @@ class Preferences:
                     prefs = json.load(f)
                     recognition = asdict(RecognitionOptions.default())
                     recognition.update(prefs.get("recognition", {}))
+                    cube_size = prefs.get("cube_size", 400)
                     opacity = prefs.get("opacity", 237)
                     sticker_width = prefs.get("sticker_width", 0.48)
                     sort_order = SortOrder(**prefs.get("sort_order", {}))
@@ -154,6 +157,7 @@ class Preferences:
                         colors = _DEFAULT_COLORS
                     bg = prefs.get("background", 77)
                     return Preferences(
+                        cube_size=cube_size,
                         opacity=opacity,
                         colors=colors,
                         sticker_width=sticker_width,
@@ -253,9 +257,30 @@ class PreferencesDialog(QDialog):
         layout = QHBoxLayout()
         group.setLayout(layout)
         layout.addWidget(self.cube_colors_widget)
+        layout.addWidget(self.cube_size_widget)
         layout.addWidget(self.opacity_widget)
         layout.addWidget(self.background_widget)
         layout.addWidget(self.sticker_width_widget)
+        return group
+
+    @cached_property
+    def cube_size_widget(self) -> QWidget:
+        group = QGroupBox("Size")
+        layout = QHBoxLayout()
+        group.setLayout(layout)
+        slider = QSlider(Qt.Horizontal)
+        layout.addWidget(slider)
+        layout.addStretch(1)
+        slider.setMinimum(150)
+        slider.setMaximum(800)
+        slider.setValue(preferences.cube_size)
+
+        def update():
+            preferences.cube_size = slider.value()
+            preferences.notify()
+
+        slider.valueChanged.connect(update)
+
         return group
 
     @cached_property
