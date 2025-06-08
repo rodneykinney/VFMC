@@ -1376,6 +1376,7 @@ class CurrentSolutionWidget(QListWidget):
             return  # Don't sync if user is editing
         self.clear()
         self.addItem(self.attempt.scramble)
+        self.addItem(self.attempt.inverse_scramble)
         self.addItem("")
         for step in self.attempt.solution.substeps():
             text = f"{step.alg_str(verbose=True)}"
@@ -1491,7 +1492,7 @@ class CurrentSolutionWidget(QListWidget):
         @catch_errors
         def handle(*args, **kwargs):
             item = self.itemAt(event.pos())
-            if item:
+            if item and item.data(SOLUTION):
                 self.activate_step(item.data(SOLUTION))
             delegate.mouseDoubleClickEvent(event)
 

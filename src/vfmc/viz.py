@@ -4,7 +4,7 @@ from PyQt5.QtCore import QTimer, Qt, QEvent, QSize, QPoint
 from PyQt5.QtWidgets import QWidget
 from PyQt5.QtGui import QPainter, QColor, QPen, QBrush, QPolygon, QPixmap
 
-
+from vfmc import catch_errors
 from vfmc.attempt import Attempt
 from vfmc.orientation import Orientation, AXIS_ROTATIONS
 from vfmc.palette import FaceletColors, Visibility, Palette
@@ -378,7 +378,14 @@ class CubeWidget(QWidget):
         self.timer.timeout.connect(self.update_surface)
         self.timer.start(30)  # ~60 FPS
 
-        self.setMinimumSize(400, 400)
+        self.setMinimumSize(preferences.cube_size, preferences.cube_size)
+
+        @catch_errors
+        def update():
+            if preferences.cube_size != self.size():
+                self.setMinimumSize(preferences.cube_size, preferences.cube_size)
+
+        preferences.add_listener(update)
 
         self.viz = viz
         self.viz.attempt.add_cube_listener(self.refresh)
