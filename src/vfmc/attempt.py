@@ -151,6 +151,7 @@ class Attempt:
 
     def __init__(self):
         self.scramble = ""
+        self.inverse_scramble = ""
         self.cube = Cube("")
         self.inverse = False
         self.solution = PartialSolution()
@@ -174,6 +175,7 @@ class Attempt:
         self._orientations.clear()
         self.notify_saved_solution_listeners()
         self.scramble = s
+        self.inverse_scramble = str(Algorithm(self.scramble).inverted().on_inverse())
         self.inverse = False
         self.set_solution(PartialSolution("", "", previous=None))
         self.update_cube()
