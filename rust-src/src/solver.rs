@@ -2,7 +2,7 @@ use cubelib::algs::Algorithm as LibAlgorithm;
 use cubelib::cube::turn::{ApplyAlgorithm, CubeOuterTurn};
 use cubelib::cube::Cube333;
 use cubelib::cube::Direction;
-use cubelib::defs::{NissSwitchType, StepKind};
+use cubelib::defs::StepKind;
 use cubelib::solver::df_search::CancelToken;
 use cubelib::solver::solve_steps;
 use cubelib::steps::solver::{build_steps, gen_tables};
@@ -20,10 +20,10 @@ pub fn scramble() -> PyResult<String> {
     let mut tables = PruningTables333::new();
 
     let mut step_configs = vec![
-        step_config(StepKind::EO, "", NissSwitchType::Always),
-        step_config(StepKind::DR, "", NissSwitchType::Before),
-        step_config(StepKind::HTR, "", NissSwitchType::Before),
-        step_config(StepKind::FIN, "", NissSwitchType::Before),
+        step_config(StepKind::EO, ""),
+        step_config(StepKind::DR, ""),
+        step_config(StepKind::HTR, ""),
+        step_config(StepKind::FIN, ""),
     ];
     step_configs
         .iter_mut()
@@ -49,7 +49,7 @@ pub fn scramble() -> PyResult<String> {
     Ok(format!("{}", alg))
 }
 
-pub fn step_config(kind: StepKind, variant: &str, niss: NissSwitchType) -> StepConfig {
+pub fn step_config(kind: StepKind, variant: &str) -> StepConfig {
     let substeps = match variant {
         "" => None,
         s => Some(vec![s.to_string()]),
@@ -63,7 +63,7 @@ pub fn step_config(kind: StepKind, variant: &str, niss: NissSwitchType) -> StepC
         absolute_max: None,
         step_limit: None,
         quality: 0,
-        niss: Some(niss),
+        niss: None,
         params: Default::default(),
     }
 }
@@ -112,12 +112,12 @@ where
 {
     let mut tables = Box::new(PruningTables333::new());
     let mut step_configs = match cfg.kind {
-        StepKind::DR => vec![step_config(StepKind::EO, "", NissSwitchType::Always)],
-        StepKind::HTR => vec![step_config(StepKind::EO, "", NissSwitchType::Always), step_config(StepKind::DR, "", NissSwitchType::Never)],
+        StepKind::DR => vec![step_config(StepKind::EO, "")],
+        StepKind::HTR => vec![step_config(StepKind::EO, ""), step_config(StepKind::DR, "")],
         StepKind::FR | StepKind::FRLS | StepKind::FINLS | StepKind::FIN => vec![
-            step_config(StepKind::EO, "", NissSwitchType::Never),
-            step_config(StepKind::DR, "", NissSwitchType::Never),
-            step_config(StepKind::HTR, "", NissSwitchType::Never),
+            step_config(StepKind::EO, ""),
+            step_config(StepKind::DR, ""),
+            step_config(StepKind::HTR, ""),
         ],
         _ => vec![],
     };
