@@ -44,6 +44,8 @@ facelet_z = (
     + [-1.5, -1.5, -1.5, -1.5, -1.5, -1.5, -1.5, -1.5, -1.5]
 )
 
+R_FACELETS = [2,5,8,20,23,26,27,28,29,30,31,32,33,34,35,36,39,42,47,50,53]
+
 
 # Coordinates of the facelet in different planes, relative to the facelet center
 def facelet_vertices(width: float):

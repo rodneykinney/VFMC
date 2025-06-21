@@ -122,6 +122,20 @@ class Palette:
                     FaceletColors.GREEN: p.hidden_color,
                 }
             )
+        elif name == "rzp-breaking":
+            p.center_visibility_mask = 0
+            p.opacity = 255
+            p.corner_visibility_mask = Visibility.BadFace
+            p.edge_visibility_mask = 0 # Visibility.BadFace
+            p.colors.update(
+                {
+                    FaceletColors.BLUE: (0,0,0),
+                    FaceletColors.GREEN: (0,0,0),
+                    FaceletColors.RED: (0,0,0),
+                    FaceletColors.ORANGE: (0,0,0),
+                    FaceletColors.YELLOW: (255,255,255),
+                }
+            )
         elif name == "co-case":
             p.center_visibility_mask = 0
             p.opacity = 255
@@ -129,6 +143,11 @@ class Palette:
             p.colors[FaceletColors.ORANGE] = p.colors[FaceletColors.RED]
             p.colors[FaceletColors.BLUE] = p.colors[FaceletColors.GREEN]
             p.colors[FaceletColors.YELLOW] = p.colors[FaceletColors.WHITE]
+        elif name == "dr-corner-case":
+            p.center_visibility_mask = 0
+            p.opacity = 200
+            p.corner_visibility_mask = Visibility.BadPiece
+            p.edge_visibility_mask = 0
         elif name == "htr-corner-case":
             p.center_visibility_mask = 0
             p.opacity = 255

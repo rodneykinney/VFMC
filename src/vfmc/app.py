@@ -1536,8 +1536,8 @@ class CurrentSolutionWidget(QListWidget):
             return
         # Execute via self.commands to get this into the history
         cmd = self.window().commands
-        cmd.execute(f'set_step("{target.kind}","{target.variant}")')
         inverse = self.attempt.inverse
+        cmd.execute(f'set_step("{target.kind}","{target.variant}")')
         if target.alg.inverse_moves():
             cmd.execute("set_inverse(True)")
             cmd.execute(" ".join(target.alg.inverse_moves()))

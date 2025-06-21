@@ -4,7 +4,7 @@ use crate::Visibility::{Any, BadFace, BadPiece};
 use crate::{Algorithm, Solvable};
 use cubelib::cube::turn::TransformableMut;
 use cubelib::cube::{Cube333, Transformation333};
-use cubelib::defs::StepKind;
+use cubelib::defs::{NissSwitchType, StepKind};
 use cubelib::steps::coord::Coord;
 use cubelib::steps::finish::coords::HTRLeaveSliceFinishCoord;
 use pyo3::PyResult;
@@ -53,7 +53,7 @@ impl Solvable for SliceUD {
         BadFace as u8 | BadPiece as u8
     }
     fn solve(&self, cube: &Cube333, count: usize) -> PyResult<Vec<Algorithm>> {
-        solve_step(cube, step_config(StepKind::FINLS, "ud"), count, false)
+        solve_step(cube, step_config(StepKind::FINLS, "ud", NissSwitchType::Never), count, false)
     }
 }
 pub struct SliceFB;
@@ -85,7 +85,7 @@ impl Solvable for SliceFB {
         BadPiece as u8 | BadFace as u8
     }
     fn solve(&self, cube: &Cube333, count: usize) -> PyResult<Vec<Algorithm>> {
-        solve_step(cube, step_config(StepKind::FINLS, "fb"), count, false)
+        solve_step(cube, step_config(StepKind::FINLS, "fb", NissSwitchType::Never), count, false)
     }
 }
 
@@ -118,7 +118,7 @@ impl Solvable for SliceRL {
         BadPiece as u8 | BadFace as u8
     }
     fn solve(&self, cube: &Cube333, count: usize) -> PyResult<Vec<Algorithm>> {
-        solve_step(cube, step_config(StepKind::FINLS, "lr"), count, false)
+        solve_step(cube, step_config(StepKind::FINLS, "lr", NissSwitchType::Never), count, false)
     }
 }
 

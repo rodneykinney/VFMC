@@ -2,7 +2,7 @@ use crate::solver::{solve_step, step_config};
 use crate::Visibility::{Any, BadFace, BadPiece};
 use crate::{Algorithm, Solvable};
 use cubelib::cube::Cube333;
-use cubelib::defs::StepKind;
+use cubelib::defs::{NissSwitchType, StepKind};
 use cubelib::steps::coord::Coord;
 use cubelib::steps::finish::coords::HTRFinishCoord;
 use pyo3::PyResult;
@@ -59,7 +59,7 @@ impl Solvable for Finish {
         v
     }
     fn solve(&self, cube: &Cube333, count: usize) -> PyResult<Vec<Algorithm>> {
-        let mut cfg = step_config(StepKind::FIN, "");
+        let mut cfg = step_config(StepKind::FIN, "", NissSwitchType::Never);
         cfg.max = Some(20);
         solve_step(cube, cfg, count, false)
     }
