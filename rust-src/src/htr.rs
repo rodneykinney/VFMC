@@ -6,7 +6,7 @@ use crate::{
 };
 use cubelib::cube::turn::{ApplyAlgorithm, TransformableMut};
 use cubelib::cube::{Cube333, Transformation333};
-use cubelib::defs::StepKind;
+use cubelib::defs::{NissSwitchType, StepKind};
 use cubelib::steps::coord::Coord;
 use cubelib::steps::fr::coords::FRUDNoSliceCoord;
 use pyo3::PyResult;
@@ -65,7 +65,7 @@ impl Solvable for HTRUD {
     fn solve(&self, cube: &Cube333, count: usize) -> PyResult<Vec<Algorithm>> {
         solve_step_deduplicated(
             cube,
-            step_config(StepKind::HTR, ""),
+            step_config(StepKind::HTR, "", NissSwitchType::Never),
             count,
             true,
             is_equivalent(Transformation333::Y),
@@ -135,7 +135,7 @@ impl Solvable for HTRFB {
     fn solve(&self, cube: &Cube333, count: usize) -> PyResult<Vec<Algorithm>> {
         solve_step_deduplicated(
             cube,
-            step_config(StepKind::HTR, ""),
+            step_config(StepKind::HTR, "", NissSwitchType::Never),
             count,
             true,
             is_equivalent(Transformation333::X),
@@ -185,7 +185,7 @@ impl Solvable for HTRRL {
     fn solve(&self, cube: &Cube333, count: usize) -> PyResult<Vec<Algorithm>> {
         solve_step_deduplicated(
             cube,
-            step_config(StepKind::HTR, ""),
+            step_config(StepKind::HTR, "", NissSwitchType::Never),
             count,
             true,
             is_equivalent(Transformation333::Z),

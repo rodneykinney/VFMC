@@ -126,14 +126,14 @@ class Palette:
             p.center_visibility_mask = 0
             p.opacity = 255
             p.corner_visibility_mask = Visibility.BadFace
-            p.edge_visibility_mask = 0 # Visibility.BadFace
+            p.edge_visibility_mask = 0
             p.colors.update(
                 {
-                    FaceletColors.BLUE: (0,0,0),
-                    FaceletColors.GREEN: (0,0,0),
-                    FaceletColors.RED: (0,0,0),
-                    FaceletColors.ORANGE: (0,0,0),
-                    FaceletColors.YELLOW: (255,255,255),
+                    FaceletColors.BLUE: (0, 0, 0),
+                    FaceletColors.GREEN: (0, 0, 0),
+                    FaceletColors.RED: (0, 0, 0),
+                    FaceletColors.ORANGE: (0, 0, 0),
+                    FaceletColors.YELLOW: (255, 255, 255),
                 }
             )
         elif name == "co-case":

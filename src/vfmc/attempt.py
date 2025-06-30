@@ -342,12 +342,12 @@ class Attempt:
     def solve(self, num_solutions: int) -> List[PartialSolution]:
         """Find solutions for the current step"""
         sol = self.solution
-        on_inverse = self.inverse
-        self.set_inverse(False)
         existing = set(str(s) for s in self.solutions_for_step(sol.kind, sol.variant))
         algs = sol.step_info.solve(self.cube, len(existing) + num_solutions)
         solutions = []
         for alg in algs:
+            if self.inverse:
+                alg = alg.on_inverse()
             base_alg = Algorithm(str(sol.alg))
             base_alg.merge(alg)
             s = PartialSolution.create(
@@ -360,7 +360,6 @@ class Attempt:
                 solutions.append(s)
             if len(solutions) >= num_solutions:
                 break
-        self.set_inverse(on_inverse)
         return solutions
 
     def save(self) -> Optional[PartialSolution]:
