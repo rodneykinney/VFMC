@@ -113,9 +113,6 @@ class AppWindow(QMainWindow):
 
         # Set initial scramble
         self.commands.execute("scramble")
-        self.commands.execute(
-            f'sort("{preferences.sort_order.key}",{preferences.sort_order.group_by_axis})'
-        )
 
         def update():
             if preferences.sort_order != self.attempt._sort_order:
@@ -1298,7 +1295,9 @@ class Commands:
             scramble = str(wrapper.merge(Algorithm(gen_scramble())).merge(wrapper))
         self.attempt.set_scramble(scramble)
         self.command_history.clear()
-        return CommandResult(add_to_history=[f'scramble("{scramble}")'])
+        scramble_cmd = f'scramble("{scramble}")'
+        sort_cmd = f'sort("{preferences.sort_order.key}",{preferences.sort_order.group_by_axis})'
+        return CommandResult(add_to_history=[scramble_cmd, sort_cmd])
 
     def save_session(self, filename):
         try:
