@@ -165,15 +165,72 @@ impl Solvable for DRRL {
     }
 }
 
+pub struct AR;
+impl AR {
+    fn arm_uf(&self, cube: &Cube333) -> (u8, u8, u8) {
+        let corners = cube.corners.get_corners();
+        let mut arm_c_r = 0;
+        let mut arm_c_l = 0;
+        for i in 0..8 {
+            match (i, corners[i].orientation) {
+                (0, 1) | (3, 2) | (4, 1) | (7, 2) => arm_c_l += 1,
+                (1, 2) | (2, 1) | (5, 2) | (6, 1) => arm_c_r += 1,
+                _ => (),
+            }
+        }
+        let edges = cube.edges.get_edges();
+        let mut arm_e = 0;
+        for i in [0,2,8,10] {
+            if !edges[i].oriented_rl || !edges[i].oriented_fb {
+                arm_e += 1;
+            }
+        }
+        (arm_c_r, arm_e, arm_c_l)
+    }
+    fn arm_rf(&self, cube: &Cube333) -> (u8, u8, u8) {
+        let mut cube = cube.clone();
+        cube.transform(Transformation333::Z);
+        self.arm_uf(&cube)
+    }
+    fn arm_ur(&self, cube: &Cube333) -> (u8, u8, u8) {
+        let mut cube = cube.clone();
+        cube.transform(Transformation333::Y);
+        self.arm_uf(&cube)
+    }
+    fn arm_br(&self, cube: &Cube333) -> (u8, u8, u8) {
+        let mut cube = cube.clone();
+        cube.transform(Transformation333::Y);
+        cube.transform(Transformation333::Z);
+        self.arm_uf(&cube)
+    }
+    fn arm_bu(&self, cube: &Cube333) -> (u8, u8, u8) {
+        let mut cube = cube.clone();
+        cube.transform(Transformation333::Xi);
+        self.arm_uf(&cube)
+    }
+    fn arm_ru(&self, cube: &Cube333) -> (u8, u8, u8) {
+        let mut cube = cube.clone();
+        cube.transform(Transformation333::Xi);
+        cube.transform(Transformation333::Z);
+        self.arm_uf(&cube)
+    }
+
+    fn arm(&self, cube: &Cube333, t: Transformation333)-> (u8, u8, u8) {
+        let mut cube = cube.clone();
+        cube.transform(t);
+        self.arm_uf(&cube)
+    }
+
+}
+
+
 #[cfg(test)]
 mod tests {
     use cubelib::defs::StepKind::DR;
     use cubelib::steps::coord::Coord;
     use cubelib::steps::dr::coords::DRUDEOFBCoord;
     use crate::{Cube, Solvable, Algorithm};
-    use crate::dr::DRUD;
-    use crate::{Cube, Solvable};
-    use cubelib::defs::StepKind::DR;
+    use crate::dr::{DRUD, AR};
 
     #[test]
     fn test_drud_edge_visibility() {
@@ -185,6 +242,26 @@ mod tests {
                 print!("{}", viz);
             }
         }
+    }
+
+    #[test]
+    fn test_ar() {
+        let ar = AR;
+        let mut cube = Cube::new("R U R'".to_string()).unwrap();
+        assert_eq!(ar.arm_uf(&cube.0), (1, 1, 1));
+        cube = Cube::new("R U F2 U R".to_string()).unwrap();
+        assert_eq!(ar.arm_uf(&cube.0), (1, 1, 2));
+
+        cube = Cube::new("D R D'".to_string()).unwrap();
+        assert_eq!(ar.arm_rf(&cube.0), (1, 1, 1));
+        cube = Cube::new("B U B'".to_string()).unwrap();
+        assert_eq!(ar.arm_ur(&cube.0), (1, 1, 1));
+        cube = Cube::new("D B D'".to_string()).unwrap();
+        assert_eq!(ar.arm_br(&cube.0), (1, 1, 1));
+        cube = Cube::new("R B R'".to_string()).unwrap();
+        assert_eq!(ar.arm_bu(&cube.0), (1, 1, 1));
+        cube = Cube::new("F R F'".to_string()).unwrap();
+        assert_eq!(ar.arm_ru(&cube.0), (1, 1, 1));
     }
 
     #[test]
