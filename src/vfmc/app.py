@@ -400,20 +400,20 @@ class AppWindow(QMainWindow):
         list_style = f"""
             /* Default appearance */
             QListWidget::item {{
-                color: black;
+                color: palette(text);
                 background-color: transparent;
             }}
 
             /* Basic selection style (blue) */
             QListWidget::item:selected {{
                 background-color: {selection_color};
-                color: black;
+                color: black
             }}
 
             /* Keep selection color even when widget loses focus */
             QListWidget::item:selected:!active {{
                 background-color: {active_selection_color};
-                color: black;
+                color: black
             }}
         """
 
