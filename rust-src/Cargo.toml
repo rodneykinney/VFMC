@@ -9,7 +9,7 @@ name = "vfmc_core"
 crate-type = ["cdylib"]
 
 [dependencies]
-pyo3 = { version = "0.18.0", features = ["extension-module"] }
+pyo3 = { version = "0.21", features = ["extension-module"] }
 cubelib = { path = "cubelib/cubelib", features = ["serde_support", "fs"]}
 rand = "0.9.0"
 

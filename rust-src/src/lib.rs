@@ -12,7 +12,7 @@ use std::str::FromStr;
 
 use pyo3::exceptions::PyValueError;
 
-use crate::dr::{DRFB, DRRL, DRUD};
+use crate::dr::{DRFB, DRRL, DRUD, AR};
 use crate::eo::{EOFB, EORL, EOUD};
 use crate::finish::Finish;
 use crate::insertions::Insertions;
@@ -206,6 +206,11 @@ impl Cube {
 
     fn invert(&mut self) {
         self.0.invert()
+    }
+
+    fn ar(&self) -> PyResult<(u8,u8,u8)> {
+        let (arm_c_r, arm_e, arm_c_l) = AR.arm_uf(&self.0);
+        Ok((arm_c_r, arm_e, arm_c_l))
     }
 }
 

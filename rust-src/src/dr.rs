@@ -167,7 +167,7 @@ impl Solvable for DRRL {
 
 pub struct AR;
 impl AR {
-    fn arm_uf(&self, cube: &Cube333) -> (u8, u8, u8) {
+    pub fn arm_uf(&self, cube: &Cube333) -> (u8, u8, u8) {
         let corners = cube.corners.get_corners();
         let mut arm_c_r = 0;
         let mut arm_c_l = 0;
@@ -187,40 +187,33 @@ impl AR {
         }
         (arm_c_r, arm_e, arm_c_l)
     }
-    fn arm_rf(&self, cube: &Cube333) -> (u8, u8, u8) {
+    pub fn arm_rf(&self, cube: &Cube333) -> (u8, u8, u8) {
         let mut cube = cube.clone();
         cube.transform(Transformation333::Z);
         self.arm_uf(&cube)
     }
-    fn arm_ur(&self, cube: &Cube333) -> (u8, u8, u8) {
+    pub fn arm_ur(&self, cube: &Cube333) -> (u8, u8, u8) {
         let mut cube = cube.clone();
         cube.transform(Transformation333::Y);
         self.arm_uf(&cube)
     }
-    fn arm_br(&self, cube: &Cube333) -> (u8, u8, u8) {
+    pub fn arm_br(&self, cube: &Cube333) -> (u8, u8, u8) {
         let mut cube = cube.clone();
         cube.transform(Transformation333::Y);
         cube.transform(Transformation333::Z);
         self.arm_uf(&cube)
     }
-    fn arm_bu(&self, cube: &Cube333) -> (u8, u8, u8) {
+    pub fn arm_bu(&self, cube: &Cube333) -> (u8, u8, u8) {
         let mut cube = cube.clone();
         cube.transform(Transformation333::Xi);
         self.arm_uf(&cube)
     }
-    fn arm_ru(&self, cube: &Cube333) -> (u8, u8, u8) {
+    pub fn arm_ru(&self, cube: &Cube333) -> (u8, u8, u8) {
         let mut cube = cube.clone();
         cube.transform(Transformation333::Xi);
         cube.transform(Transformation333::Z);
         self.arm_uf(&cube)
     }
-
-    fn arm(&self, cube: &Cube333, t: Transformation333)-> (u8, u8, u8) {
-        let mut cube = cube.clone();
-        cube.transform(t);
-        self.arm_uf(&cube)
-    }
-
 }
 
 
