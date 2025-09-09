@@ -3,12 +3,9 @@ use std::cell::RefCell;
 use std::collections::HashSet;
 
 use cubelib::algs::Algorithm as LibAlgorithm;
-use cubelib::cube::turn::{ApplyAlgorithm, CubeOuterTurn};
+use cubelib::cube::turn::ApplyAlgorithm;
 use cubelib::cube::Cube333;
-use cubelib::cube::Direction;
 use cubelib::defs::{NissSwitchType, StepKind};
-use cubelib::solver::df_search::CancelToken;
-use cubelib::solver::solve_steps;
 use cubelib::solver::solution::Solution;
 use cubelib::solver_new::dr::DRBuilder;
 use cubelib::solver_new::eo::EOBuilder;
@@ -17,9 +14,7 @@ use cubelib::solver_new::finish::HTRFinishBuilder;
 use cubelib::solver_new::fr::FRBuilder;
 use cubelib::solver_new::util_steps::{FilterFirstN, FilterLastMoveNotPrime};
 use cubelib::solver_new::group::{StepGroup, StepPredicate, StepPredicateResult};
-use cubelib::steps::solver::{build_steps, gen_tables};
 use cubelib::steps::step::StepConfig;
-use cubelib::steps::tables::PruningTables333;
 use pyo3::exceptions::PyValueError;
 use pyo3::{pyfunction, PyResult};
 
@@ -105,7 +100,6 @@ where
     F: Fn(&Cube333, &LibAlgorithm) -> T + Sync + Send + 'static,
     T: Eq + std::hash::Hash + Sync + Send + 'static,
 {
-    let mut tables = Box::new(PruningTables333::new());
     let mut step_config = match cfg.kind {
         StepKind::EO => EOBuilder::try_from(cfg).map(|b| b.build()),
         StepKind::DR => DRBuilder::try_from(cfg).map(|b| b.build()),
