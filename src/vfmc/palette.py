@@ -154,6 +154,20 @@ class Palette:
             p.corner_visibility_mask = Visibility.BadFace
             p.colors[FaceletColors.ORANGE] = p.colors[FaceletColors.RED]
             p.colors[FaceletColors.BLUE] = p.colors[FaceletColors.GREEN]
+        elif name == "hyper-parity":
+            p.center_visibility_mask = 0
+            p.opacity = 255
+            p.corner_visibility_mask = Visibility.BadFace | Visibility.BottomColor
+            p.colors[FaceletColors.ORANGE] = p.colors[FaceletColors.RED]
+            p.colors[FaceletColors.BLUE] = p.colors[FaceletColors.GREEN]
+        elif name == "d-only":
+            p.center_visibility_mask = 0
+            p.corner_visibility_mask = Visibility.All
+            p.colors[FaceletColors.WHITE] = p.hidden_color
+            p.colors[FaceletColors.RED] = p.hidden_color
+            p.colors[FaceletColors.GREEN] = p.hidden_color
+            p.colors[FaceletColors.ORANGE] = p.hidden_color
+            p.colors[FaceletColors.BLUE] = p.hidden_color
         elif name == "htr-case":
             p.center_visibility_mask = 0
             p.opacity = 255
