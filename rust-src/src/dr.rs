@@ -172,8 +172,6 @@ mod tests {
     use cubelib::steps::dr::coords::DRUDEOFBCoord;
     use crate::{Cube, Solvable, Algorithm};
     use crate::dr::DRUD;
-    use crate::{Cube, Solvable};
-    use cubelib::defs::StepKind::DR;
 
     #[test]
     fn test_drud_edge_visibility() {
