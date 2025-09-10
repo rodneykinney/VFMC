@@ -362,14 +362,14 @@ class Attempt:
                 break
         return solutions
 
-    def save(self) -> Optional[PartialSolution]:
+    def save(self, allow_advance = True) -> Optional[PartialSolution]:
         sol = self.solution.clone()
         is_solved = sol.step_info.is_solved(self.cube)
         if not is_solved and not self.get_comment(sol):
             case = self.solution.step_info.case_name(self.cube)
             comment = f"{step_name(self.solution.kind, self.solution.variant)}-{case}"
             self.set_comment(sol, comment)
-        if is_solved:
+        if allow_advance and is_solved:
             if sol.kind in {"eo", "dr"}:
                 self.reset()
             else:

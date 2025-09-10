@@ -24,7 +24,7 @@ use crate::Visibility::Any;
 use cubelib::algs::Algorithm as LibAlgorithm;
 use cubelib::cube::turn::{ApplyAlgorithm, Direction, Invertible, InvertibleMut, CubeAxis};
 use cubelib::cube::{Corner, Cube333, Turn333};
-use cubelib::defs::NissSwitchType;
+use cubelib::defs::{NissSwitchType, StepKind};
 use cubelib::solver_new::dr::DRBuilder;
 use cubelib::solver_new::eo::EOBuilder;
 use cubelib::solver_new::fr::FRBuilder;
@@ -32,6 +32,15 @@ use cubelib::solver_new::finish::{FRFinishBuilder, HTRFinishBuilder};
 use cubelib::solver_new::group::StepGroup;
 use cubelib::solver_new::htr::HTRBuilder;
 
+#[pyclass]
+struct Solution {
+    #[pyo3(get)]
+    pub steps: Vec<StepInfo>,
+    #[pyo3(get)]
+    algs : Vec<Algorithm>,
+}
+
+#[derive(Clone)]
 #[pyclass]
 struct Algorithm(LibAlgorithm);
 
@@ -223,9 +232,11 @@ fn vfmc_core(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<Cube>()?;
     m.add_class::<Algorithm>()?;
     m.add_class::<StepInfo>()?;
+    m.add_class::<Solution>()?;
 
     m.add_function(wrap_pyfunction!(debug, m)?)?;
     m.add_function(wrap_pyfunction!(scramble, m)?)?;
+    m.add_function(wrap_pyfunction!(mallard, m)?)?;
     Ok(())
 }
 
@@ -258,26 +269,37 @@ fn vfmc_core(_py: Python, m: &PyModule) -> PyResult<()> {
 // }
 
 #[pyfunction]
-fn debug(cube: &Cube, s: String) -> String {
+fn debug(_cube: &Cube) -> String {
+    return "".to_string()
+}
+
+#[pyfunction]
+fn mallard(cube: &Cube, step_str: String) -> PyResult<Vec<Solution>> {
     let cube = cube.0;
     
     // Parse the input string into StepGroup objects
-    let steps = parse_step_string(&s).unwrap_or_else(|e| {
-        println!("Parse error: {}", e);
-        // Fallback to default steps
-        let eo = EOBuilder::default().build();
-        let dr = DRBuilder::default().build();
-        let htr = HTRBuilder::default().build();
-        StepGroup::sequential(vec![eo, dr, htr])
-    });
+    let steps = parse_step_string(&step_str)?;
     
     let mut steps = steps;
     steps.apply_step_limit(100);
     let solutions = steps.into_worker(cube).take(20);
+    let mut py_solutions = vec![];
     for sol in solutions {
-        println!("Solution: {}", sol);
+        let mut py_steps = vec![];
+        let mut py_algs = vec![];
+        for step in sol.get_steps() {
+            let variant = match step.kind {
+                    StepKind::EO | StepKind::HTR | StepKind::FR  => &step.variant,
+                    StepKind::DR => &step.variant[0..2],
+                    _ => "",
+                };
+            let variant = match variant {"lr" => "rl".to_string(), other => other.to_string()};
+            py_steps.push(StepInfo {kind: step.kind.to_string(), variant: variant});
+            py_algs.push(Algorithm(step.alg.clone()));
+        }
+        py_solutions.push(Solution{steps: py_steps, algs: py_algs});
     }
-    "Debug complete".to_string()
+    Ok(py_solutions)
 }
 
 fn parse_step_string(input: &str) -> Result<StepGroup, String> {
@@ -392,38 +414,38 @@ fn parse_single_step(step_str: &str) -> Result<StepGroup, String> {
     // Create the appropriate step based on the name
     match step_name.as_str() {
         "EO" => {
-            let mut builder = EOBuilder::default();
+            let builder = EOBuilder::default();
             let builder = builder.niss(niss_type).max_length(max_length).eo_axis(axis_vec);
             Ok(builder.build())
         }
         "DR" => {
-            let mut builder = DRBuilder::default();
+            let builder = DRBuilder::default();
             let builder = builder.niss(niss_type).max_length(max_length);
             Ok(builder.build())
         }
         "HTR" => {
-            let mut builder = HTRBuilder::default();
+            let builder = HTRBuilder::default();
             let builder = builder.niss(niss_type).max_length(max_length);
             Ok(builder.build())
         }
         "FR" | "FRLS" => {
-            let mut builder = FRBuilder::default();
+            let builder = FRBuilder::default();
             let builder = builder.niss(niss_type).max_length(max_length);
             Ok(builder.build())
         }
         "FIN" => {
-            let mut builder = FRFinishBuilder::default();
-            let builder = builder.niss(niss_type).max_length(max_length);
+            let builder = FRFinishBuilder::default();
+            let builder = builder.max_length(max_length);
             Ok(builder.build())
         }
         "FINLS" => {
-            let mut builder = FRFinishBuilder::default();
-            let builder = builder.niss(niss_type).max_length(max_length);
+            let builder = FRFinishBuilder::default();
+            let builder = builder.max_length(max_length);
             Ok(builder.build())
         }
         "HTRFIN" => {
-            let mut builder = HTRFinishBuilder::default();
-            let builder = builder.niss(niss_type).max_length(max_length);
+            let builder = HTRFinishBuilder::default();
+            let builder = builder.max_length(max_length);
             Ok(builder.build())
         }
         _ => Err(format!("Unknown step type: {}", step_name))
@@ -470,6 +492,7 @@ impl DrawableCorner for Corner {
     }
 }
 
+#[derive(Clone)]
 #[pyclass]
 pub struct StepInfo {
     #[pyo3(get)]

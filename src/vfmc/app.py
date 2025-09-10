@@ -39,7 +39,7 @@ from vfmc import prefs
 from vfmc.palette import Palette
 from vfmc.prefs import preferences, SortOrder
 from vfmc.viz import CubeViz, CubeWidget
-from vfmc_core import Cube, Algorithm, StepInfo, scramble as gen_scramble
+from vfmc_core import Cube, Algorithm, StepInfo, scramble as gen_scramble, mallard
 
 # Basic set of cube moves
 MOVE_REGEX = r"[rRuUfFlLdDbB '2]*"
@@ -1068,6 +1068,25 @@ class Commands:
         self.window.set_status(debug(self.attempt.cube, s))
         return CommandResult(add_to_history=[])
 
+    def mallard(self, step):
+        core_solutions = mallard(self.attempt.cube, step)
+        solutions = []
+        for sol in core_solutions:
+            try:
+                previous = None
+                for step, alg in zip(sol.steps, sol.algs):
+                    previous = PartialSolution(
+                        kind = step.kind,
+                        variant=step.variant,
+                        alg=alg,
+                        previous=previous
+                    )
+                solutions.append(previous)
+            except:
+                pass
+        self._save_all(solutions)
+        return CommandResult(add_to_history=[])
+
     def help(self):
         self.window.show_help()
         return CommandResult(add_to_history=[])
@@ -1184,18 +1203,23 @@ class Commands:
             self.window.set_status(
                 f"No solutions found for {self.attempt.solution.kind}{self.attempt.solution.variant}"
             )
+        self._save_all(solutions)
+        return CommandResult(add_to_history=[])
+
+    def _save_all(self, solutions):
         commands = []
         if solutions:
             was_inverse = self.attempt.inverse
-            for sol in solutions:
-                commands.append(step_name(sol.kind, sol.variant))
-                if sol.alg.normal_moves():
-                    commands.append("set_inverse(False)")
-                    commands.append(" ".join(sol.alg.normal_moves()))
-                if sol.alg.inverse_moves():
-                    commands.append("set_inverse(True)")
-                    commands.append(" ".join(sol.alg.inverse_moves()))
-                commands.append("save")
+            for soln in solutions:
+                for sol in soln.substeps():
+                    commands.append(step_name(sol.kind, sol.variant))
+                    if sol.alg.normal_moves():
+                        commands.append("set_inverse(False)")
+                        commands.append(" ".join(sol.alg.normal_moves()))
+                    if sol.alg.inverse_moves():
+                        commands.append("set_inverse(True)")
+                        commands.append(" ".join(sol.alg.inverse_moves()))
+                    commands.append("save(False)")
             commands.append(f"set_inverse({was_inverse})")
             commands.append(
                 step_name(self.attempt.solution.kind, self.attempt.solution.variant)
@@ -1207,7 +1231,7 @@ class Commands:
             sol = solutions[0]
             index = self.attempt.solutions_by_kind()[sol.kind].index(sol) + 1
             self.execute(f'check("{sol.kind}",{index})')
-        return CommandResult(add_to_history=[])
+
 
     def comment(self, s: str):
         sol = self.attempt.solution
@@ -1240,10 +1264,10 @@ class Commands:
         sol = self.attempt.solution
         self.attempt.toggle_obscured(sol)
 
-    def save(self):
+    def save(self, allow_advance = True):
         """Save this algorithm and start a new one"""
         self.window.current_solution_widget.sync_history_with_editor()
-        saved = self.attempt.save()
+        saved = self.attempt.save(allow_advance)
         if saved:
             self.window.scroll_to(saved)
             self.window.command_input.setFocus()
