@@ -6,7 +6,7 @@ import traceback
 import re
 from dataclasses import dataclass
 from functools import cached_property
-from typing import List, Set, Optional
+from typing import List, Set, Optional, Tuple
 from importlib.metadata import version
 
 from PyQt5.QtWidgets import (
@@ -1062,10 +1062,10 @@ class Commands:
             logging.error(sys.exc_info())
             self.window.set_status(f"Error: {e}")
 
-    def debug(self):
+    def debug(self, s):
         from vfmc_core import debug
 
-        self.window.set_status(debug(self.attempt.cube))
+        self.window.set_status(debug(self.attempt.cube, s))
         return CommandResult(add_to_history=[])
 
     def help(self):
@@ -1148,6 +1148,15 @@ class Commands:
                 """No DR step found. Specify axis="..." to set the FR axis"""
             )
 
+    def frud(self):
+        self.fr("ud")
+
+    def frfb(self):
+        self.fr("fb")
+
+    def frrl(self):
+        self.fr("rl")
+
     def finish(self, axis=None):
         self.window.set_step("finish", "")
 
@@ -1167,47 +1176,49 @@ class Commands:
         """Switch between normal and inverse scramble"""
         self.attempt.set_inverse(not self.attempt.inverse)
 
-    def solve(self, num_solutions: int = 1):
+    def solve(self, count: int = 1):
         """Find and save solutions for the current step"""
-        if num_solutions > 50:
+        if count > 50:
             self.window.set_status("Maximum of 50 solutions per solve")
             return
         self.window.set_status(
             f"Finding solutions for {self.attempt.solution.kind}{self.attempt.solution.variant}..."
         )
-        solutions = self.attempt.solve(num_solutions)
+        solutions = self.attempt.solve(count)
         if solutions:
             self.window.set_status(
                 f"Found {len(solutions)} solution{'' if len(solutions) == 1 else 's'}"
             )
+            self._save_all(solutions)
         else:
             self.window.set_status(
                 f"No solutions found for {self.attempt.solution.kind}{self.attempt.solution.variant}"
             )
-        commands = []
+        return CommandResult(add_to_history=[])
+
+    def mallard(self, steps_str, count=1):
+        solutions = self.attempt.mallard(steps_str, count)
         if solutions:
-            was_inverse = self.attempt.inverse
-            for sol in solutions:
-                commands.append(step_name(sol.kind, sol.variant))
-                if sol.alg.normal_moves():
-                    commands.append("set_inverse(False)")
-                    commands.append(" ".join(sol.alg.normal_moves()))
-                if sol.alg.inverse_moves():
-                    commands.append("set_inverse(True)")
-                    commands.append(" ".join(sol.alg.inverse_moves()))
-                commands.append("save")
-            commands.append(f"set_inverse({was_inverse})")
-            commands.append(
-                step_name(self.attempt.solution.kind, self.attempt.solution.variant)
-            )
+            self._save_all(solutions)
+        else:
+            self.window.set_status(f'No solutions found for "{steps_str}"')
+        return CommandResult(add_to_history=[])
+
+    def _save_all(self, solutions):
+        commands = []
+        for sol in solutions:
+            steps = [
+                f'("{step.kind}", "{step.variant}", "{step.alg}")'
+                for step in sol.substeps()
+            ]
+            commands.append("save_solution([{}])".format(",".join(steps)))
 
         for cmd in commands:
             self.execute(cmd)
         if len(solutions) == 1:
-            sol = solutions[0]
-            index = self.attempt.solutions_by_kind()[sol.kind].index(sol) + 1
-            self.execute(f'check("{sol.kind}",{index})')
-        return CommandResult(add_to_history=[])
+            step = solutions[0].clone()
+            index = self.attempt.solutions_by_kind()[step.kind].index(step) + 1
+            self.execute(f'check("{step.kind}",{index})')
 
     def comment(self, s: str):
         sol = self.attempt.solution
@@ -1215,7 +1226,7 @@ class Commands:
             sol = sol.previous
         if not sol:
             return
-        self.attempt.set_comment(sol, s)
+        self.attempt.set_user_comment(sol, s)
         item = self._item_containing(sol)
         if item:
             i = item.listWidget().row(item)
@@ -1240,13 +1251,21 @@ class Commands:
         sol = self.attempt.solution
         self.attempt.toggle_obscured(sol)
 
-    def save(self):
+    def save(self, allow_advance=True):
         """Save this algorithm and start a new one"""
         self.window.current_solution_widget.sync_history_with_editor()
-        saved = self.attempt.save()
+        saved = self.attempt.save(allow_advance)
         if saved:
             self.window.scroll_to(saved)
             self.window.command_input.setFocus()
+
+    def save_solution(self, steps: List[Tuple[str, str, str]]):
+        previous = None
+        for kind, variant, alg in steps:
+            previous = PartialSolution(
+                kind=kind, variant=variant, alg=Algorithm(alg), previous=previous
+            )
+            self.attempt.save_solution(previous)
 
     def reset(self):
         """Reset the cube to the beginning of the current step"""
@@ -1384,9 +1403,9 @@ class CurrentSolutionWidget(QListWidget):
                     text = f"{self.attempt.to_str(step, verbose=True)}"
                 else:
                     parentheses = f"{' ' if step.alg.len() else ''}{'( )' if not step.alg.inverse_moves() and self.attempt.inverse else ''}"
-                    comment = self.attempt.get_comment(step)
+                    comment = self.attempt.get_user_comment(step)
                     if not comment or step.alg.len() == 0:
-                        comment = step.default_comment()
+                        comment = step.default_comment(self.attempt.cube)
                     text = f"{text}{parentheses} // {comment} ({step.full_alg().len()})"
             item = QListWidgetItem(text)
             item.setData(SOLUTION, step)

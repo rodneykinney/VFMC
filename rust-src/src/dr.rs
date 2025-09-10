@@ -64,7 +64,12 @@ impl Solvable for DRUD {
         v
     }
     fn solve(&self, cube: &Cube333, count: usize) -> PyResult<Vec<Algorithm>> {
-        solve_step(cube, step_config(StepKind::DR, "ud", NissSwitchType::Never), count, true)
+        solve_step(
+            cube,
+            step_config(StepKind::DR, "ud", NissSwitchType::Never),
+            count,
+            true,
+        )
     }
 }
 
@@ -113,7 +118,12 @@ impl Solvable for DRFB {
         v
     }
     fn solve(&self, cube: &Cube333, count: usize) -> PyResult<Vec<Algorithm>> {
-        solve_step(cube, step_config(StepKind::DR, "fb", NissSwitchType::Never), count, true)
+        solve_step(
+            cube,
+            step_config(StepKind::DR, "fb", NissSwitchType::Never),
+            count,
+            true,
+        )
     }
 }
 pub struct DRRL;
@@ -161,19 +171,22 @@ impl Solvable for DRRL {
         v
     }
     fn solve(&self, cube: &Cube333, count: usize) -> PyResult<Vec<Algorithm>> {
-        solve_step(cube, step_config(StepKind::DR, "lr", NissSwitchType::Never), count, true)
+        solve_step(
+            cube,
+            step_config(StepKind::DR, "lr", NissSwitchType::Never),
+            count,
+            true,
+        )
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use crate::dr::DRUD;
+    use crate::{Algorithm, Cube, Solvable};
     use cubelib::defs::StepKind::DR;
     use cubelib::steps::coord::Coord;
     use cubelib::steps::dr::coords::DRUDEOFBCoord;
-    use crate::{Cube, Solvable, Algorithm};
-    use crate::dr::DRUD;
-    use crate::{Cube, Solvable};
-    use cubelib::defs::StepKind::DR;
 
     #[test]
     fn test_drud_edge_visibility() {

@@ -61,7 +61,7 @@ class PartialSolution:
             if self.previous.kind == "eo":
                 if orientation.front not in self.previous.variant:
                     orientation = orientation.y(1)
-            else:
+            elif self.kind != "fr":
                 orientation = Orientation(
                     self.previous.orientation.top, self.previous.orientation.front
                 )
@@ -107,7 +107,7 @@ class PartialSolution:
     def alg_str(self, verbose: bool = False):
         return str(self.alg)
 
-    def default_comment(self) -> str:
+    def default_comment(self, cube) -> str:
         return step_name(self.kind, self.variant)
 
     def clone(self) -> "PartialSolution":
@@ -224,11 +224,11 @@ class Attempt:
             else:
                 self.back()
 
-    def set_comment(self, sol: PartialSolution, s: str):
+    def set_user_comment(self, sol: PartialSolution, s: str):
         self._comments[sol] = s
         self.notify_solution_attribute_listeners()
 
-    def get_comment(self, sol: PartialSolution) -> Optional[str]:
+    def get_user_comment(self, sol: PartialSolution) -> Optional[str]:
         return self._comments.get(sol)
 
     def is_done(self, sol: PartialSolution):
@@ -237,9 +237,7 @@ class Attempt:
     def to_str(self, sol: PartialSolution, verbose: bool = False) -> str:
         if sol in self._obscured:
             return " ".join(["?" for i in range(sol.alg.len())])
-        comment = self._comments.get(sol)
-        if not comment:
-            comment = sol.default_comment()
+        comment = self._comments.get(sol) or sol.default_comment(self.cube)
         return f"{sol.alg_str(verbose)} // {comment} ({sol.full_alg().len()})"
 
     def append(self, alg: Algorithm) -> bool:
@@ -342,34 +340,57 @@ class Attempt:
     def solve(self, num_solutions: int) -> List[PartialSolution]:
         """Find solutions for the current step"""
         sol = self.solution
-        existing = set(str(s) for s in self.solutions_for_step(sol.kind, sol.variant))
+        existing = self.solutions_for_step(sol.kind, sol.variant)
         algs = sol.step_info.solve(self.cube, len(existing) + num_solutions)
         solutions = []
         for alg in algs:
             if self.inverse:
                 alg = alg.on_inverse()
-            base_alg = Algorithm(str(sol.alg))
-            base_alg.merge(alg)
+            merged_alg = Algorithm(str(sol.alg)).merge(alg)
             s = PartialSolution.create(
                 kind=sol.kind,
                 variant=sol.variant,
-                previous=sol.previous,
-                alg=sol.alg.merge(alg),
+                previous=(
+                    self.solution if self.solution.alg.len() else self.solution.previous
+                ),
+                alg=merged_alg,
             )
-            if str(s) not in existing:
+            if s not in existing:
                 solutions.append(s)
             if len(solutions) >= num_solutions:
                 break
         return solutions
 
-    def save(self) -> Optional[PartialSolution]:
+    def mallard(self, steps_str, num_solutions: int):
+        core_solutions = self.solution.step_info.solve_steps(
+            self.cube, num_solutions, steps_str
+        )
+        solutions = []
+        for sol in core_solutions:
+            previous = (
+                self.solution if self.solution.alg.len() else self.solution.previous
+            )
+            for step, alg in zip(sol.steps, sol.algs):
+                if self.inverse:
+                    alg = alg.on_inverse()
+                merged_alg = Algorithm(str(self.solution.alg)).merge(alg)
+                previous = PartialSolution(
+                    kind=step.kind,
+                    variant=step.variant,
+                    alg=merged_alg,
+                    previous=previous,
+                )
+            solutions.append(previous)
+        return solutions
+
+    def save(self, allow_advance=True) -> Optional[PartialSolution]:
         sol = self.solution.clone()
         is_solved = sol.step_info.is_solved(self.cube)
-        if not is_solved and not self.get_comment(sol):
+        if not is_solved and not self.get_user_comment(sol):
             case = self.solution.step_info.case_name(self.cube)
             comment = f"{step_name(self.solution.kind, self.solution.variant)}-{case}"
-            self.set_comment(sol, comment)
-        if is_solved:
+            self.set_user_comment(sol, comment)
+        if allow_advance and is_solved:
             if sol.kind in {"eo", "dr"}:
                 self.reset()
             else:
@@ -415,10 +436,9 @@ class Attempt:
             )
 
     def save_solution(self, sol: PartialSolution):
-        self._save_timestamps[sol] = time.monotonic()
-
         existing = self._saved_by_kind[sol.kind]
         if sol not in existing:
+            self._save_timestamps[sol] = time.monotonic()
             existing.append(sol)
         existing.sort(key=self.sort_key())
         self.notify_saved_solution_listeners()
@@ -458,6 +478,9 @@ class InsertionsStep(PartialSolution):
         self.insertions = Insertions(previous.full_alg())
         self.inserted_algs: Dict[str, str] = {}
         self.alg_with_markers = str(self.insertions.original.all_on_normal())
+
+    def default_comment(self, cube) -> str:
+        return self.step_info.case_name(cube)
 
     def insertion_symbol(self, index):
         choices = "^#*@"
@@ -532,6 +555,6 @@ class InsertionsStep(PartialSolution):
 
 def step_name(kind, variant):
     s = kind
-    if s not in {"htr", "fr"}:
+    if s not in ["htr"]:
         s = f"{s}{variant}"
     return s

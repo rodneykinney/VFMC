@@ -1,7 +1,7 @@
+use crate::finish::Finish;
 use crate::{Algorithm, Solvable};
 use cubelib::cube::Cube333;
 use pyo3::PyResult;
-use crate::finish::Finish;
 
 pub struct Insertions;
 impl Solvable for Insertions {
@@ -9,10 +9,15 @@ impl Solvable for Insertions {
         Finish.is_solved(cube)
     }
 
-    fn is_eligible(&self, cube: &Cube333) -> bool { Finish.is_eligible(cube) }
+    fn is_eligible(&self, cube: &Cube333) -> bool {
+        Finish.is_eligible(cube)
+    }
 
     fn case_name(&self, cube: &Cube333) -> String {
-        Finish.case_name(cube)
+        match Finish.case_name(cube) {
+            s if s == "" => "solved".to_string(),
+            s => s,
+        }
     }
 
     fn edge_visibility(&self, cube: &Cube333, pos: usize, _facelet: u8) -> u8 {

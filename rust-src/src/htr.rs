@@ -4,6 +4,7 @@ use crate::{
     Algorithm, DrawableCorner, Solvable, CORNER_FB_FACELETS, CORNER_RL_FACELETS,
     CORNER_UD_FACELETS, EDGE_FB_FACELETS, EDGE_RL_FACELETS, EDGE_UD_FACELETS,
 };
+use cubelib::algs::Algorithm as LibAlgorithm;
 use cubelib::cube::turn::{ApplyAlgorithm, TransformableMut};
 use cubelib::cube::{Cube333, Transformation333};
 use cubelib::defs::{NissSwitchType, StepKind};
@@ -72,8 +73,8 @@ impl Solvable for HTRUD {
         )
     }
 }
-fn is_equivalent(transform: Transformation333) -> impl Fn(&Cube333, &Algorithm) -> usize {
-    move |cube: &Cube333, _alg: &Algorithm| {
+fn is_equivalent(transform: Transformation333) -> impl Fn(&Cube333, &LibAlgorithm) -> usize {
+    move |cube: &Cube333, _alg: &LibAlgorithm| {
         let mut cube = cube.clone();
         cube.transform(transform);
         let coord1 = FRUDNoSliceCoord::from(&cube);

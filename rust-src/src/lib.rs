@@ -3,9 +3,9 @@ mod eo;
 mod finish;
 mod fr;
 mod htr;
+mod insertions;
 mod slice;
 mod solver;
-mod insertions;
 
 use pyo3::prelude::*;
 use std::str::FromStr;
@@ -15,16 +15,26 @@ use pyo3::exceptions::PyValueError;
 use crate::dr::{DRFB, DRRL, DRUD};
 use crate::eo::{EOFB, EORL, EOUD};
 use crate::finish::Finish;
-use crate::insertions::Insertions;
 use crate::fr::{FRFB, FRRL, FRUD};
 use crate::htr::{HTRFB, HTRRL, HTRUD};
+use crate::insertions::Insertions;
 use crate::slice::{SliceFB, SliceRL, SliceUD};
-use crate::solver::scramble;
+use crate::solver::{group, parse_steps, scramble};
 use crate::Visibility::Any;
 use cubelib::algs::Algorithm as LibAlgorithm;
 use cubelib::cube::turn::{ApplyAlgorithm, Direction, Invertible, InvertibleMut};
 use cubelib::cube::{Corner, Cube333, Turn333};
+use cubelib::defs::StepKind;
 
+#[pyclass]
+struct Solution {
+    #[pyo3(get)]
+    pub steps: Vec<StepInfo>,
+    #[pyo3(get)]
+    algs: Vec<Algorithm>,
+}
+
+#[derive(Clone)]
 #[pyclass]
 struct Algorithm(LibAlgorithm);
 
@@ -96,7 +106,9 @@ impl Algorithm {
 
     fn all_on_normal(&self) -> Algorithm {
         let alg = self.0.clone();
-        Algorithm::new("").unwrap().merge(&Algorithm(alg.to_uninverted()))
+        Algorithm::new("")
+            .unwrap()
+            .merge(&Algorithm(alg.to_uninverted()))
     }
 
     fn __repr__(&self) -> String {
@@ -216,6 +228,7 @@ fn vfmc_core(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<Cube>()?;
     m.add_class::<Algorithm>()?;
     m.add_class::<StepInfo>()?;
+    m.add_class::<Solution>()?;
 
     m.add_function(wrap_pyfunction!(debug, m)?)?;
     m.add_function(wrap_pyfunction!(scramble, m)?)?;
@@ -251,13 +264,8 @@ fn vfmc_core(_py: Python, m: &PyModule) -> PyResult<()> {
 // }
 
 #[pyfunction]
-fn debug(cube: &Cube) -> String {
-    let cube = cube.0;
-    let e = cube.edges.get_edges();
-    format!(
-        "4: {} 5: {} 6: {} 7: {}",
-        e[4].id, e[5].id, e[6].id, e[7].id,
-    )
+fn debug(_cube: &Cube) -> String {
+    return "".to_string();
 }
 
 trait DrawableCorner {
@@ -300,6 +308,7 @@ impl DrawableCorner for Corner {
     }
 }
 
+#[derive(Clone)]
 #[pyclass]
 pub struct StepInfo {
     #[pyo3(get)]
@@ -376,6 +385,44 @@ impl StepInfo {
         self.step()
             .map_err(|e| PyValueError::new_err(e.to_string()))?
             .solve(&cube.0, count)
+    }
+
+    fn solve_steps(&self, cube: &Cube, count: usize, steps_str: &str) -> PyResult<Vec<Solution>> {
+        let cube = cube.0;
+
+        // Parse the input string into StepGroup objects
+        let step_configs = parse_steps(&steps_str).map_err(|s| PyValueError::new_err(s))?;
+        let mut steps = group(StepKind::from_str(self.kind.as_str())?, &step_configs)
+            .map_err(|s| PyValueError::new_err(s))?;
+
+        steps.apply_step_limit(100);
+        let solutions = steps.into_worker(cube).take(count);
+        let mut py_solutions = vec![];
+        for sol in solutions {
+            let mut py_steps = vec![];
+            let mut py_algs = vec![];
+            for step in sol.get_steps() {
+                let variant = match step.kind {
+                    StepKind::EO | StepKind::HTR | StepKind::FR => &step.variant,
+                    StepKind::DR => &step.variant[0..2],
+                    _ => "",
+                };
+                let variant = match variant {
+                    "lr" => "rl".to_string(),
+                    other => other.to_string(),
+                };
+                py_steps.push(StepInfo {
+                    kind: step.kind.to_string(),
+                    variant: variant,
+                });
+                py_algs.push(Algorithm(step.alg.clone()));
+            }
+            py_solutions.push(Solution {
+                steps: py_steps,
+                algs: py_algs,
+            });
+        }
+        Ok(py_solutions)
     }
 
     #[new]
