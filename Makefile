@@ -4,12 +4,14 @@ code-check: code-format-check code-lint
 
 code-format-check:
 	black --check src
+	cd rust-src && cargo fmt --check
 
 code-lint:
 	flake8 src
 
 code-format:
 	black src
+	cd rust-src && cargo fmt
 
 print-version:
 	@python -c "from importlib.metadata import version; print(version('vfmc'))"
@@ -45,10 +47,10 @@ icons:
 	sips -z 1024 1024 resources/vfmc-icon.png --out IconSet.iconset/icon_512x512@2x.png
 	iconutil -c icns IconSet.iconset -o resources/vfmc.icns
 	rm -rf IconSet.iconset
-	
+	#
 	# Create Windows ico file
 	magick convert -background transparent resources/vfmc-icon.png -define icon:auto-resize=16,32,48,64,128,256 resources/vfmc.ico
-	
+	#
 	@echo "Icon files created:"
 	@echo "  - resources/vfmc.icns (macOS)"
 	@echo "  - resources/vfmc.ico (Windows)"

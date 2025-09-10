@@ -42,7 +42,10 @@ pub fn scramble() -> PyResult<String> {
 }
 
 pub fn group(active_step: &impl Solvable, steps: &Vec<StepConfig>) -> Result<StepGroup, String> {
-    let step_groups = steps.into_iter().map(single_step).collect::<Result<Vec<StepGroup>, _>>()?;
+    let step_groups = steps
+        .into_iter()
+        .map(single_step)
+        .collect::<Result<Vec<StepGroup>, _>>()?;
     Ok(StepGroup::sequential(step_groups))
 }
 

@@ -362,7 +362,7 @@ class Attempt:
                 break
         return solutions
 
-    def save(self, allow_advance = True) -> Optional[PartialSolution]:
+    def save(self, allow_advance=True) -> Optional[PartialSolution]:
         sol = self.solution.clone()
         is_solved = sol.step_info.is_solved(self.cube)
         if not is_solved and not self.get_comment(sol):

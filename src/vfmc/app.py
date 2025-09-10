@@ -1070,17 +1070,16 @@ class Commands:
         return CommandResult(add_to_history=[])
 
     def mallard(self, steps_str):
-        core_solutions = self.attempt.solution.step_info.solve_steps(self.attempt.cube, 10, steps_str)
+        core_solutions = self.attempt.solution.step_info.solve_steps(
+            self.attempt.cube, 10, steps_str
+        )
         solutions = []
         for sol in core_solutions:
             try:
                 previous = None
                 for step, alg in zip(sol.steps, sol.algs):
                     previous = PartialSolution(
-                        kind = step.kind,
-                        variant=step.variant,
-                        alg=alg,
-                        previous=previous
+                        kind=step.kind, variant=step.variant, alg=alg, previous=previous
                     )
                 solutions.append(previous)
             except:
@@ -1234,7 +1233,6 @@ class Commands:
             index = self.attempt.solutions_by_kind()[sol.kind].index(sol) + 1
             self.execute(f'check("{sol.kind}",{index})')
 
-
     def comment(self, s: str):
         sol = self.attempt.solution
         if sol.alg.len() == 0:
@@ -1266,7 +1264,7 @@ class Commands:
         sol = self.attempt.solution
         self.attempt.toggle_obscured(sol)
 
-    def save(self, allow_advance = True):
+    def save(self, allow_advance=True):
         """Save this algorithm and start a new one"""
         self.window.current_solution_widget.sync_history_with_editor()
         saved = self.attempt.save(allow_advance)
