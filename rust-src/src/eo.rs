@@ -29,7 +29,12 @@ impl Solvable for EOUD {
         Any as u8
     }
     fn solve(&self, cube: &Cube333, count: usize) -> PyResult<Vec<Algorithm>> {
-        solve_step(cube, step_config(StepKind::EO, "ud", NissSwitchType::Always), count, true)
+        solve_step(
+            cube,
+            step_config(StepKind::EO, "ud", NissSwitchType::Always),
+            count,
+            true,
+        )
     }
 }
 pub struct EOFB;
@@ -55,7 +60,12 @@ impl Solvable for EOFB {
         Any as u8
     }
     fn solve(&self, cube: &Cube333, count: usize) -> PyResult<Vec<Algorithm>> {
-        solve_step(cube, step_config(StepKind::EO, "fb", NissSwitchType::Always), count, true)
+        solve_step(
+            cube,
+            step_config(StepKind::EO, "fb", NissSwitchType::Always),
+            count,
+            true,
+        )
     }
 }
 pub struct EORL;
@@ -81,7 +91,12 @@ impl Solvable for EORL {
         Any as u8
     }
     fn solve(&self, cube: &Cube333, count: usize) -> PyResult<Vec<Algorithm>> {
-        solve_step(cube, step_config(StepKind::EO, "lr", NissSwitchType::Always), count, true)
+        solve_step(
+            cube,
+            step_config(StepKind::EO, "lr", NissSwitchType::Always),
+            count,
+            true,
+        )
     }
 }
 

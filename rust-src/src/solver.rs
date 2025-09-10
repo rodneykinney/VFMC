@@ -113,7 +113,10 @@ where
     let mut tables = Box::new(PruningTables333::new());
     let mut step_configs = match cfg.kind {
         StepKind::DR => vec![step_config(StepKind::EO, "", NissSwitchType::Always)],
-        StepKind::HTR => vec![step_config(StepKind::EO, "", NissSwitchType::Always), step_config(StepKind::DR, "", NissSwitchType::Never)],
+        StepKind::HTR => vec![
+            step_config(StepKind::EO, "", NissSwitchType::Always),
+            step_config(StepKind::DR, "", NissSwitchType::Never),
+        ],
         StepKind::FR | StepKind::FRLS | StepKind::FINLS | StepKind::FIN => vec![
             step_config(StepKind::EO, "", NissSwitchType::Never),
             step_config(StepKind::DR, "", NissSwitchType::Never),

@@ -3,9 +3,9 @@ mod eo;
 mod finish;
 mod fr;
 mod htr;
+mod insertions;
 mod slice;
 mod solver;
-mod insertions;
 
 use pyo3::prelude::*;
 use std::str::FromStr;
@@ -15,9 +15,9 @@ use pyo3::exceptions::PyValueError;
 use crate::dr::{DRFB, DRRL, DRUD};
 use crate::eo::{EOFB, EORL, EOUD};
 use crate::finish::Finish;
-use crate::insertions::Insertions;
 use crate::fr::{FRFB, FRRL, FRUD};
 use crate::htr::{HTRFB, HTRRL, HTRUD};
+use crate::insertions::Insertions;
 use crate::slice::{SliceFB, SliceRL, SliceUD};
 use crate::solver::scramble;
 use crate::Visibility::Any;
@@ -96,7 +96,9 @@ impl Algorithm {
 
     fn all_on_normal(&self) -> Algorithm {
         let alg = self.0.clone();
-        Algorithm::new("").unwrap().merge(&Algorithm(alg.to_uninverted()))
+        Algorithm::new("")
+            .unwrap()
+            .merge(&Algorithm(alg.to_uninverted()))
     }
 
     fn __repr__(&self) -> String {

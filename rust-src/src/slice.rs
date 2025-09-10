@@ -53,7 +53,12 @@ impl Solvable for SliceUD {
         BadFace as u8 | BadPiece as u8
     }
     fn solve(&self, cube: &Cube333, count: usize) -> PyResult<Vec<Algorithm>> {
-        solve_step(cube, step_config(StepKind::FINLS, "ud", NissSwitchType::Never), count, false)
+        solve_step(
+            cube,
+            step_config(StepKind::FINLS, "ud", NissSwitchType::Never),
+            count,
+            false,
+        )
     }
 }
 pub struct SliceFB;
@@ -85,7 +90,12 @@ impl Solvable for SliceFB {
         BadPiece as u8 | BadFace as u8
     }
     fn solve(&self, cube: &Cube333, count: usize) -> PyResult<Vec<Algorithm>> {
-        solve_step(cube, step_config(StepKind::FINLS, "fb", NissSwitchType::Never), count, false)
+        solve_step(
+            cube,
+            step_config(StepKind::FINLS, "fb", NissSwitchType::Never),
+            count,
+            false,
+        )
     }
 }
 
@@ -118,7 +128,12 @@ impl Solvable for SliceRL {
         BadPiece as u8 | BadFace as u8
     }
     fn solve(&self, cube: &Cube333, count: usize) -> PyResult<Vec<Algorithm>> {
-        solve_step(cube, step_config(StepKind::FINLS, "lr", NissSwitchType::Never), count, false)
+        solve_step(
+            cube,
+            step_config(StepKind::FINLS, "lr", NissSwitchType::Never),
+            count,
+            false,
+        )
     }
 }
 

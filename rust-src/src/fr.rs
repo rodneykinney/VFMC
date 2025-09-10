@@ -82,7 +82,12 @@ impl Solvable for FRUD {
         v
     }
     fn solve(&self, cube: &Cube333, count: usize) -> PyResult<Vec<Algorithm>> {
-        solve_step(cube, step_config(StepKind::FRLS, "ud", NissSwitchType::Never), count, false)
+        solve_step(
+            cube,
+            step_config(StepKind::FRLS, "ud", NissSwitchType::Never),
+            count,
+            false,
+        )
     }
 }
 pub struct FRFB;
@@ -136,7 +141,12 @@ impl Solvable for FRFB {
         v
     }
     fn solve(&self, cube: &Cube333, count: usize) -> PyResult<Vec<Algorithm>> {
-        solve_step(cube, step_config(StepKind::FRLS, "fb", NissSwitchType::Never), count, false)
+        solve_step(
+            cube,
+            step_config(StepKind::FRLS, "fb", NissSwitchType::Never),
+            count,
+            false,
+        )
     }
 }
 
@@ -191,7 +201,12 @@ impl Solvable for FRRL {
         v
     }
     fn solve(&self, cube: &Cube333, count: usize) -> PyResult<Vec<Algorithm>> {
-        solve_step(cube, step_config(StepKind::FRLS, "lr", NissSwitchType::Never), count, false)
+        solve_step(
+            cube,
+            step_config(StepKind::FRLS, "lr", NissSwitchType::Never),
+            count,
+            false,
+        )
     }
 }
 
