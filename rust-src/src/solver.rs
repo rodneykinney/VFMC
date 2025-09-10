@@ -1,6 +1,6 @@
-use std::hash::Hash;
 use std::cell::RefCell;
 use std::collections::HashSet;
+use std::hash::Hash;
 
 use cubelib::algs::Algorithm as LibAlgorithm;
 use cubelib::cube::turn::ApplyAlgorithm;
@@ -9,16 +9,16 @@ use cubelib::defs::{NissSwitchType, StepKind};
 use cubelib::solver::solution::Solution;
 use cubelib::solver_new::dr::DRBuilder;
 use cubelib::solver_new::eo::EOBuilder;
-use cubelib::solver_new::htr::HTRBuilder;
 use cubelib::solver_new::finish::HTRFinishBuilder;
 use cubelib::solver_new::fr::FRBuilder;
-use cubelib::solver_new::util_steps::{FilterFirstN, FilterLastMoveNotPrime};
 use cubelib::solver_new::group::{StepGroup, StepPredicate, StepPredicateResult};
+use cubelib::solver_new::htr::HTRBuilder;
+use cubelib::solver_new::util_steps::{FilterFirstN, FilterLastMoveNotPrime};
 use cubelib::steps::step::StepConfig;
 use pyo3::exceptions::PyValueError;
 use pyo3::{pyfunction, PyResult};
 
-use crate::Algorithm;
+use crate::{Algorithm, Solvable};
 
 #[pyfunction]
 pub fn scramble() -> PyResult<String> {
@@ -32,11 +32,39 @@ pub fn scramble() -> PyResult<String> {
     let mut steps = StepGroup::sequential(vec![eo, dr, htr, finish]);
     steps.apply_step_limit(100);
 
-    let solution = steps.into_worker(cube)
+    let solution = steps
+        .into_worker(cube)
         .next()
-        .ok_or_else(|| "No solutions found".to_string()).map_err(|e| PyValueError::new_err(e))?;
+        .ok_or_else(|| "No solutions found".to_string())
+        .map_err(|e| PyValueError::new_err(e))?;
     let alg = Into::<LibAlgorithm>::into(solution).to_uninverted();
     Ok(format!("{}", alg))
+}
+
+pub fn group(active_step: &impl Solvable, steps: &Vec<StepConfig>) -> Result<StepGroup, String> {
+    let step_groups = steps.into_iter().map(single_step).collect::<Result<Vec<StepGroup>, _>>()?;
+    Ok(StepGroup::sequential(step_groups))
+}
+
+fn single_step(step: &StepConfig) -> Result<StepGroup, String> {
+    match step.kind {
+        StepKind::EO => EOBuilder::try_from(step.clone())
+            .map(|b| b.build())
+            .map_err(|_| "Bad EO configuration".to_string()),
+        StepKind::DR => DRBuilder::try_from(step.clone())
+            .map(|b| b.build())
+            .map_err(|_| "Bad DR configuration".to_string()),
+        StepKind::HTR => HTRBuilder::try_from(step.clone())
+            .map(|b| b.build())
+            .map_err(|_| "Bad HTR configuration".to_string()),
+        StepKind::FR | StepKind::FRLS => FRBuilder::try_from(step.clone())
+            .map(|b| b.build())
+            .map_err(|_| "Bad FR configuration".to_string()),
+        StepKind::FIN | StepKind::FINLS => HTRFinishBuilder::try_from(step.clone())
+            .map(|b| b.build())
+            .map_err(|_| "Bad FIN configuration".to_string()),
+        _ => Err(format!("Unsupported step kind: {:?}", step.kind)),
+    }
 }
 
 pub fn step_config(kind: StepKind, variant: &str, niss: NissSwitchType) -> StepConfig {
@@ -100,14 +128,7 @@ where
     F: Fn(&Cube333, &LibAlgorithm) -> T + Sync + Send + 'static,
     T: Eq + std::hash::Hash + Sync + Send + 'static,
 {
-    let mut step_config = match cfg.kind {
-        StepKind::EO => EOBuilder::try_from(cfg).map(|b| b.build()),
-        StepKind::DR => DRBuilder::try_from(cfg).map(|b| b.build()),
-        StepKind::HTR => HTRBuilder::try_from(cfg).map(|b| b.build()),
-        StepKind::FR | StepKind::FRLS => FRBuilder::try_from(cfg).map(|b|b.build()),
-        StepKind::FIN | StepKind::FINLS => HTRFinishBuilder::try_from(cfg).map(|b|b.build()),
-        _ => unreachable!("Unexpected target step {}", cfg.kind)
-    }.map_err(|e| PyValueError::new_err(e))?;
+    let mut step_config = single_step(&cfg).map_err(|e| PyValueError::new_err(e))?;
 
     let mut predicates = vec![];
     if require_canonical {
@@ -116,27 +137,31 @@ where
     predicates.push(FilterFirstN::new(10000));
     predicates.push(FilterDupCaseID::new(cube.clone(), case_id));
     step_config.with_predicates(predicates);
-    Ok(step_config.into_worker(cube.clone())
+    Ok(step_config
+        .into_worker(cube.clone())
         .take(count)
         .map(|x| Algorithm(x.into()))
-        .collect()
-    )
+        .collect())
 }
 
-struct FilterDupCaseID<F: Fn(&Cube333, &LibAlgorithm) -> T + Sync + Send, T: Eq + Hash + Sync + Send>(Cube333, F, RefCell<HashSet<T>>);
+struct FilterDupCaseID<
+    F: Fn(&Cube333, &LibAlgorithm) -> T + Sync + Send,
+    T: Eq + Hash + Sync + Send,
+>(Cube333, F, RefCell<HashSet<T>>);
 
-impl <F: Fn(&Cube333, &LibAlgorithm) -> T + Sync + Send + 'static, T: Eq + Hash + Sync + Send + 'static> FilterDupCaseID<F, T> {
-
+impl<
+        F: Fn(&Cube333, &LibAlgorithm) -> T + Sync + Send + 'static,
+        T: Eq + Hash + Sync + Send + 'static,
+    > FilterDupCaseID<F, T>
+{
     pub fn new(cube: Cube333, case_id_fn: F) -> Box<dyn StepPredicate> {
-        Box::new(Self(
-            cube,
-            case_id_fn,
-            RefCell::new(Default::default()),
-        ))
+        Box::new(Self(cube, case_id_fn, RefCell::new(Default::default())))
     }
 }
 
-impl <F: Fn(&Cube333, &LibAlgorithm) -> T + Sync + Send, T: Eq + Hash + Sync + Send> StepPredicate for FilterDupCaseID<F, T> {
+impl<F: Fn(&Cube333, &LibAlgorithm) -> T + Sync + Send, T: Eq + Hash + Sync + Send> StepPredicate
+    for FilterDupCaseID<F, T>
+{
     fn check_solution(&self, solution: &Solution) -> StepPredicateResult {
         let alg: LibAlgorithm = solution.clone().into();
         let mut c = self.0.clone();
@@ -148,4 +173,99 @@ impl <F: Fn(&Cube333, &LibAlgorithm) -> T + Sync + Send, T: Eq + Hash + Sync + S
             StepPredicateResult::Rejected
         }
     }
+}
+
+pub fn parse_steps(steps_str: &str) -> Result<Vec<StepConfig>, String> {
+    let parts: Vec<&str> = steps_str.split(" > ").map(|s| s.trim()).collect();
+    let mut step_groups = Vec::new();
+
+    for part in parts {
+        if part.is_empty() {
+            continue;
+        }
+
+        // Parse each step like "EO[ud;fb;min=2;max=5;niss=always;limit=10]"
+        let step_group = parse_single_step(part)?;
+        step_groups.push(step_group);
+    }
+
+    if step_groups.is_empty() {
+        return Err("No valid steps found".to_string());
+    }
+
+    Ok(step_groups)
+}
+
+pub fn parse_single_step(step_str: &str) -> Result<StepConfig, String> {
+    // Find the step name and parameters
+    let bracket_start = step_str.find('[');
+    let bracket_end = step_str.find(']');
+
+    let (step_name, params_str) = match (bracket_start, bracket_end) {
+        (Some(start), Some(end)) if start < end => {
+            let name = step_str[..start].trim().to_uppercase();
+            let params = &step_str[start + 1..end];
+            (name, Some(params))
+        }
+        _ => {
+            let name = step_str.trim().to_uppercase();
+            (name, None)
+        }
+    };
+
+    // Parse parameters into a map
+    let mut params = std::collections::HashMap::new();
+    if let Some(params_str) = params_str {
+        for param in params_str.split(';') {
+            let param = param.trim();
+            if param.is_empty() {
+                continue;
+            }
+
+            if let Some(eq_pos) = param.find('=') {
+                let key = param[..eq_pos].trim();
+                let value = param[eq_pos + 1..].trim();
+                params.insert(key.to_string(), value.to_string());
+            } else {
+                // Treat as axis parameter for steps like EO[ud;fb]
+                params.insert("variant".to_string(), param.to_string());
+            }
+        }
+    }
+
+    // Parse niss parameter
+    let niss_type = if let Some(niss_str) = params.get("niss") {
+        match niss_str.as_str() {
+            "never" => Some(NissSwitchType::Never),
+            "before" => Some(NissSwitchType::Before),
+            "always" => Some(NissSwitchType::Always),
+            _ => return Err(format!("Unknown value niss={}", niss_str)),
+        }
+    } else {
+        None
+    };
+
+    let step = StepConfig {
+        kind: match step_name.as_str() {
+            "EO" => StepKind::EO,
+            "DR" => StepKind::DR,
+            "HTR" => StepKind::HTR,
+            "FR" => StepKind::FR,
+            "FIN" => StepKind::FIN,
+            "FINLS" => StepKind::FINLS,
+            _ => return Err(format!("Unknown step type: {}", step_name)),
+        },
+        substeps: params
+            .get("variant")
+            .and_then(|s| Some(s.split(',').map(|s| s.trim().to_string()).collect())),
+        min: None,
+        max: params.get("max").and_then(|s| s.parse::<u8>().ok()),
+        absolute_min: None,
+        absolute_max: None,
+        step_limit: params.get("limit").and_then(|s| s.parse::<usize>().ok()),
+        quality: 0,
+        niss: niss_type,
+        params: Default::default(),
+    };
+    Ok(step)
 }

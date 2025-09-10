@@ -3,9 +3,9 @@ mod eo;
 mod finish;
 mod fr;
 mod htr;
+mod insertions;
 mod slice;
 mod solver;
-mod insertions;
 
 use pyo3::prelude::*;
 use std::str::FromStr;
@@ -15,29 +15,24 @@ use pyo3::exceptions::PyValueError;
 use crate::dr::{DRFB, DRRL, DRUD};
 use crate::eo::{EOFB, EORL, EOUD};
 use crate::finish::Finish;
-use crate::insertions::Insertions;
 use crate::fr::{FRFB, FRRL, FRUD};
 use crate::htr::{HTRFB, HTRRL, HTRUD};
+use crate::insertions::Insertions;
 use crate::slice::{SliceFB, SliceRL, SliceUD};
-use crate::solver::scramble;
+use crate::solver::{group, parse_steps, scramble};
 use crate::Visibility::Any;
 use cubelib::algs::Algorithm as LibAlgorithm;
-use cubelib::cube::turn::{ApplyAlgorithm, Direction, Invertible, InvertibleMut, CubeAxis};
+use cubelib::cube::turn::{ApplyAlgorithm, Direction, Invertible, InvertibleMut};
 use cubelib::cube::{Corner, Cube333, Turn333};
-use cubelib::defs::{NissSwitchType, StepKind};
-use cubelib::solver_new::dr::DRBuilder;
-use cubelib::solver_new::eo::EOBuilder;
-use cubelib::solver_new::fr::FRBuilder;
-use cubelib::solver_new::finish::{FRFinishBuilder, HTRFinishBuilder};
+use cubelib::defs::StepKind;
 use cubelib::solver_new::group::StepGroup;
-use cubelib::solver_new::htr::HTRBuilder;
 
 #[pyclass]
 struct Solution {
     #[pyo3(get)]
     pub steps: Vec<StepInfo>,
     #[pyo3(get)]
-    algs : Vec<Algorithm>,
+    algs: Vec<Algorithm>,
 }
 
 #[derive(Clone)]
@@ -112,7 +107,9 @@ impl Algorithm {
 
     fn all_on_normal(&self) -> Algorithm {
         let alg = self.0.clone();
-        Algorithm::new("").unwrap().merge(&Algorithm(alg.to_uninverted()))
+        Algorithm::new("")
+            .unwrap()
+            .merge(&Algorithm(alg.to_uninverted()))
     }
 
     fn __repr__(&self) -> String {
@@ -236,7 +233,6 @@ fn vfmc_core(_py: Python, m: &PyModule) -> PyResult<()> {
 
     m.add_function(wrap_pyfunction!(debug, m)?)?;
     m.add_function(wrap_pyfunction!(scramble, m)?)?;
-    m.add_function(wrap_pyfunction!(mallard, m)?)?;
     Ok(())
 }
 
@@ -270,186 +266,7 @@ fn vfmc_core(_py: Python, m: &PyModule) -> PyResult<()> {
 
 #[pyfunction]
 fn debug(_cube: &Cube) -> String {
-    return "".to_string()
-}
-
-#[pyfunction]
-fn mallard(cube: &Cube, step_str: String) -> PyResult<Vec<Solution>> {
-    let cube = cube.0;
-    
-    // Parse the input string into StepGroup objects
-    let steps = parse_step_string(&step_str)?;
-    
-    let mut steps = steps;
-    steps.apply_step_limit(100);
-    let solutions = steps.into_worker(cube).take(20);
-    let mut py_solutions = vec![];
-    for sol in solutions {
-        let mut py_steps = vec![];
-        let mut py_algs = vec![];
-        for step in sol.get_steps() {
-            let variant = match step.kind {
-                    StepKind::EO | StepKind::HTR | StepKind::FR  => &step.variant,
-                    StepKind::DR => &step.variant[0..2],
-                    _ => "",
-                };
-            let variant = match variant {"lr" => "rl".to_string(), other => other.to_string()};
-            py_steps.push(StepInfo {kind: step.kind.to_string(), variant: variant});
-            py_algs.push(Algorithm(step.alg.clone()));
-        }
-        py_solutions.push(Solution{steps: py_steps, algs: py_algs});
-    }
-    Ok(py_solutions)
-}
-
-fn parse_step_string(input: &str) -> Result<StepGroup, String> {
-    let parts: Vec<&str> = input.split(" > ").map(|s| s.trim()).collect();
-    let mut step_groups = Vec::new();
-    
-    for part in parts {
-        if part.is_empty() {
-            continue;
-        }
-        
-        // Parse each step like "EO[ud;fb;min=2;max=5;niss=always;limit=10]"
-        let step_group = parse_single_step(part)?;
-        step_groups.push(step_group);
-    }
-    
-    if step_groups.is_empty() {
-        return Err("No valid steps found".to_string());
-    }
-    
-    Ok(StepGroup::sequential(step_groups))
-}
-
-fn parse_single_step(step_str: &str) -> Result<StepGroup, String> {
-    // Find the step name and parameters
-    let bracket_start = step_str.find('[');
-    let bracket_end = step_str.find(']');
-    
-    let (step_name, params_str) = match (bracket_start, bracket_end) {
-        (Some(start), Some(end)) if start < end => {
-            let name = step_str[..start].trim().to_uppercase();
-            let params = &step_str[start+1..end];
-            (name, Some(params))
-        }
-        _ => {
-            let name = step_str.trim().to_uppercase();
-            (name, None)
-        }
-    };
-    
-    // Parse parameters into a map
-    let mut params = std::collections::HashMap::new();
-    if let Some(params_str) = params_str {
-        for param in params_str.split(';') {
-            let param = param.trim();
-            if param.is_empty() {
-                continue;
-            }
-            
-            if let Some(eq_pos) = param.find('=') {
-                let key = param[..eq_pos].trim();
-                let value = param[eq_pos+1..].trim();
-                params.insert(key.to_string(), value.to_string());
-            } else {
-                // Treat as axis parameter for steps like EO[ud;fb]
-                params.insert("axis".to_string(), param.to_string());
-            }
-        }
-    }
-    
-    // Parse niss parameter
-    let niss_type = if let Some(niss_str) = params.get("niss") {
-        match niss_str.as_str() {
-            "never" => NissSwitchType::Never,
-            "before" => NissSwitchType::Before,
-            "always" => NissSwitchType::Always,
-            _ => NissSwitchType::Before, // default
-        }
-    } else {
-        NissSwitchType::Before // default
-    };
-    
-    // Parse max_length parameter
-    let max_length = if let Some(max_str) = params.get("max") {
-        max_str.parse::<usize>().unwrap_or(10)
-    } else {
-        10 // default
-    };
-    
-    // Parse axis parameters - collect all axis-like parameters
-    let mut axis_vec = Vec::new();
-    for (key, value) in &params {
-        match key.as_str() {
-            "axis" => {
-                // Handle comma-separated axis values
-                for axis_str in value.split(',') {
-                    match axis_str.trim().to_lowercase().as_str() {
-                        "ud" => axis_vec.push(CubeAxis::UD),
-                        "fb" => axis_vec.push(CubeAxis::FB),
-                        "lr" => axis_vec.push(CubeAxis::LR),
-                        _ => {} // ignore unknown axis
-                    }
-                }
-            }
-            // Also handle individual axis parameters like "ud", "fb", "lr"
-            _ => {
-                match key.as_str() {
-                    "ud" => axis_vec.push(CubeAxis::UD),
-                    "fb" => axis_vec.push(CubeAxis::FB),
-                    "lr" => axis_vec.push(CubeAxis::LR),
-                    _ => {} // ignore other parameters
-                }
-            }
-        }
-    }
-    
-    // Default to all axes if none specified
-    if axis_vec.is_empty() {
-        axis_vec = vec![CubeAxis::UD, CubeAxis::FB, CubeAxis::LR];
-    }
-    
-    // Create the appropriate step based on the name
-    match step_name.as_str() {
-        "EO" => {
-            let builder = EOBuilder::default();
-            let builder = builder.niss(niss_type).max_length(max_length).eo_axis(axis_vec);
-            Ok(builder.build())
-        }
-        "DR" => {
-            let builder = DRBuilder::default();
-            let builder = builder.niss(niss_type).max_length(max_length);
-            Ok(builder.build())
-        }
-        "HTR" => {
-            let builder = HTRBuilder::default();
-            let builder = builder.niss(niss_type).max_length(max_length);
-            Ok(builder.build())
-        }
-        "FR" | "FRLS" => {
-            let builder = FRBuilder::default();
-            let builder = builder.niss(niss_type).max_length(max_length);
-            Ok(builder.build())
-        }
-        "FIN" => {
-            let builder = FRFinishBuilder::default();
-            let builder = builder.max_length(max_length);
-            Ok(builder.build())
-        }
-        "FINLS" => {
-            let builder = FRFinishBuilder::default();
-            let builder = builder.max_length(max_length);
-            Ok(builder.build())
-        }
-        "HTRFIN" => {
-            let builder = HTRFinishBuilder::default();
-            let builder = builder.max_length(max_length);
-            Ok(builder.build())
-        }
-        _ => Err(format!("Unknown step type: {}", step_name))
-    }
+    return "".to_string();
 }
 
 trait DrawableCorner {
@@ -569,6 +386,46 @@ impl StepInfo {
         self.step()
             .map_err(|e| PyValueError::new_err(e.to_string()))?
             .solve(&cube.0, count)
+    }
+
+    fn solve_steps(&self, cube: &Cube, count: usize, steps_str: &str) -> PyResult<Vec<Solution>> {
+        let cube = cube.0;
+
+        let active_step = self.step().map_err(|_|PyValueError::new_err("Invalid step"))?;
+
+        // Parse the input string into StepGroup objects
+        let step_configs = parse_steps(&steps_str)
+            .map_err(|s| PyValueError::new_err(s))?;
+        let mut steps = group(&active_step, &step_configs).map_err(|s| PyValueError::new_err(s))?;
+
+        steps.apply_step_limit(100);
+        let solutions = steps.into_worker(cube).take(count);
+        let mut py_solutions = vec![];
+        for sol in solutions {
+            let mut py_steps = vec![];
+            let mut py_algs = vec![];
+            for step in sol.get_steps() {
+                let variant = match step.kind {
+                    StepKind::EO | StepKind::HTR | StepKind::FR => &step.variant,
+                    StepKind::DR => &step.variant[0..2],
+                    _ => "",
+                };
+                let variant = match variant {
+                    "lr" => "rl".to_string(),
+                    other => other.to_string(),
+                };
+                py_steps.push(StepInfo {
+                    kind: step.kind.to_string(),
+                    variant: variant,
+                });
+                py_algs.push(Algorithm(step.alg.clone()));
+            }
+            py_solutions.push(Solution {
+                steps: py_steps,
+                algs: py_algs,
+            });
+        }
+        Ok(py_solutions)
     }
 
     #[new]

@@ -6,6 +6,7 @@ import traceback
 import re
 from dataclasses import dataclass
 from functools import cached_property
+from sys import exc_info
 from typing import List, Set, Optional
 from importlib.metadata import version
 
@@ -39,7 +40,7 @@ from vfmc import prefs
 from vfmc.palette import Palette
 from vfmc.prefs import preferences, SortOrder
 from vfmc.viz import CubeViz, CubeWidget
-from vfmc_core import Cube, Algorithm, StepInfo, scramble as gen_scramble, mallard
+from vfmc_core import Cube, Algorithm, StepInfo, scramble as gen_scramble
 
 # Basic set of cube moves
 MOVE_REGEX = r"[rRuUfFlLdDbB '2]*"
@@ -1068,8 +1069,8 @@ class Commands:
         self.window.set_status(debug(self.attempt.cube, s))
         return CommandResult(add_to_history=[])
 
-    def mallard(self, step):
-        core_solutions = mallard(self.attempt.cube, step)
+    def mallard(self, steps_str):
+        core_solutions = self.attempt.solution.step_info.solve_steps(self.attempt.cube, 10, steps_str)
         solutions = []
         for sol in core_solutions:
             try:
@@ -1083,6 +1084,7 @@ class Commands:
                     )
                 solutions.append(previous)
             except:
+                print(exc_info())
                 pass
         self._save_all(solutions)
         return CommandResult(add_to_history=[])

@@ -4,10 +4,10 @@ use crate::{
     Algorithm, DrawableCorner, Solvable, CORNER_FB_FACELETS, CORNER_RL_FACELETS,
     CORNER_UD_FACELETS, EDGE_FB_FACELETS, EDGE_RL_FACELETS, EDGE_UD_FACELETS,
 };
+use cubelib::algs::Algorithm as LibAlgorithm;
 use cubelib::cube::turn::{ApplyAlgorithm, TransformableMut};
 use cubelib::cube::{Cube333, Transformation333};
 use cubelib::defs::{NissSwitchType, StepKind};
-use cubelib::algs::Algorithm as LibAlgorithm;
 use cubelib::steps::coord::Coord;
 use cubelib::steps::fr::coords::FRUDNoSliceCoord;
 use pyo3::PyResult;
