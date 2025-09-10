@@ -22,8 +22,15 @@ use crate::slice::{SliceFB, SliceRL, SliceUD};
 use crate::solver::scramble;
 use crate::Visibility::Any;
 use cubelib::algs::Algorithm as LibAlgorithm;
-use cubelib::cube::turn::{ApplyAlgorithm, Direction, Invertible, InvertibleMut};
+use cubelib::cube::turn::{ApplyAlgorithm, Direction, Invertible, InvertibleMut, CubeAxis};
 use cubelib::cube::{Corner, Cube333, Turn333};
+use cubelib::defs::NissSwitchType;
+use cubelib::solver_new::dr::DRBuilder;
+use cubelib::solver_new::eo::EOBuilder;
+use cubelib::solver_new::fr::FRBuilder;
+use cubelib::solver_new::finish::{FRFinishBuilder, HTRFinishBuilder};
+use cubelib::solver_new::group::StepGroup;
+use cubelib::solver_new::htr::HTRBuilder;
 
 #[pyclass]
 struct Algorithm(LibAlgorithm);
@@ -251,13 +258,176 @@ fn vfmc_core(_py: Python, m: &PyModule) -> PyResult<()> {
 // }
 
 #[pyfunction]
-fn debug(cube: &Cube) -> String {
+fn debug(cube: &Cube, s: String) -> String {
     let cube = cube.0;
-    let e = cube.edges.get_edges();
-    format!(
-        "4: {} 5: {} 6: {} 7: {}",
-        e[4].id, e[5].id, e[6].id, e[7].id,
-    )
+    
+    // Parse the input string into StepGroup objects
+    let steps = parse_step_string(&s).unwrap_or_else(|e| {
+        println!("Parse error: {}", e);
+        // Fallback to default steps
+        let eo = EOBuilder::default().build();
+        let dr = DRBuilder::default().build();
+        let htr = HTRBuilder::default().build();
+        StepGroup::sequential(vec![eo, dr, htr])
+    });
+    
+    let mut steps = steps;
+    steps.apply_step_limit(100);
+    let solutions = steps.into_worker(cube).take(20);
+    for sol in solutions {
+        println!("Solution: {}", sol);
+    }
+    "Debug complete".to_string()
+}
+
+fn parse_step_string(input: &str) -> Result<StepGroup, String> {
+    let parts: Vec<&str> = input.split(" > ").map(|s| s.trim()).collect();
+    let mut step_groups = Vec::new();
+    
+    for part in parts {
+        if part.is_empty() {
+            continue;
+        }
+        
+        // Parse each step like "EO[ud;fb;min=2;max=5;niss=always;limit=10]"
+        let step_group = parse_single_step(part)?;
+        step_groups.push(step_group);
+    }
+    
+    if step_groups.is_empty() {
+        return Err("No valid steps found".to_string());
+    }
+    
+    Ok(StepGroup::sequential(step_groups))
+}
+
+fn parse_single_step(step_str: &str) -> Result<StepGroup, String> {
+    // Find the step name and parameters
+    let bracket_start = step_str.find('[');
+    let bracket_end = step_str.find(']');
+    
+    let (step_name, params_str) = match (bracket_start, bracket_end) {
+        (Some(start), Some(end)) if start < end => {
+            let name = step_str[..start].trim().to_uppercase();
+            let params = &step_str[start+1..end];
+            (name, Some(params))
+        }
+        _ => {
+            let name = step_str.trim().to_uppercase();
+            (name, None)
+        }
+    };
+    
+    // Parse parameters into a map
+    let mut params = std::collections::HashMap::new();
+    if let Some(params_str) = params_str {
+        for param in params_str.split(';') {
+            let param = param.trim();
+            if param.is_empty() {
+                continue;
+            }
+            
+            if let Some(eq_pos) = param.find('=') {
+                let key = param[..eq_pos].trim();
+                let value = param[eq_pos+1..].trim();
+                params.insert(key.to_string(), value.to_string());
+            } else {
+                // Treat as axis parameter for steps like EO[ud;fb]
+                params.insert("axis".to_string(), param.to_string());
+            }
+        }
+    }
+    
+    // Parse niss parameter
+    let niss_type = if let Some(niss_str) = params.get("niss") {
+        match niss_str.as_str() {
+            "never" => NissSwitchType::Never,
+            "before" => NissSwitchType::Before,
+            "always" => NissSwitchType::Always,
+            _ => NissSwitchType::Before, // default
+        }
+    } else {
+        NissSwitchType::Before // default
+    };
+    
+    // Parse max_length parameter
+    let max_length = if let Some(max_str) = params.get("max") {
+        max_str.parse::<usize>().unwrap_or(10)
+    } else {
+        10 // default
+    };
+    
+    // Parse axis parameters - collect all axis-like parameters
+    let mut axis_vec = Vec::new();
+    for (key, value) in &params {
+        match key.as_str() {
+            "axis" => {
+                // Handle comma-separated axis values
+                for axis_str in value.split(',') {
+                    match axis_str.trim().to_lowercase().as_str() {
+                        "ud" => axis_vec.push(CubeAxis::UD),
+                        "fb" => axis_vec.push(CubeAxis::FB),
+                        "lr" => axis_vec.push(CubeAxis::LR),
+                        _ => {} // ignore unknown axis
+                    }
+                }
+            }
+            // Also handle individual axis parameters like "ud", "fb", "lr"
+            _ => {
+                match key.as_str() {
+                    "ud" => axis_vec.push(CubeAxis::UD),
+                    "fb" => axis_vec.push(CubeAxis::FB),
+                    "lr" => axis_vec.push(CubeAxis::LR),
+                    _ => {} // ignore other parameters
+                }
+            }
+        }
+    }
+    
+    // Default to all axes if none specified
+    if axis_vec.is_empty() {
+        axis_vec = vec![CubeAxis::UD, CubeAxis::FB, CubeAxis::LR];
+    }
+    
+    // Create the appropriate step based on the name
+    match step_name.as_str() {
+        "EO" => {
+            let mut builder = EOBuilder::default();
+            let builder = builder.niss(niss_type).max_length(max_length).eo_axis(axis_vec);
+            Ok(builder.build())
+        }
+        "DR" => {
+            let mut builder = DRBuilder::default();
+            let builder = builder.niss(niss_type).max_length(max_length);
+            Ok(builder.build())
+        }
+        "HTR" => {
+            let mut builder = HTRBuilder::default();
+            let builder = builder.niss(niss_type).max_length(max_length);
+            Ok(builder.build())
+        }
+        "FR" | "FRLS" => {
+            let mut builder = FRBuilder::default();
+            let builder = builder.niss(niss_type).max_length(max_length);
+            Ok(builder.build())
+        }
+        "FIN" => {
+            let mut builder = FRFinishBuilder::default();
+            let builder = builder.niss(niss_type).max_length(max_length);
+            Ok(builder.build())
+        }
+        "FINLS" => {
+            let mut builder = FRFinishBuilder::default();
+            let builder = builder.niss(niss_type).max_length(max_length);
+            Ok(builder.build())
+        }
+        "HTRFIN" => {
+            let mut builder = HTRFinishBuilder::default();
+            let builder = builder.niss(niss_type).max_length(max_length);
+            Ok(builder.build())
+        }
+        _ => Err(format!("Unknown step type: {}", step_name))
+    }
 }
 
 trait DrawableCorner {

@@ -1062,10 +1062,10 @@ class Commands:
             logging.error(sys.exc_info())
             self.window.set_status(f"Error: {e}")
 
-    def debug(self):
+    def debug(self, s):
         from vfmc_core import debug
 
-        self.window.set_status(debug(self.attempt.cube))
+        self.window.set_status(debug(self.attempt.cube, s))
         return CommandResult(add_to_history=[])
 
     def help(self):
