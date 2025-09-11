@@ -1069,7 +1069,7 @@ class Commands:
         self.window.set_status(debug(self.attempt.cube, s))
         return CommandResult(add_to_history=[])
 
-    def mallard(self, steps_str, count):
+    def mallard(self, steps_str, count=1):
         core_solutions = self.attempt.solution.step_info.solve_steps(
             self.attempt.cube, count, steps_str
         )
@@ -1166,6 +1166,15 @@ class Commands:
             self.window.set_status(
                 """No DR step found. Specify axis="..." to set the FR axis"""
             )
+
+    def frud(self):
+        self.fr("ud")
+
+    def frfb(self):
+        self.fr("fb")
+
+    def frrl(self):
+        self.fr("rl")
 
     def finish(self, axis=None):
         self.window.set_step("finish", "")

@@ -61,7 +61,7 @@ class PartialSolution:
             if self.previous.kind == "eo":
                 if orientation.front not in self.previous.variant:
                     orientation = orientation.y(1)
-            else:
+            elif self.kind != "fr":
                 orientation = Orientation(
                     self.previous.orientation.top, self.previous.orientation.front
                 )
@@ -532,6 +532,6 @@ class InsertionsStep(PartialSolution):
 
 def step_name(kind, variant):
     s = kind
-    if s not in {"htr", "fr"}:
+    if s not in ["htr"]:
         s = f"{s}{variant}"
     return s

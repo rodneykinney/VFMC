@@ -241,10 +241,10 @@ class CubeViz:
             piece_id, orientation = corners[i]
             for side in range(0, 3):
                 face = (side + 3 - orientation) % 3
-                self.colors[CORNER_POSITION_FACELETS[i][side]] = (
-                    palette.color_of_corner(
-                        CORNER_PIECE_COLORS[piece_id][face], corner_visibility[i][side]
-                    )
+                self.colors[
+                    CORNER_POSITION_FACELETS[i][side]
+                ] = palette.color_of_corner(
+                    CORNER_PIECE_COLORS[piece_id][face], corner_visibility[i][side]
                 )
         edges = self.attempt.cube.edges()
         edge_visibility = self.attempt.edge_visibility()
