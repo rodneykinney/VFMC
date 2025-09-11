@@ -25,7 +25,6 @@ use cubelib::algs::Algorithm as LibAlgorithm;
 use cubelib::cube::turn::{ApplyAlgorithm, Direction, Invertible, InvertibleMut};
 use cubelib::cube::{Corner, Cube333, Turn333};
 use cubelib::defs::StepKind;
-use cubelib::solver_new::group::StepGroup;
 
 #[pyclass]
 struct Solution {
@@ -391,13 +390,9 @@ impl StepInfo {
     fn solve_steps(&self, cube: &Cube, count: usize, steps_str: &str) -> PyResult<Vec<Solution>> {
         let cube = cube.0;
 
-        let active_step = self
-            .step()
-            .map_err(|_| PyValueError::new_err("Invalid step"))?;
-
         // Parse the input string into StepGroup objects
         let step_configs = parse_steps(&steps_str).map_err(|s| PyValueError::new_err(s))?;
-        let mut steps = group(&active_step, &step_configs).map_err(|s| PyValueError::new_err(s))?;
+        let mut steps = group(StepKind::from_str(self.kind.as_str())?, &step_configs).map_err(|s| PyValueError::new_err(s))?;
 
         steps.apply_step_limit(100);
         let solutions = steps.into_worker(cube).take(count);

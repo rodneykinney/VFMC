@@ -18,7 +18,7 @@ use cubelib::steps::step::StepConfig;
 use pyo3::exceptions::PyValueError;
 use pyo3::{pyfunction, PyResult};
 
-use crate::{Algorithm, Solvable};
+use crate::Algorithm;
 
 #[pyfunction]
 pub fn scramble() -> PyResult<String> {
@@ -41,12 +41,30 @@ pub fn scramble() -> PyResult<String> {
     Ok(format!("{}", alg))
 }
 
-pub fn group(active_step: &impl Solvable, steps: &Vec<StepConfig>) -> Result<StepGroup, String> {
-    let step_groups = steps
+pub fn group(active_step: StepKind, steps_to_solve: &Vec<StepConfig>) -> Result<StepGroup, String> {
+    if steps_to_solve.is_empty() {
+        return Err("No steps provided".to_string());
+    }
+    match (active_step.clone(), &steps_to_solve[0].kind) {
+        (StepKind::Other(s), StepKind::DR | StepKind::HTR | StepKind::FR | StepKind::FIN) if s == "" => return Err(format!("Cannot jump to {}", &steps_to_solve[0].kind)),
+        (StepKind::EO, StepKind::DR | StepKind::HTR | StepKind::FR | StepKind::FIN)
+        | (StepKind::DR, StepKind::HTR | StepKind::FR | StepKind::FIN) => return Err(format!("Must solve {} before {}", active_step, &steps_to_solve[0].kind)),
+        (StepKind::DR | StepKind::HTR | StepKind::FR | StepKind::FIN, StepKind::EO)
+        | (StepKind::HTR | StepKind::FR | StepKind::FIN, StepKind::DR)
+        | (StepKind::FR | StepKind::FIN, StepKind::HTR)
+        | (StepKind::FIN, StepKind::FR) => return Err(format!("Already in {}",&steps_to_solve[0].kind)),
+        (StepKind::Other(s), _) if s == "insertions" => return Err(format!("Already in {}",&steps_to_solve[0].kind)),
+        _ => (),
+    }
+    let step_groups = steps_to_solve
         .into_iter()
         .map(single_step)
         .collect::<Result<Vec<StepGroup>, _>>()?;
-    Ok(StepGroup::sequential(step_groups))
+    let mut group = StepGroup::sequential(step_groups);
+    if vec![StepKind::EO, StepKind::DR, StepKind::HTR].contains(&steps_to_solve.last().unwrap().kind) {
+        group.with_predicates(vec![FilterLastMoveNotPrime::new()]);
+    }
+    Ok(group)
 }
 
 fn single_step(step: &StepConfig) -> Result<StepGroup, String> {
@@ -180,7 +198,7 @@ impl<F: Fn(&Cube333, &LibAlgorithm) -> T + Sync + Send, T: Eq + Hash + Sync + Se
 
 pub fn parse_steps(steps_str: &str) -> Result<Vec<StepConfig>, String> {
     let parts: Vec<&str> = steps_str.split(" > ").map(|s| s.trim()).collect();
-    let mut step_groups = Vec::new();
+    let mut steps = Vec::new();
 
     for part in parts {
         if part.is_empty() {
@@ -189,14 +207,12 @@ pub fn parse_steps(steps_str: &str) -> Result<Vec<StepConfig>, String> {
 
         // Parse each step like "EO[ud;fb;min=2;max=5;niss=always;limit=10]"
         let step_group = parse_single_step(part)?;
-        step_groups.push(step_group);
+        steps.push(step_group);
     }
-
-    if step_groups.is_empty() {
+    if steps.is_empty() {
         return Err("No valid steps found".to_string());
     }
-
-    Ok(step_groups)
+    Ok(steps)
 }
 
 pub fn parse_single_step(step_str: &str) -> Result<StepConfig, String> {
@@ -230,7 +246,7 @@ pub fn parse_single_step(step_str: &str) -> Result<StepConfig, String> {
                 let value = param[eq_pos + 1..].trim();
                 params.insert(key.to_string(), value.to_string());
             } else {
-                // Treat as axis parameter for steps like EO[ud;fb]
+                // No key means it's a variant
                 params.insert("variant".to_string(), param.to_string());
             }
         }
@@ -262,10 +278,10 @@ pub fn parse_single_step(step_str: &str) -> Result<StepConfig, String> {
             .get("variant")
             .and_then(|s| Some(s.split(',').map(|s| s.trim().to_string()).collect())),
         min: None,
-        max: params.get("max").and_then(|s| s.parse::<u8>().ok()),
+        max: params.get("max").map(|s| s.parse::<u8>().map_err(|_| format!("Invalid value max={}", s))).transpose()?,
         absolute_min: None,
-        absolute_max: None,
-        step_limit: params.get("limit").and_then(|s| s.parse::<usize>().ok()),
+        absolute_max: params.get("abs-max").map(|s| s.parse::<u8>().map_err(|_| format!("Invalid value value abs-max={}", s))).transpose()?,
+        step_limit: params.get("limit").map(|s| s.parse::<usize>().map_err(|_| format!("Invalid value value limit={}", s))).transpose()?,
         quality: 0,
         niss: niss_type,
         params: Default::default(),
