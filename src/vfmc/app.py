@@ -1230,7 +1230,6 @@ class Commands:
             index = self.attempt.solutions_by_kind()[sol.kind].index(sol) + 1
             self.execute(f'check("{sol.kind}",{index})')
 
-
     def _save_multi_step_solutions(self, solutions):
         commands = []
         if solutions:

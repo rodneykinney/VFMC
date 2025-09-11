@@ -46,14 +46,27 @@ pub fn group(active_step: StepKind, steps_to_solve: &Vec<StepConfig>) -> Result<
         return Err("No steps provided".to_string());
     }
     match (active_step.clone(), &steps_to_solve[0].kind) {
-        (StepKind::Other(s), StepKind::DR | StepKind::HTR | StepKind::FR | StepKind::FIN) if s == "" => return Err(format!("Cannot jump to {}", &steps_to_solve[0].kind)),
+        (StepKind::Other(s), StepKind::DR | StepKind::HTR | StepKind::FR | StepKind::FIN)
+            if s == "" =>
+        {
+            return Err(format!("Cannot jump to {}", &steps_to_solve[0].kind))
+        }
         (StepKind::EO, StepKind::DR | StepKind::HTR | StepKind::FR | StepKind::FIN)
-        | (StepKind::DR, StepKind::HTR | StepKind::FR | StepKind::FIN) => return Err(format!("Must solve {} before {}", active_step, &steps_to_solve[0].kind)),
+        | (StepKind::DR, StepKind::HTR | StepKind::FR | StepKind::FIN) => {
+            return Err(format!(
+                "Must solve {} before {}",
+                active_step, &steps_to_solve[0].kind
+            ))
+        }
         (StepKind::DR | StepKind::HTR | StepKind::FR | StepKind::FIN, StepKind::EO)
         | (StepKind::HTR | StepKind::FR | StepKind::FIN, StepKind::DR)
         | (StepKind::FR | StepKind::FIN, StepKind::HTR)
-        | (StepKind::FIN, StepKind::FR) => return Err(format!("Already in {}",&steps_to_solve[0].kind)),
-        (StepKind::Other(s), _) if s == "insertions" => return Err(format!("Already in {}",&steps_to_solve[0].kind)),
+        | (StepKind::FIN, StepKind::FR) => {
+            return Err(format!("Already in {}", &steps_to_solve[0].kind))
+        }
+        (StepKind::Other(s), _) if s == "insertions" => {
+            return Err(format!("Already in {}", &steps_to_solve[0].kind))
+        }
         _ => (),
     }
     let step_groups = steps_to_solve
@@ -61,7 +74,9 @@ pub fn group(active_step: StepKind, steps_to_solve: &Vec<StepConfig>) -> Result<
         .map(single_step)
         .collect::<Result<Vec<StepGroup>, _>>()?;
     let mut group = StepGroup::sequential(step_groups);
-    if vec![StepKind::EO, StepKind::DR, StepKind::HTR].contains(&steps_to_solve.last().unwrap().kind) {
+    if vec![StepKind::EO, StepKind::DR, StepKind::HTR]
+        .contains(&steps_to_solve.last().unwrap().kind)
+    {
         group.with_predicates(vec![FilterLastMoveNotPrime::new()]);
     }
     Ok(group)
@@ -278,10 +293,28 @@ pub fn parse_single_step(step_str: &str) -> Result<StepConfig, String> {
             .get("variant")
             .and_then(|s| Some(s.split(',').map(|s| s.trim().to_string()).collect())),
         min: None,
-        max: params.get("max").map(|s| s.parse::<u8>().map_err(|_| format!("Invalid value max={}", s))).transpose()?,
+        max: params
+            .get("max")
+            .map(|s| {
+                s.parse::<u8>()
+                    .map_err(|_| format!("Invalid value max={}", s))
+            })
+            .transpose()?,
         absolute_min: None,
-        absolute_max: params.get("abs-max").map(|s| s.parse::<u8>().map_err(|_| format!("Invalid value value abs-max={}", s))).transpose()?,
-        step_limit: params.get("limit").map(|s| s.parse::<usize>().map_err(|_| format!("Invalid value value limit={}", s))).transpose()?,
+        absolute_max: params
+            .get("abs-max")
+            .map(|s| {
+                s.parse::<u8>()
+                    .map_err(|_| format!("Invalid value value abs-max={}", s))
+            })
+            .transpose()?,
+        step_limit: params
+            .get("limit")
+            .map(|s| {
+                s.parse::<usize>()
+                    .map_err(|_| format!("Invalid value value limit={}", s))
+            })
+            .transpose()?,
         quality: 0,
         niss: niss_type,
         params: Default::default(),

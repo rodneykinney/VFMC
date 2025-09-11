@@ -392,7 +392,8 @@ impl StepInfo {
 
         // Parse the input string into StepGroup objects
         let step_configs = parse_steps(&steps_str).map_err(|s| PyValueError::new_err(s))?;
-        let mut steps = group(StepKind::from_str(self.kind.as_str())?, &step_configs).map_err(|s| PyValueError::new_err(s))?;
+        let mut steps = group(StepKind::from_str(self.kind.as_str())?, &step_configs)
+            .map_err(|s| PyValueError::new_err(s))?;
 
         steps.apply_step_limit(100);
         let solutions = steps.into_worker(cube).take(count);
