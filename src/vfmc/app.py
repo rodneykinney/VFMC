@@ -1190,32 +1190,32 @@ class Commands:
             self.window.set_status(
                 f"Found {len(solutions)} solution{'' if len(solutions) == 1 else 's'}"
             )
+            self._save_all(solutions)
         else:
             self.window.set_status(
                 f"No solutions found for {self.attempt.solution.kind}{self.attempt.solution.variant}"
             )
-        self._save_single_step_solutions(solutions)
         return CommandResult(add_to_history=[])
 
     def mallard(self, steps_str, count=1):
         solutions = self.attempt.mallard(steps_str, count)
         if solutions:
-            self._save_multi_step_solutions(solutions)
+            self._save_all(solutions)
         else:
-            self.window.set_status("No solutions found")
+            self.window.set_status(f'No solutions found for "{steps_str}"')
         return CommandResult(add_to_history=[])
 
     def _save_all(self, solutions):
         commands = []
-        for soln in solutions:
-            for sol in soln.substeps():
-                commands.append(step_name(sol.kind, sol.variant))
-                if sol.alg.normal_moves():
+        for sol in solutions:
+            for step in sol.substeps():
+                commands.append(step_name(step.kind, step.variant))
+                if step.alg.normal_moves():
                     commands.append("set_inverse(False)")
-                    commands.append(" ".join(sol.alg.normal_moves()))
-                if sol.alg.inverse_moves():
+                    commands.append(" ".join(step.alg.normal_moves()))
+                if step.alg.inverse_moves():
                     commands.append("set_inverse(True)")
-                    commands.append(" ".join(sol.alg.inverse_moves()))
+                    commands.append(" ".join(step.alg.inverse_moves()))
                 commands.append("save")
         commands.append(f"set_inverse({self.attempt.inverse})")
         commands.append(
@@ -1225,10 +1225,10 @@ class Commands:
         for cmd in commands:
             self.execute(cmd)
         if len(solutions) == 1:
-            sol = solutions[0].clone()
-            sol.previous = self.attempt.solution.previous
-            index = self.attempt.solutions_by_kind()[sol.kind].index(sol) + 1
-            self.execute(f'check("{sol.kind}",{index})')
+            step = solutions[0].clone()
+            step.previous = self.attempt.solution.previous
+            index = self.attempt.solutions_by_kind()[step.kind].index(step) + 1
+            self.execute(f'check("{step.kind}",{index})')
 
     def comment(self, s: str):
         sol = self.attempt.solution

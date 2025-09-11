@@ -364,8 +364,8 @@ class Attempt:
 
     def mallard(self, steps_str, num_solutions: int):
         core_solutions = self.solution.step_info.solve_steps(
-                self.cube, num_solutions, steps_str
-            )
+            self.cube, num_solutions, steps_str
+        )
         solutions = []
         for sol in core_solutions:
             previous = None
@@ -378,11 +378,10 @@ class Attempt:
                     kind=step.kind,
                     variant=step.variant,
                     alg=merged_alg,
-                    previous=previous
+                    previous=previous,
                 )
             solutions.append(previous)
         return solutions
-
 
     def save(self, allow_advance=True) -> Optional[PartialSolution]:
         sol = self.solution.clone()
