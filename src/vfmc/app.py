@@ -1069,24 +1069,6 @@ class Commands:
         self.window.set_status(debug(self.attempt.cube, s))
         return CommandResult(add_to_history=[])
 
-    def mallard(self, steps_str, count=1):
-        core_solutions = self.attempt.solution.step_info.solve_steps(
-            self.attempt.cube, count, steps_str
-        )
-        solutions = []
-        for sol in core_solutions:
-            previous = None
-            for step, alg in zip(sol.steps, sol.algs):
-                previous = PartialSolution(
-                    kind=step.kind, variant=step.variant, alg=alg, previous=previous
-                )
-            solutions.append(previous)
-        if solutions:
-            self._save_multi_step_solutions(solutions)
-        else:
-            self.window.set_status("No solutions found")
-        return CommandResult(add_to_history=[])
-
     def help(self):
         self.window.show_help()
         return CommandResult(add_to_history=[])
@@ -1195,15 +1177,15 @@ class Commands:
         """Switch between normal and inverse scramble"""
         self.attempt.set_inverse(not self.attempt.inverse)
 
-    def solve(self, num_solutions: int = 1):
+    def solve(self, count: int = 1):
         """Find and save solutions for the current step"""
-        if num_solutions > 50:
+        if count > 50:
             self.window.set_status("Maximum of 50 solutions per solve")
             return
         self.window.set_status(
             f"Finding solutions for {self.attempt.solution.kind}{self.attempt.solution.variant}..."
         )
-        solutions = self.attempt.solve(num_solutions)
+        solutions = self.attempt.solve(count)
         if solutions:
             self.window.set_status(
                 f"Found {len(solutions)} solution{'' if len(solutions) == 1 else 's'}"
@@ -1215,19 +1197,27 @@ class Commands:
         self._save_single_step_solutions(solutions)
         return CommandResult(add_to_history=[])
 
-    def _save_single_step_solutions(self, solutions):
+    def mallard(self, steps_str, count=1):
+        solutions = self.attempt.mallard(steps_str, count)
+        if solutions:
+            self._save_multi_step_solutions(solutions)
+        else:
+            self.window.set_status("No solutions found")
+        return CommandResult(add_to_history=[])
+
+    def _save_all(self, solutions):
         commands = []
-        was_inverse = self.attempt.inverse
-        for sol in solutions:
-            commands.append(step_name(sol.kind, sol.variant))
-            if sol.alg.normal_moves():
-                commands.append("set_inverse(False)")
-                commands.append(" ".join(sol.alg.normal_moves()))
-            if sol.alg.inverse_moves():
-                commands.append("set_inverse(True)")
-                commands.append(" ".join(sol.alg.inverse_moves()))
-            commands.append("save")
-        commands.append(f"set_inverse({was_inverse})")
+        for soln in solutions:
+            for sol in soln.substeps():
+                commands.append(step_name(sol.kind, sol.variant))
+                if sol.alg.normal_moves():
+                    commands.append("set_inverse(False)")
+                    commands.append(" ".join(sol.alg.normal_moves()))
+                if sol.alg.inverse_moves():
+                    commands.append("set_inverse(True)")
+                    commands.append(" ".join(sol.alg.inverse_moves()))
+                commands.append("save")
+        commands.append(f"set_inverse({self.attempt.inverse})")
         commands.append(
             step_name(self.attempt.solution.kind, self.attempt.solution.variant)
         )
@@ -1235,30 +1225,10 @@ class Commands:
         for cmd in commands:
             self.execute(cmd)
         if len(solutions) == 1:
-            sol = solutions[0]
+            sol = solutions[0].clone()
+            sol.previous = self.attempt.solution.previous
             index = self.attempt.solutions_by_kind()[sol.kind].index(sol) + 1
             self.execute(f'check("{sol.kind}",{index})')
-
-    def _save_multi_step_solutions(self, solutions):
-        commands = []
-        if solutions:
-            for soln in solutions:
-                for sol in soln.substeps():
-                    commands.append(step_name(sol.kind, sol.variant))
-                    if sol.alg.normal_moves():
-                        commands.append(f"set_inverse({self.attempt.inverse})")
-                        commands.append(" ".join(sol.alg.normal_moves()))
-                    if sol.alg.inverse_moves():
-                        commands.append(f"set_inverse({not self.attempt.inverse})")
-                        commands.append(" ".join(sol.alg.inverse_moves()))
-                    commands.append("save(False)")
-            commands.append(f"set_inverse({self.attempt.inverse})")
-            commands.append(
-                step_name(self.attempt.solution.kind, self.attempt.solution.variant)
-            )
-
-        for cmd in commands:
-            self.execute(cmd)
 
     def comment(self, s: str):
         sol = self.attempt.solution

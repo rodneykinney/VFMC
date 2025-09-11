@@ -342,25 +342,47 @@ class Attempt:
     def solve(self, num_solutions: int) -> List[PartialSolution]:
         """Find solutions for the current step"""
         sol = self.solution
-        existing = set(str(s) for s in self.solutions_for_step(sol.kind, sol.variant))
+        existing = self.solutions_for_step(sol.kind, sol.variant)
         algs = sol.step_info.solve(self.cube, len(existing) + num_solutions)
         solutions = []
         for alg in algs:
             if self.inverse:
                 alg = alg.on_inverse()
-            base_alg = Algorithm(str(sol.alg))
-            base_alg.merge(alg)
+            merged_alg = Algorithm(str(sol.alg))
+            merged_alg.merge(alg)
             s = PartialSolution.create(
                 kind=sol.kind,
                 variant=sol.variant,
-                previous=sol.previous,
-                alg=sol.alg.merge(alg),
+                previous=None,
+                alg=merged_alg,
             )
-            if str(s) not in existing:
+            if s not in existing:
                 solutions.append(s)
             if len(solutions) >= num_solutions:
                 break
         return solutions
+
+    def mallard(self, steps_str, num_solutions: int):
+        core_solutions = self.solution.step_info.solve_steps(
+                self.cube, num_solutions, steps_str
+            )
+        solutions = []
+        for sol in core_solutions:
+            previous = None
+            for step, alg in zip(sol.steps, sol.algs):
+                if self.inverse:
+                    alg = alg.on_inverse()
+                merged_alg = Algorithm(str(sol.alg))
+                merged_alg.merge(alg)
+                previous = PartialSolution(
+                    kind=step.kind,
+                    variant=step.variant,
+                    alg=merged_alg,
+                    previous=previous
+                )
+            solutions.append(previous)
+        return solutions
+
 
     def save(self, allow_advance=True) -> Optional[PartialSolution]:
         sol = self.solution.clone()
