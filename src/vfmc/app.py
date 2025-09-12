@@ -7,7 +7,7 @@ import re
 from dataclasses import dataclass
 from functools import cached_property
 from sys import exc_info
-from typing import List, Set, Optional
+from typing import List, Set, Optional, Tuple
 from importlib.metadata import version
 
 from PyQt5.QtWidgets import (
@@ -1208,25 +1208,13 @@ class Commands:
     def _save_all(self, solutions):
         commands = []
         for sol in solutions:
-            for step in sol.substeps():
-                commands.append(step_name(step.kind, step.variant))
-                if step.alg.normal_moves():
-                    commands.append("set_inverse(False)")
-                    commands.append(" ".join(step.alg.normal_moves()))
-                if step.alg.inverse_moves():
-                    commands.append("set_inverse(True)")
-                    commands.append(" ".join(step.alg.inverse_moves()))
-                commands.append("save")
-        commands.append(f"set_inverse({self.attempt.inverse})")
-        commands.append(
-            step_name(self.attempt.solution.kind, self.attempt.solution.variant)
-        )
+            steps = [f'("{step.kind}", "{step.variant}", "{step.alg}")' for step in sol.substeps()]
+            commands.append("save_solution([{}])".format(",".join(steps)))
 
         for cmd in commands:
             self.execute(cmd)
         if len(solutions) == 1:
             step = solutions[0].clone()
-            step.previous = self.attempt.solution.previous
             index = self.attempt.solutions_by_kind()[step.kind].index(step) + 1
             self.execute(f'check("{step.kind}",{index})')
 
@@ -1268,6 +1256,12 @@ class Commands:
         if saved:
             self.window.scroll_to(saved)
             self.window.command_input.setFocus()
+
+    def save_solution(self, steps: List[Tuple[str, str, str]]):
+        previous = None
+        for kind, variant, alg in steps:
+            previous = PartialSolution(kind=kind,variant=variant,alg=Algorithm(alg),previous=previous)
+            self.attempt.save_solution(previous)
 
     def reset(self):
         """Reset the cube to the beginning of the current step"""

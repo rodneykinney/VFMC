@@ -348,12 +348,11 @@ class Attempt:
         for alg in algs:
             if self.inverse:
                 alg = alg.on_inverse()
-            merged_alg = Algorithm(str(sol.alg))
-            merged_alg.merge(alg)
+            merged_alg = Algorithm(str(sol.alg)).merge(alg)
             s = PartialSolution.create(
                 kind=sol.kind,
                 variant=sol.variant,
-                previous=None,
+                previous=self.solution if self.solution.alg.len() else self.solution.previous,
                 alg=merged_alg,
             )
             if s not in existing:
@@ -368,12 +367,11 @@ class Attempt:
         )
         solutions = []
         for sol in core_solutions:
-            previous = None
+            previous = self.solution if self.solution.alg.len() else self.solution.previous
             for step, alg in zip(sol.steps, sol.algs):
                 if self.inverse:
                     alg = alg.on_inverse()
-                merged_alg = Algorithm(str(sol.alg))
-                merged_alg.merge(alg)
+                merged_alg = Algorithm(str(self.solution.alg)).merge(alg)
                 previous = PartialSolution(
                     kind=step.kind,
                     variant=step.variant,
@@ -436,10 +434,9 @@ class Attempt:
             )
 
     def save_solution(self, sol: PartialSolution):
-        self._save_timestamps[sol] = time.monotonic()
-
         existing = self._saved_by_kind[sol.kind]
         if sol not in existing:
+            self._save_timestamps[sol] = time.monotonic()
             existing.append(sol)
         existing.sort(key=self.sort_key())
         self.notify_saved_solution_listeners()
