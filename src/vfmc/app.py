@@ -912,14 +912,6 @@ class AppWindow(QMainWindow):
         help_dialog.setWindowModality(Qt.NonModal)
         help_dialog.setWindowTitle("VFMC help")
 
-        commands = []
-        for name in dir(self.commands):
-            if name.startswith("_"):
-                continue
-            attr = getattr(self.commands, name)
-            if callable(attr):
-                commands.append((name, attr))
-
         help_file = os.path.join(os.path.dirname(__file__), "help.html")
         with open(help_file, "r") as f:
             help_dialog.setInformativeText(f.read())
