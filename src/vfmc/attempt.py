@@ -104,12 +104,6 @@ class PartialSolution:
     def z(self, ticks: int):
         self.orientation = self.orientation.z(ticks)
 
-    def alg_str(self, verbose: bool = False):
-        return str(self.alg)
-
-    def default_comment(self, cube) -> str:
-        return step_name(self.kind, self.variant)
-
     def clone(self) -> "PartialSolution":
         return PartialSolution.create(
             kind=self.kind,
@@ -117,6 +111,32 @@ class PartialSolution:
             alg=self.alg,
             previous=self.previous,
         )
+
+    @property
+    def step_name(self) -> str:
+        if self.kind not in ["htr"]:
+            return f"{self.kind}{self.variant}"
+        return self.kind
+
+    def render_active(self, attempt: "Attempt") -> str:
+        """Text to display when this step is part of the currently-active solution"""
+        if not self.kind and not self.alg.len():
+            return ""
+        algorithm = str(self.alg)
+        comment = ""
+        if self.kind != "":
+            if not self.step_info.is_solved(attempt.cube):
+                parentheses = f"{' ' if self.alg.len() else ''}{'( )' if not self.alg.inverse_moves() and attempt.inverse else ''}"
+                algorithm = f"{algorithm}{parentheses}"
+            comment = attempt.get_user_comment(self) or self.step_name
+        return f"{algorithm} // {comment} ({self.full_alg().len()})"
+
+    def render_saved(self, attempt: "Attempt") -> str:
+        """Text to display when this step is saved"""
+        if attempt.is_obscured(self):
+            return " ".join(("?" for i in range(self.alg.len())))
+        comment = attempt.get_user_comment(self) or self.step_name
+        return f"{self.alg} // {comment} ({self.full_alg().len()})"
 
     def __repr__(self):
         return f"{self.alg} // ({self.full_alg().len()})"
@@ -234,11 +254,8 @@ class Attempt:
     def is_done(self, sol: PartialSolution):
         return sol in self._done
 
-    def to_str(self, sol: PartialSolution, verbose: bool = False) -> str:
-        if sol in self._obscured:
-            return " ".join(["?" for i in range(sol.alg.len())])
-        comment = self._comments.get(sol) or sol.default_comment(self.cube)
-        return f"{sol.alg_str(verbose)} // {comment} ({sol.full_alg().len()})"
+    def is_obscured(self, sol: PartialSolution):
+        return sol in self._obscured
 
     def append(self, alg: Algorithm) -> bool:
         if self.inverse:
@@ -386,10 +403,15 @@ class Attempt:
     def save(self, allow_advance=True) -> Optional[PartialSolution]:
         sol = self.solution.clone()
         is_solved = sol.step_info.is_solved(self.cube)
-        if not is_solved and not self.get_user_comment(sol):
-            case = self.solution.step_info.case_name(self.cube)
-            comment = f"{step_name(self.solution.kind, self.solution.variant)}-{case}"
-            self.set_user_comment(sol, comment)
+        if not self.get_user_comment(sol):
+            if sol.step_name == "finish":
+                comment = "solved" if is_solved else sol.step_info.case_name(self.cube)
+                self.set_user_comment(sol, comment)
+            elif not is_solved:
+                self.set_user_comment(
+                    sol,
+                    f"{self.solution.step_name}-{self.solution.step_info.case_name(self.cube)}",
+                )
         if allow_advance and is_solved:
             if sol.kind in {"eo", "dr"}:
                 self.reset()
@@ -479,9 +501,6 @@ class InsertionsStep(PartialSolution):
         self.inserted_algs: Dict[str, str] = {}
         self.alg_with_markers = str(self.insertions.original.all_on_normal())
 
-    def default_comment(self, cube) -> str:
-        return self.step_info.case_name(cube)
-
     def insertion_symbol(self, index):
         choices = "^#*@"
         n = int(index / len(choices)) + 1
@@ -503,16 +522,17 @@ class InsertionsStep(PartialSolution):
         step.inserted_algs = self.inserted_algs
         return step
 
-    def alg_str(self, verbose: bool = False):
+    def render_active(self, attempt: "Attempt") -> str:
         lines = []
-        if not verbose:
-            return " ".join(self.inserted_algs.keys())
-
         lines += [""] + [self.alg_with_markers]
         if self.inserted_algs:
             lines += [f"{symbol} = {alg}" for symbol, alg in self.inserted_algs.items()]
             lines += [""] + [str(Algorithm("").merge(self.insertions.replacement))]
-        return "\n".join(lines + [""])
+        return "\n".join(lines + [f"// ({str(self.full_alg().len())})"])
+
+    def render_saved(self, attempt: "Attempt") -> str:
+        alg = " ".join(self.inserted_algs.keys())
+        return f"{alg} // solved ({self.full_alg().len()})"
 
     def append(self, alg: Algorithm) -> bool:
         raise ValueError("Double-click on solution to find insertions")
@@ -551,10 +571,3 @@ class InsertionsStep(PartialSolution):
                 self.inserted_algs[symbol] = " ".join(edit.moves)
         final.extend(orig[pos:])
         self.alg_with_markers = " ".join(final)
-
-
-def step_name(kind, variant):
-    s = kind
-    if s not in ["htr"]:
-        s = f"{s}{variant}"
-    return s

@@ -34,7 +34,7 @@ from PyQt5.QtCore import Qt, QEvent
 from PyQt5.QtGui import QKeySequence
 
 from vfmc import catch_errors, catch_and_return
-from vfmc.attempt import PartialSolution, Attempt, step_name
+from vfmc.attempt import PartialSolution, Attempt
 from vfmc import prefs
 from vfmc.palette import Palette
 from vfmc.prefs import preferences, SortOrder
@@ -333,15 +333,13 @@ class AppWindow(QMainWindow):
             for kind, variant in self.attempt.possible_steps_following("", ""):
                 valid_steps.add(f"{kind}{variant}")
             for step in reversed(self.attempt.solution.substeps()):
-                valid_steps.add(step_name(step.kind, step.variant))
+                valid_steps.add(step.step_name)
                 for kind, variant in self.attempt.possible_steps_following(
                     step.kind, step.variant
                 ):
                     if step.step_info.is_eligible(self.attempt.cube):
-                        valid_steps.add(step_name(kind, variant))
-            current_step = step_name(
-                self.attempt.solution.kind, self.attempt.solution.variant
-            )
+                        valid_steps.add(PartialSolution(kind, variant).step_name)
+            current_step = self.attempt.solution.step_name
             enable_items(step_selector, valid_steps)
             step_selector.blockSignals(True)
             step_selector.setCurrentText(current_step)
@@ -468,7 +466,7 @@ class AppWindow(QMainWindow):
             list.clear()
             for i, sol in enumerate(solutions.get(kind, [])):
                 padding = "   " if i < 9 else ("  " if i < 99 else " ")
-                list.addItem(f"{i + 1}.{padding}{self.attempt.to_str(sol)}")
+                list.addItem(f"{i + 1}.{padding}{sol.render_saved(self.attempt)}")
                 item = list.item(list.count() - 1)
                 item.setData(SOLUTION, sol)
         self.format_saved_solutions()
@@ -491,7 +489,7 @@ class AppWindow(QMainWindow):
                 sol = item.data(SOLUTION)
                 item.setData(BOLD, sol in active and not matched)
                 padding = "   " if i < 9 else ("  " if i < 99 else " ")
-                item.setText(f"{i + 1}.{padding}{self.attempt.to_str(sol)}")
+                item.setText(f"{i + 1}.{padding}{sol.render_saved(self.attempt)}")
                 matched = matched or item.data(BOLD)
                 item.setData(STRIKETHROUGH, self.attempt.is_done(sol))
                 item.setSelected(False)
@@ -1223,7 +1221,7 @@ class Commands:
         if item:
             i = item.listWidget().row(item)
             padding = "   " if i < 9 else ("  " if i < 99 else " ")
-            item.setText(f"{i + 1}.{padding}{self.attempt.to_str(sol)}")
+            item.setText(f"{i + 1}.{padding}{sol.render_saved(self.attempt)}")
             return
 
     def _item_containing(self, sol: PartialSolution) -> Optional[QListWidgetItem]:
@@ -1389,16 +1387,7 @@ class CurrentSolutionWidget(QListWidget):
         self.addItem(self.attempt.inverse_scramble)
         self.addItem("")
         for step in self.attempt.solution.substeps():
-            text = f"{step.alg_str(verbose=True)}"
-            if step.kind != "":
-                if step.step_info.is_solved(self.attempt.cube):
-                    text = f"{self.attempt.to_str(step, verbose=True)}"
-                else:
-                    parentheses = f"{' ' if step.alg.len() else ''}{'( )' if not step.alg.inverse_moves() and self.attempt.inverse else ''}"
-                    comment = self.attempt.get_user_comment(step)
-                    if not comment or step.alg.len() == 0:
-                        comment = step.default_comment(self.attempt.cube)
-                    text = f"{text}{parentheses} // {comment} ({step.full_alg().len()})"
+            text = step.render_active(self.attempt)
             item = QListWidgetItem(text)
             item.setData(SOLUTION, step)
             self.addItem(item)
