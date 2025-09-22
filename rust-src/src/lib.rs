@@ -346,10 +346,14 @@ impl StepInfo {
     }
 
     fn case_name(&self, cube: &Cube) -> PyResult<String> {
-        Ok(self
-            .step()
-            .map_err(|e| PyValueError::new_err(e.to_string()))?
-            .case_name(&cube.0))
+        if self.is_solved(cube)? {
+            Ok("".to_string())
+        } else {
+            Ok(self
+                .step()
+                .map_err(|e| PyValueError::new_err(e.to_string()))?
+                .case_name(&cube.0))
+        }
     }
 
     fn edge_visibility(&self, cube: &Cube) -> PyResult<Vec<(u8, u8)>> {

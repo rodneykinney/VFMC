@@ -780,10 +780,7 @@ class AppWindow(QMainWindow):
     def check_solution(self, solution):
         """Load a selected solution"""
         self.attempt.set_solution(solution)
-        if (
-            solution.step_info.is_solved(self.attempt.cube)
-            and solution.advance_after_save
-        ):
+        if solution.step_info.is_solved(self.attempt.cube) and solution.advance_on_load:
             self.attempt.advance()
         self.command_input.setFocus()
 

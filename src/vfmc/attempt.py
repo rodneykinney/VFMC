@@ -140,7 +140,11 @@ class PartialSolution:
 
     @property
     def advance_after_save(self) -> bool:
-        return self.kind in ["eo, dr", "fr"]
+        return self.kind in ["eo", "dr", "htr", "fr"]
+
+    @property
+    def advance_on_load(self) -> bool:
+        return self.kind not in ["finish", "insertions"]
 
     def comment_on_save(self, case_name: str) -> Optional[str]:
         if self.kind == "finish":
