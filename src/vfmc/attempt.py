@@ -138,6 +138,15 @@ class PartialSolution:
         comment = attempt.get_user_comment(self) or self.step_name
         return f"{self.alg} // {comment} ({self.full_alg().len()})"
 
+    @property
+    def advance_after_save(self) -> bool:
+        return self.kind in ["eo, dr", "fr"]
+
+    def comment_on_save(self, case_name: str) -> Optional[str]:
+        if self.kind == "finish":
+            return case_name or "solved"
+        return f"{self.kind}-{case_name}" if case_name else None
+
     def __repr__(self):
         return f"{self.alg} // ({self.full_alg().len()})"
 
@@ -367,9 +376,7 @@ class Attempt:
             s = PartialSolution.create(
                 kind=sol.kind,
                 variant=sol.variant,
-                previous=(
-                    self.solution if self.solution.alg.len() else self.solution.previous
-                ),
+                previous=sol.previous,
                 alg=merged_alg,
             )
             if s not in existing:
@@ -400,24 +407,15 @@ class Attempt:
             solutions.append(previous)
         return solutions
 
-    def save(self, allow_advance=True) -> Optional[PartialSolution]:
+    def save_current_solution(self, allow_advance=True) -> Optional[PartialSolution]:
         sol = self.solution.clone()
-        is_solved = sol.step_info.is_solved(self.cube)
-        if not self.get_user_comment(sol):
-            if sol.step_name == "finish":
-                comment = "solved" if is_solved else sol.step_info.case_name(self.cube)
-                self.set_user_comment(sol, comment)
-            elif not is_solved:
-                self.set_user_comment(
-                    sol,
-                    f"{self.solution.step_name}-{self.solution.step_info.case_name(self.cube)}",
-                )
-        if allow_advance and is_solved:
-            if sol.kind in {"eo", "dr"}:
-                self.reset()
-            else:
+        case_name = sol.step_info.case_name(self.cube)
+        if allow_advance and not case_name:
+            if sol.advance_after_save:
                 self.advance()
-        self.save_solution(sol)
+            else:
+                self.reset()
+        self.save_solution(sol, case_name)
         return sol
 
     def get_save_timestamps(self, sols: List[PartialSolution]) -> List[float]:
@@ -457,11 +455,15 @@ class Attempt:
                 else sort_by_move_count
             )
 
-    def save_solution(self, sol: PartialSolution):
+    def save_solution(self, sol: PartialSolution, case_name: str):
         existing = self._saved_by_kind[sol.kind]
         if sol not in existing:
             self._save_timestamps[sol] = time.monotonic()
             existing.append(sol)
+            if not self.get_user_comment(sol):
+                auto_comment = sol.comment_on_save(case_name)
+                if auto_comment:
+                    self.set_user_comment(sol, auto_comment)
         existing.sort(key=self.sort_key())
         self.notify_saved_solution_listeners()
 
@@ -533,6 +535,9 @@ class InsertionsStep(PartialSolution):
     def render_saved(self, attempt: "Attempt") -> str:
         alg = " ".join(self.inserted_algs.keys())
         return f"{alg} // solved ({self.full_alg().len()})"
+
+    def comment_on_save(self, case_name: str) -> Optional[str]:
+        return None
 
     def append(self, alg: Algorithm) -> bool:
         raise ValueError("Double-click on solution to find insertions")

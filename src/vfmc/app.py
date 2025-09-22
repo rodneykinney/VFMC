@@ -780,7 +780,10 @@ class AppWindow(QMainWindow):
     def check_solution(self, solution):
         """Load a selected solution"""
         self.attempt.set_solution(solution)
-        if solution.step_info.is_solved(self.attempt.cube):
+        if (
+            solution.step_info.is_solved(self.attempt.cube)
+            and solution.advance_after_save
+        ):
             self.attempt.advance()
         self.command_input.setFocus()
 
@@ -1242,9 +1245,9 @@ class Commands:
         self.attempt.toggle_obscured(sol)
 
     def save(self, allow_advance=True):
-        """Save this algorithm and start a new one"""
+        """Save the current step and start a new one"""
         self.window.current_solution_widget.sync_history_with_editor()
-        saved = self.attempt.save(allow_advance)
+        saved = self.attempt.save_current_solution(allow_advance)
         if saved:
             self.window.scroll_to(saved)
             self.window.command_input.setFocus()
@@ -1255,7 +1258,7 @@ class Commands:
             previous = PartialSolution(
                 kind=kind, variant=variant, alg=Algorithm(alg), previous=previous
             )
-            self.attempt.save_solution(previous)
+            self.attempt.save_solution(previous, "")
 
     def reset(self):
         """Reset the cube to the beginning of the current step"""
