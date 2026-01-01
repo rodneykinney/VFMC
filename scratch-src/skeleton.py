@@ -1,20 +1,19 @@
-import dataclasses
+from dataclasses import dataclass, field
 import sys
-from functools import cached_property
+
 
 FULLY_REDUCED = ("", "R2", "F2", "U2 R2", "U2 F2", "R2 U2 F2")
 NEARLY_REDUCED = tuple(f"{t} U2".strip() for t in FULLY_REDUCED)
-TWO_MOVERS = {
+SUBSTITUTIONS = {
     ("U", "U'"): [], ("U'", "U"): [],
     ("U", "U2"): ["U'"], ("U2", "U"): ["U'"],
     ("U'", "U2"): ["U"], ("U2", "U'"): ["U"],
     ("R2", "R2"): [], ("F2", "F2"): [], ("U2", "U2"): [],
-    ("U", "U"): ["U2"], ("U'", "U'"): ["U2"]
-}
-THREE_MOVERS = {
+    ("U", "U"): ["U2"], ("U'", "U'"): ["U2"],
     ("R2", "U2", "R2"): ["U2", "R2", "U2"],
     ("F2", "U2", "F2"): ["U2", "F2", "U2"],
     ("F2", "U2", "R2"): ["U2", "R2", "U2", "F2", "U2"],
+    ("U2", "R2", "U2", "F2"): ["F2", "R2", "U2", "R2"],
 }
 CORNER_SWAP_INSERTION = {
     ("R2", "F2"): ["F2"],
@@ -28,9 +27,14 @@ CORNER_SWAP_EFFECT = {
 }
 
 
+@dataclass()
 class HtrPart:
-    def __init__(self, moves):
-        self.moves = moves if isinstance(moves, list) else moves.split(" ") if moves else []
+    moves: list[str] = field(default_factory=lambda: [])
+    corner_swap_parity: bool = False
+
+    @staticmethod
+    def parse(alg: str) -> "HtrPart":
+        return HtrPart(alg.split(" "), False)
 
     @property
     def alg(self):
@@ -44,25 +48,23 @@ class HtrPart:
             U_MOVES[1 - U_MOVES.index(m)] if m in U_MOVES else m for m in reversed(self.moves)]
         return HtrPart(inverse_moves)
 
-    def reduce(self) -> tuple[str, bool]:
-        alg = " ".join(self.moves)
+    def reduce(self) -> "HtrPart":
         corner_swap_parity = False
         iterations = 0
-        while alg not in FULLY_REDUCED + NEARLY_REDUCED:
-            moves = alg.split(" ")
+        moves = list(self.moves)
+        while " ".join(moves) not in FULLY_REDUCED + NEARLY_REDUCED:
             i = 1
             while i < len(moves):
                 iterations += 1 if i == 1 else 0
                 if iterations > 100:
                     raise Exception("Not converging")
-                reduction = TWO_MOVERS.get(tuple[str, str](moves[i - 1:i + 1]))
+                reduction = None
+                for n in (2, 3, 4):
+                    if reduction is None:
+                        reduction = SUBSTITUTIONS.get(tuple[str, str](moves[i - n + 1:i + 1]))
+                        if reduction is not None:
+                            moves = moves[:i - n + 1] + reduction + moves[i + 1:]
                 if reduction is not None:
-                    moves = moves[:i - 1] + reduction + moves[i + 1:]
-                    i = 1
-                    continue
-                reduction = THREE_MOVERS.get(tuple[str, str, str](moves[i - 2:i + 1]))
-                if reduction is not None:
-                    moves = moves[:i - 2] + reduction + moves[i + 1:]
                     i = 1
                     continue
                 reduction = CORNER_SWAP_INSERTION.get(tuple[str, str](moves[i - 1:i + 1]))
@@ -73,75 +75,84 @@ class HtrPart:
                     i = 1
                     continue
                 i += 1
-            alg = " ".join(moves)
-        return (alg, corner_swap_parity)
+        return HtrPart(moves, corner_swap_parity)
 
-
-class DrSolution:
+class DrAlgorithm:
     def __init__(self, parts: list[HtrPart]):
         self.parts = parts
 
-    @cached_property
+    @property
     def alg(self) -> str:
         alg = " U ".join(" ".join(p.moves) for p in self.parts).strip()
         alg = alg.replace("U2 U U2", "U").replace("U2 U", "U'").replace("U U2", "U'")
         return alg
 
     @staticmethod
-    def parse(alg: str) -> "DrSolution":
-        alg = normalize(alg)
+    def parse(alg: str) -> "DrAlgorithm":
         moves = alg.split(" ")
+        if set(moves) & DR_BREAKING:
+            raise ValueError("DR-breaking algorithm")
         # Put into <htr-part> U <htr-part> ... U <htr_part> form
         parts = []
-        current_part = HtrPart("")
+        current_part = HtrPart()
         for m in moves:
             if m in U_MOVES:
-                if parts and current_part.reduce()[0] in ("", "U2"):
+                if parts and current_part.reduce().alg in ("", "U2"):
                     combined_moves = parts[-1].moves + ["U"] + current_part.moves + [m]
                     current_part = HtrPart(combined_moves)
                     parts = parts[:-1]
                 else:
                     parts.append(current_part)
-                    current_part = HtrPart([]) if m == "U" else HtrPart(["U2"])
+                    current_part = HtrPart() if m == "U" else HtrPart(["U2"])
             else:
                 if current_part.moves:
                     current_part.moves.append(m)
                 else:
                     current_part = HtrPart([m])
         parts.append(current_part)
-        return DrSolution(parts)
+        return DrAlgorithm(parts)
 
-    def reduce(self) -> "DrSolution":
+    def reduce(self) -> "DrAlgorithm":
         reduced_parts = []
         corner_swap_parity = False
-        for seq in self.parts:
+        for i in range(len(self.parts)):
+            part = self.parts[i]
             if corner_swap_parity:
-                moves = ["U2"] + [CORNER_SWAP_EFFECT.get(m, m) for m in seq.moves]
-                seq = HtrPart(moves)
-            reduction, parity = seq.reduce()
-            corner_swap_parity ^= parity
-            seq = HtrPart(reduction)
-            reduced_parts.append(seq)
-        if reduced_parts and reduced_parts[-1].moves[-4:] == ["R2", "U2", "F2", "U2"]:
-            # Move trailing U2 to beginning of final part
-            moves = ([] if reduced_parts[-1].moves[0] == "U2" else ["U2"]) + ["F2", "U2", "R2"]
-            reduced_parts[-1] = HtrPart(moves)
-        if reduced_parts and reduced_parts[0].moves[:4] == ["U2", "R2", "U2", "F2"]:
-            # Move leading U2 to end of first part
-            moves = ["F2", "U2", "R2"] + reduced_parts[0].moves[4:]
-            reduced_parts[0] = HtrPart(moves)
-        return DrSolution(reduced_parts)
+                moves = ["U2"] + [CORNER_SWAP_EFFECT.get(m, m) for m in part.moves]
+                part = HtrPart(moves)
+            reduction = part.reduce()
+            corner_swap_parity ^= reduction.corner_swap_parity
+            if i < len(self.parts) - 1 and "U2" in reduction.moves[-1:]:
+                del reduction.moves[-1]
+                self.parts[i+1].moves.insert(0, "U2")
+            reduced_parts.append(reduction)
+        return DrAlgorithm(reduced_parts)
+
+
+def leave_slice(alg: str) -> str:
+    moves = alg.split(" ")
+    transform = "1"
+    canonical = [moves[0]]
+    for previous,move in zip(moves,moves[1:]):
+        move_t = CENTER_TRANSFORMS[transform].get(move,move)
+        insertion = SLICE_INSERTIONS.get((previous,move)) or SLICE_INSERTIONS.get((move,previous))
+        if insertion:
+            r,t = insertion
+            transform = CENTER_MULT[transform].get(t,t)
+            canonical = canonical[:-1]
+            if r:
+                canonical += [r]
+        else:
+            canonical.append(move_t)
+    return " ".join(canonical)
 
 
 def normalize(alg: str) -> str:
     """Reduce solution to RUF moveset and remove slice insertions"""
     moves = alg.split(" ")
-    if set(moves) & DR_BREAKING:
-        return alg
-
     transforms = ["1" for _ in moves]
 
-    canonical = []
+    norm_moves = []
 
     for i in range(0, len(moves)):
         # Transformed move based on center permutation
@@ -152,12 +163,45 @@ def normalize(alg: str) -> str:
             t = WIDENING_TRANSFORMS[moves[i]]
             for ii in range(i + 1, len(moves)):
                 transforms[ii] = CENTER_MULT[transforms[ii]].get(t, t)
-        if canonical and move_t == "U2" and canonical[-1] in U_MOVES:
-            canonical[-1] = U_MOVES[1 - U_MOVES.index(canonical[-1])]
+        if norm_moves and move_t == "U2" and norm_moves[-1] in U_MOVES:
+            norm_moves[-1] = U_MOVES[1 - U_MOVES.index(norm_moves[-1])]
         else:
-            canonical.append(move_t)
-    canon = " ".join(canonical)
+            norm_moves.append(move_t)
+    canon = " ".join(norm_moves)
     return canon
+
+@dataclass
+class DrSolutionBreakdown:
+    full_alg: str
+    leave_slice_alg: str
+    normalized_corner_solution: DrAlgorithm
+    minimal_corner_solution: DrAlgorithm
+
+    @property
+    def report(self) -> str:
+        lines = [
+            f"| Solution: {self.full_alg}",
+            f"| Leave slice: {self.leave_slice_alg}",
+            f"| Corner skeleton: {self.minimal_corner_solution.alg}",
+        ]
+        max_line_length = max(len(s) for s in lines) + 2
+        lines = [l + " " * (max_line_length-len(l)) + " |" for l in lines]
+        hline = '\n|' + '-' *  max_line_length + "|\n"
+        return hline.join([""] + lines + [""])
+
+    @staticmethod
+    def parse(alg: str) -> "DrSolutionBreakdown":
+        full_alg = alg
+        leave_slice_alg = leave_slice(full_alg)
+        normalized_corner_solution = DrAlgorithm.parse(normalize(leave_slice_alg).replace("w",""))
+        minimal_corner_solution = normalized_corner_solution.reduce()
+        return DrSolutionBreakdown(
+            full_alg=full_alg,
+            leave_slice_alg=leave_slice_alg,
+            normalized_corner_solution=normalized_corner_solution,
+            minimal_corner_solution=minimal_corner_solution
+        )
+
 
 
 # The DR Center permutation group has 5 generators: E2, M2, S2, E, E'
@@ -241,11 +285,11 @@ RUF_MOVES = ("R2", "F2", "U", "U'", "U2")
 U_MOVES = ("U", "U'")
 DR_BREAKING = {"R", "R'", "L", "L'", "F", "F'", "B", "B'"}
 WIDENED_MOVES = {
-    "D2": "U2",
-    "D": "U",
-    "D'": "U'",
-    "L2": "R2",
-    "B2": "F2",
+    "D2": "Uw2",
+    "D": "Uw",
+    "D'": "Uw'",
+    "L2": "Rw2",
+    "B2": "Fw2",
 }
 WIDENING_TRANSFORMS = {
     "R2": "M2",
@@ -259,10 +303,20 @@ WIDENING_TRANSFORMS = {
     "D": "E",
     "D'": "EP",
 }
+SLICE_INSERTIONS = {
+    ("U", "D"): ("U2", "E"),
+    ("U", "D'"): ("", "EP"),
+    ("U'", "D"): ("", "E"),
+    ("U'", "D'"): ("U2", "EP"),
+    ("U", "D2"): ("U'", "E2"),
+    ("U'", "D2"): ("U", "E2"),
+    ("D", "U2"): ("D'", "E2"),
+    ("D'", "U2"): ("D", "E2"),
+}
 
 if __name__ == "__main__":
     alg = sys.argv[1] if len(sys.argv) == 2 else " ".join(sys.argv[1:])
     print(alg)
-    sol = DrSolution.parse(alg)
+    sol = DrAlgorithm.parse(alg)
     skeleton = sol.reduce()
     print(skeleton.alg)
