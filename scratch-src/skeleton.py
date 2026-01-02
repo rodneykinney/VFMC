@@ -2,30 +2,6 @@ from dataclasses import dataclass, field
 import sys
 
 
-FULLY_REDUCED = ("", "R2", "F2", "U2 R2", "U2 F2", "R2 U2 F2")
-NEARLY_REDUCED = tuple(f"{t} U2".strip() for t in FULLY_REDUCED)
-SUBSTITUTIONS = {
-    ("U", "U'"): [], ("U'", "U"): [],
-    ("U", "U2"): ["U'"], ("U2", "U"): ["U'"],
-    ("U'", "U2"): ["U"], ("U2", "U'"): ["U"],
-    ("R2", "R2"): [], ("F2", "F2"): [], ("U2", "U2"): [],
-    ("U", "U"): ["U2"], ("U'", "U'"): ["U2"],
-    ("R2", "U2", "R2"): ["U2", "R2", "U2"],
-    ("F2", "U2", "F2"): ["U2", "F2", "U2"],
-    ("F2", "U2", "R2"): ["U2", "R2", "U2", "F2", "U2"],
-    ("U2", "R2", "U2", "F2"): ["F2", "R2", "U2", "R2"],
-}
-CORNER_SWAP_INSERTION = {
-    ("R2", "F2"): ["F2"],
-    ("F2", "R2"): ["R2"],
-}
-CORNER_SWAP_EFFECT = {
-    "F2": "R2",
-    "R2": "F2",
-    "U": "U'",
-    "U'": "U"
-}
-
 
 @dataclass()
 class HtrPart:
@@ -48,34 +24,32 @@ class HtrPart:
             U_MOVES[1 - U_MOVES.index(m)] if m in U_MOVES else m for m in reversed(self.moves)]
         return HtrPart(inverse_moves)
 
+    def replace(self, end_position: int, length: int, substitution: "HtrPart") -> "HtrPart":
+        before = self.moves[:end_position - length + 1]
+        after = [CORNER_SWAP_EFFECT.get(m, m) for m in self.moves[end_position + 1:]] if substitution.corner_swap_parity else self.moves[end_position + 1:]
+        moves =  before + substitution.moves + after
+        return HtrPart(moves, substitution.corner_swap_parity ^ self.corner_swap_parity)
+
     def reduce(self) -> "HtrPart":
-        corner_swap_parity = False
+        reduction = HtrPart(self.moves, self.corner_swap_parity)
         iterations = 0
-        moves = list(self.moves)
-        while " ".join(moves) not in FULLY_REDUCED + NEARLY_REDUCED:
+        while reduction.alg not in FULLY_REDUCED + NEARLY_REDUCED:
             i = 1
-            while i < len(moves):
+            while i < len(reduction.moves):
                 iterations += 1 if i == 1 else 0
                 if iterations > 100:
                     raise Exception("Not converging")
-                reduction = None
-                for n in (2, 3, 4):
-                    if reduction is None:
-                        reduction = SUBSTITUTIONS.get(tuple[str, str](moves[i - n + 1:i + 1]))
-                        if reduction is not None:
-                            moves = moves[:i - n + 1] + reduction + moves[i + 1:]
-                if reduction is not None:
-                    i = 1
-                    continue
-                reduction = CORNER_SWAP_INSERTION.get(tuple[str, str](moves[i - 1:i + 1]))
-                if reduction is not None:
-                    corner_swap_parity = not corner_swap_parity
-                    moves = (moves[:i - 1] + reduction +
-                             [CORNER_SWAP_EFFECT.get(m, m) for m in moves[i + 1:]])
+                substitution, n = None, 2
+                while substitution is None and n < 5:
+                    substitution = SUBSTITUTIONS.get(tuple[str, str](reduction.moves[i - n + 1:i + 1]))
+                    if substitution:
+                        reduction = reduction.replace(i, n, substitution)
+                    n += 1
+                if substitution:
                     i = 1
                     continue
                 i += 1
-        return HtrPart(moves, corner_swap_parity)
+        return reduction
 
 class DrAlgorithm:
     def __init__(self, parts: list[HtrPart]):
@@ -88,10 +62,13 @@ class DrAlgorithm:
         return alg
 
     @staticmethod
-    def parse(alg: str) -> "DrAlgorithm":
+    def parse_normalized(alg: str) -> "DrAlgorithm":
         moves = alg.split(" ")
         if set(moves) & DR_BREAKING:
             raise ValueError("DR-breaking algorithm")
+        non_ruf = next((m for m in moves if m not in RUF_MOVES), None)
+        if non_ruf:
+            raise ValueError("Expecting only RUF moves")
         # Put into <htr-part> U <htr-part> ... U <htr_part> form
         parts = []
         current_part = HtrPart()
@@ -174,7 +151,7 @@ def normalize(alg: str) -> str:
 class DrSolutionBreakdown:
     full_alg: str
     leave_slice_alg: str
-    normalized_corner_solution: DrAlgorithm
+    normalized_corner_solution: str
     minimal_corner_solution: DrAlgorithm
 
     @property
@@ -193,14 +170,36 @@ class DrSolutionBreakdown:
     def parse(alg: str) -> "DrSolutionBreakdown":
         full_alg = alg
         leave_slice_alg = leave_slice(full_alg)
-        normalized_corner_solution = DrAlgorithm.parse(normalize(leave_slice_alg).replace("w",""))
-        minimal_corner_solution = normalized_corner_solution.reduce()
+        normalized_corner_solution = normalize(leave_slice_alg)
+        minimal_corner_solution = DrAlgorithm.parse_normalized(normalized_corner_solution.replace("w","")).reduce()
         return DrSolutionBreakdown(
             full_alg=full_alg,
             leave_slice_alg=leave_slice_alg,
             normalized_corner_solution=normalized_corner_solution,
             minimal_corner_solution=minimal_corner_solution
         )
+
+FULLY_REDUCED = ("", "R2", "F2", "U2 R2", "U2 F2", "R2 U2 F2")
+NEARLY_REDUCED = tuple(f"{t} U2".strip() for t in FULLY_REDUCED)
+SUBSTITUTIONS = {
+    ("U", "U'"): HtrPart([]), ("U'", "U"): HtrPart([]),
+    ("U", "U2"): HtrPart(["U'"]), ("U2", "U"): HtrPart(["U'"]),
+    ("U'", "U2"): HtrPart(["U"]), ("U2", "U'"): HtrPart(["U"]),
+    ("R2", "R2"): HtrPart([]), ("F2", "F2"): HtrPart([]), ("U2", "U2"): HtrPart([]),
+    ("U", "U"): HtrPart(["U2"]), ("U'", "U'"): HtrPart(["U2"]),
+    ("R2", "F2"): HtrPart(["F2"], True),
+    ("F2", "R2"): HtrPart(["R2"], True),
+    ("R2", "U2", "R2"): HtrPart(["U2", "R2", "U2"]),
+    ("F2", "U2", "F2"): HtrPart(["U2", "F2", "U2"]),
+    ("F2", "U2", "R2"): HtrPart(["U2", "R2", "U2", "F2", "U2"]),
+    ("U2", "R2", "U2", "F2"): HtrPart(["R2", "U2", "F2"], True),
+}
+CORNER_SWAP_EFFECT = {
+    "F2": "R2",
+    "R2": "F2",
+    "U": "U'",
+    "U'": "U"
+}
 
 
 
@@ -317,6 +316,6 @@ SLICE_INSERTIONS = {
 if __name__ == "__main__":
     alg = sys.argv[1] if len(sys.argv) == 2 else " ".join(sys.argv[1:])
     print(alg)
-    sol = DrAlgorithm.parse(alg)
+    sol = DrAlgorithm.parse_normalized(alg)
     skeleton = sol.reduce()
     print(skeleton.alg)

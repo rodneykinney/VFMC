@@ -21,45 +21,54 @@ class TestSkeleton(unittest.TestCase):
         self.assertEqual("U2 R2 Uw R2 U Uw2 R2 U F2 Rw2 F2 Rw2 U' F2 U2", normalize("U2 R2 D B2 U D2 F2 U L2 B2 R2 B2 U' L2 U2"))
 
     def test_parse(self):
-        self.assertEqual(["", "R2", "F2"], [p.alg for p in DrAlgorithm.parse("U R2 U F2").parts])
-        self.assertEqual(["F2 F2", "F2", "R2"], [p.alg for p in DrAlgorithm.parse("F2 B2 U R2 U F2").parts])
-        self.assertEqual(["", "R2 U F2 F2 U R2", "R2"], [p.alg for p in DrAlgorithm.parse("U R2 U F2 B2 U F2 U F2").parts])
+        self.assertEqual(["", "R2", "F2"], [p.alg for p in DrAlgorithm.parse_normalized("U R2 U F2").parts])
 
     def test_dr_reduce(self):
-        self.assertEqual(["", "F2", "R2"], [p.alg for p in DrAlgorithm.parse("F2 F2 U F2 U R2").reduce().parts])
-        self.assertEqual(["", "U2 F2", "U2 R2"], [p.alg for p in DrAlgorithm.parse("U F2 U2 F2 U R2").reduce().parts])
-        self.assertEqual(["", "R2 U2 F2", "F2"], [p.alg for p in DrAlgorithm.parse("U F2 U2 R2 U R2").reduce().parts])
-        self.assertEqual(["", "R2 U2 F2", "U2 F2 U2"], [p.alg for p in DrAlgorithm.parse("U F2 U2 R2 U R2 U2 R2").reduce().parts])
-        self.assertEqual(["", "F2", "U2 R2 U2"], [p.alg for p in DrAlgorithm.parse("U R2 F2 U F2 U2").reduce().parts])
-        self.assertEqual(["", "F2", "R2 U2"], [p.alg for p in DrAlgorithm.parse("U R2 F2 U F2 U2 F2").reduce().parts])
-        self.assertEqual(["", "F2", "R2 U2 F2 U2"], [p.alg for p in DrAlgorithm.parse("U R2 F2 U F2 U2 R2 U2").reduce().parts])
-        self.assertEqual(["", "F2", "F2", "U2 F2", "F2", "F2"], [p.alg for p in DrAlgorithm.parse("D B2 D' R2 L2 U L2 D' R2 U R2 D' F2 U' B2").reduce().parts])
-        self.assertEqual(["", "R2 U2 F2"], [p.alg for p in DrAlgorithm.parse("U R2 U D R2").reduce().parts])
-        self.assertEqual(["", "U2 F2", "R2 U2 F2", "U2 F2", "R2", "F2"], [p.alg for p in DrAlgorithm.parse("U' F2 U F2 L2 U D F2 U L2 U' F2 L2 U L2").reduce().parts])
+        self.assertEqual(["", "F2", "R2"], [p.alg for p in DrAlgorithm.parse_normalized("F2 F2 U F2 U R2").reduce().parts])
+        self.assertEqual(["", "U2 F2", "U2 R2"], [p.alg for p in DrAlgorithm.parse_normalized("U F2 U2 F2 U R2").reduce().parts])
+        self.assertEqual(["", "R2 U2 F2", "F2"], [p.alg for p in DrAlgorithm.parse_normalized("U F2 U2 R2 U R2").reduce().parts])
+        self.assertEqual(["", "R2 U2 F2", "U2 F2 U2"], [p.alg for p in DrAlgorithm.parse_normalized("U F2 U2 R2 U R2 U2 R2").reduce().parts])
+        self.assertEqual(["", "F2", "U2 R2 U2"], [p.alg for p in DrAlgorithm.parse_normalized("U R2 F2 U F2 U2").reduce().parts])
+        self.assertEqual(["", "F2", "R2 U2"], [p.alg for p in DrAlgorithm.parse_normalized("U R2 F2 U F2 U2 F2").reduce().parts])
+        self.assertEqual(["", "F2", "R2 U2 F2 U2"], [p.alg for p in DrAlgorithm.parse_normalized("U R2 F2 U F2 U2 R2 U2").reduce().parts])
 
-        self.assertEqual(["", "F2", "R2 U2 F2"], [p.alg for p in DrAlgorithm.parse("U F2 U' R2 U2 F2").reduce().parts])
-        self.assertEqual(["", "F2", "R2 U2 F2"], [p.alg for p in DrAlgorithm.parse("R2 F2 R2 U' R2 U F2 U2 F2 R2").reduce().parts])
-        self.assertEqual(["", "F2", "R2 U2 F2"], [p.alg for p in DrAlgorithm.parse("R2 F2 R2 U' R2 U R2 F2 U2 F2").reduce().parts])
-        self.assertEqual(["", "F2", "R2 U2 F2"], [p.alg for p in DrAlgorithm.parse("R2 F2 R2 U' R2 U' F2 U2 R2").reduce().parts])
-        self.assertEqual(["", "F2", "R2 U2 F2"], [p.alg for p in DrAlgorithm.parse("R2 F2 R2 U' R2 U R2 U2 F2 U2").reduce().parts])
-        self.assertEqual(["", "F2", "R2 U2 F2"], [p.alg for p in DrAlgorithm.parse("R2 F2 R2 U' R2 U' R2 U2 R2 F2 U2").reduce().parts])
+        self.assertEqual(["", "F2", "R2 U2 F2"], [p.alg for p in DrAlgorithm.parse_normalized("U F2 U' R2 U2 F2").reduce().parts])
+        self.assertEqual(["", "F2", "R2 U2 F2"], [p.alg for p in DrAlgorithm.parse_normalized("R2 F2 R2 U' R2 U F2 U2 F2 R2").reduce().parts])
+        self.assertEqual(["", "F2", "R2 U2 F2"], [p.alg for p in DrAlgorithm.parse_normalized("R2 F2 R2 U' R2 U R2 F2 U2 F2").reduce().parts])
+        self.assertEqual(["", "F2", "R2 U2 F2"], [p.alg for p in DrAlgorithm.parse_normalized("R2 F2 R2 U' R2 U' F2 U2 R2").reduce().parts])
+        self.assertEqual(["", "F2", "R2 U2 F2"], [p.alg for p in DrAlgorithm.parse_normalized("R2 F2 R2 U' R2 U R2 U2 F2 U2").reduce().parts])
+        self.assertEqual(["", "F2", "R2 U2 F2"], [p.alg for p in DrAlgorithm.parse_normalized("R2 F2 R2 U' R2 U' R2 U2 R2 F2 U2").reduce().parts])
 
-        self.assertEqual(["", "F2", "R2 U2 F2 U2"], [p.alg for p in DrAlgorithm.parse("U F2 U' R2 U2 F2 U2").reduce().parts])
-        self.assertEqual(["", "F2", "R2 U2 F2 U2"], [p.alg for p in DrAlgorithm.parse("R2 F2 R2 U' R2 U F2 U2 F2 R2 U2").reduce().parts])
-        self.assertEqual(["", "F2", "R2 U2 F2 U2"], [p.alg for p in DrAlgorithm.parse("R2 F2 R2 U' R2 U R2 F2 U2 F2 U2").reduce().parts])
-        self.assertEqual(["", "F2", "R2 U2 F2 U2"], [p.alg for p in DrAlgorithm.parse("R2 F2 R2 U' R2 U' F2 U2 R2 U2").reduce().parts])
-        self.assertEqual(["", "F2", "R2 U2 F2 U2"], [p.alg for p in DrAlgorithm.parse("R2 F2 R2 U' R2 U R2 U2 F2").reduce().parts])
-        self.assertEqual(["", "F2", "R2 U2 F2 U2"], [p.alg for p in DrAlgorithm.parse("R2 F2 R2 U' R2 U' R2 U2 R2 F2").reduce().parts])
+        self.assertEqual(["", "F2", "R2 U2 F2 U2"], [p.alg for p in DrAlgorithm.parse_normalized("U F2 U' R2 U2 F2 U2").reduce().parts])
+        self.assertEqual(["", "F2", "R2 U2 F2 U2"], [p.alg for p in DrAlgorithm.parse_normalized("R2 F2 R2 U' R2 U F2 U2 F2 R2 U2").reduce().parts])
+        self.assertEqual(["", "F2", "R2 U2 F2 U2"], [p.alg for p in DrAlgorithm.parse_normalized("R2 F2 R2 U' R2 U R2 F2 U2 F2 U2").reduce().parts])
+        self.assertEqual(["", "F2", "R2 U2 F2 U2"], [p.alg for p in DrAlgorithm.parse_normalized("R2 F2 R2 U' R2 U' F2 U2 R2 U2").reduce().parts])
+        self.assertEqual(["", "F2", "R2 U2 F2 U2"], [p.alg for p in DrAlgorithm.parse_normalized("R2 F2 R2 U' R2 U R2 U2 F2").reduce().parts])
+        self.assertEqual(["", "F2", "R2 U2 F2 U2"], [p.alg for p in DrAlgorithm.parse_normalized("R2 F2 R2 U' R2 U' R2 U2 R2 F2").reduce().parts])
 
     def test_dr_solution_breakdown(self):
         sol = DrSolutionBreakdown.parse("U D R2 U D' B2 U' F2 L2 F2 R2 D' F2 D2 R2 F2 R2 B2")
         self.assertEqual("U R2 U R2 U2 F2", sol.minimal_corner_solution.alg)
 
+        sol = DrSolutionBreakdown.parse("D B2 D' R2 L2 U L2 D' R2 U R2 D' F2 U' B2")
+        self.assertEqual(["", "F2", "F2", "U2 F2", "F2", "F2"], [p.alg for p in sol.minimal_corner_solution.parts])
+
+        sol = DrSolutionBreakdown.parse("U R2 U D R2")
+        self.assertEqual(["", "R2 U2 F2"], [p.alg for p in sol.minimal_corner_solution.parts])
+
+        sol = DrSolutionBreakdown.parse("U' F2 U F2 L2 U D F2 U L2 U' F2 L2 U L2")
+        self.assertEqual(["", "U2 F2", "R2 U2 F2", "U2 F2", "R2", "F2"], [p.alg for p in sol.minimal_corner_solution.parts])
+
+        sol = DrSolutionBreakdown.parse("F2 B2 U R2 U F2")
+        self.assertEqual("F2 Fw2 Uw Fw2 U R2", sol.normalized_corner_solution)
+
+        sol = DrSolutionBreakdown.parse("U R2 U F2 B2 U F2 U F2")
+        self.assertEqual("U R2 U F2 Fw2 Uw Rw2 U Rw2", sol.normalized_corner_solution)
+
+
+
+
     def test_debug(self):
-        self.assertEqual(["", "F2", "R2 U2 F2 U2"], [p.alg for p in DrAlgorithm.parse("U F2 U' R2 U2 F2 U2").reduce().parts])
-        self.assertEqual(["", "F2", "R2 U2 F2 U2"], [p.alg for p in DrAlgorithm.parse("R2 F2 R2 U' R2 U F2 U2 F2 R2 U2").reduce().parts])
-        self.assertEqual(["", "F2", "R2 U2 F2 U2"], [p.alg for p in DrAlgorithm.parse("R2 F2 R2 U' R2 U R2 F2 U2 F2 U2").reduce().parts])
-        self.assertEqual(["", "F2", "R2 U2 F2 U2"], [p.alg for p in DrAlgorithm.parse("R2 F2 R2 U' R2 U' F2 U2 R2 U2").reduce().parts])
-        self.assertEqual(["", "F2", "R2 U2 F2 U2"], [p.alg for p in DrAlgorithm.parse("R2 F2 R2 U' R2 U R2 U2 F2").reduce().parts])
-        self.assertEqual(["", "F2", "R2 U2 F2 U2"], [p.alg for p in DrAlgorithm.parse("R2 F2 R2 U' R2 U' R2 U2 R2 F2").reduce().parts])
+        sol = DrSolutionBreakdown.parse("U R2 U F2 B2 U F2 U F2")
+        self.assertEqual("U R2 U F2 Fw2 Uw Rw2 U Rw2", sol.normalized_corner_solution)
         pass
