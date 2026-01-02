@@ -62,20 +62,20 @@ class DrAlgorithm:
         return alg
 
     @staticmethod
-    def parse_normalized(alg: str) -> "DrAlgorithm":
-        moves = alg.split(" ")
+    def parse(full_alg: str) -> "DrAlgorithm":
+        moves = full_alg.split(" ")
         if set(moves) & DR_BREAKING:
             raise ValueError("DR-breaking algorithm")
-        non_ruf = next((m for m in moves if m not in RUF_MOVES), None)
-        if non_ruf:
-            raise ValueError("Expecting only RUF moves")
+        if next((m for m in moves if m not in RUF_MOVES), None):
+            moves = normalize(full_alg).replace("w","").split(" ")
         # Put into <htr-part> U <htr-part> ... U <htr_part> form
         parts = []
         current_part = HtrPart()
         for m in moves:
             if m in U_MOVES:
                 if parts and current_part.reduce().alg in ("", "U2"):
-                    combined_moves = parts[-1].moves + ["U"] + current_part.moves + [m]
+                    current_part_moves = ["U'"] + current_part.moves[1:] if current_part.moves[:1] == ["U2"] else ["U"] + current_part.moves
+                    combined_moves = parts[-1].moves + current_part_moves + [m]
                     current_part = HtrPart(combined_moves)
                     parts = parts[:-1]
                 else:
@@ -87,7 +87,19 @@ class DrAlgorithm:
                 else:
                     current_part = HtrPart([m])
         parts.append(current_part)
-        return DrAlgorithm(parts)
+        if full_alg == " ".join(moves):
+            return DrAlgorithm(parts)
+        full_parts = []
+        moves = full_alg.split(" ")
+        i = 0
+        for p in parts:
+            if i > 0 and p.moves[:1] == ["U2"]:
+                full_parts.append(HtrPart(["U2"] + moves[i:i+len(p.moves)-1], p.corner_swap_parity))
+                i += len(p.moves)
+            else:
+                full_parts.append(HtrPart(moves[i:i+len(p.moves)], p.corner_swap_parity))
+                i += len(p.moves) + 1
+        return DrAlgorithm(full_parts)
 
     def reduce(self) -> "DrAlgorithm":
         reduced_parts = []
@@ -151,7 +163,7 @@ def normalize(alg: str) -> str:
 class DrSolutionBreakdown:
     full_alg: str
     leave_slice_alg: str
-    normalized_corner_solution: str
+    normalized_alg: str
     minimal_corner_solution: DrAlgorithm
 
     @property
@@ -170,12 +182,12 @@ class DrSolutionBreakdown:
     def parse(alg: str) -> "DrSolutionBreakdown":
         full_alg = alg
         leave_slice_alg = leave_slice(full_alg)
-        normalized_corner_solution = normalize(leave_slice_alg)
-        minimal_corner_solution = DrAlgorithm.parse_normalized(normalized_corner_solution.replace("w","")).reduce()
+        normalized_alg = normalize(leave_slice_alg)
+        minimal_corner_solution = DrAlgorithm.parse(normalized_alg.replace("w", "")).reduce()
         return DrSolutionBreakdown(
             full_alg=full_alg,
             leave_slice_alg=leave_slice_alg,
-            normalized_corner_solution=normalized_corner_solution,
+            normalized_alg=normalized_alg,
             minimal_corner_solution=minimal_corner_solution
         )
 
@@ -316,6 +328,6 @@ SLICE_INSERTIONS = {
 if __name__ == "__main__":
     alg = sys.argv[1] if len(sys.argv) == 2 else " ".join(sys.argv[1:])
     print(alg)
-    sol = DrAlgorithm.parse_normalized(alg)
+    sol = DrAlgorithm.parse(alg)
     skeleton = sol.reduce()
     print(skeleton.alg)
