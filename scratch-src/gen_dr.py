@@ -23,8 +23,8 @@ if __name__ == "__main__":
             sol = DrSolution(alg)
             if sol.corner_skeleton.alg not in skels:
                 skels.add(sol.corner_skeleton.alg)
-                print(sol)
-                print(f"{sol.corner_skeleton.alg}: {sol.additions_section_moves}")
+                print(sol.alg)
+                print(f"{sol.corner_skeleton.alg}: {sol.additional_section_moves}")
                 print("--")
 
 

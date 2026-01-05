@@ -4,7 +4,9 @@ from functools import cached_property
 from typing import Callable
 
 DR_MOVES = ["F2", "R2", "B2", "L2", "U", "U'", "U2", "D", "D'", "D2"]
-MINIMAL_HTR_SECTION = ([], ["R2"], ["F2"], ["R2", "U2", "F2"])
+MINIMAL_MIDDLE_HTR_SECTION = (["R2"], ["F2"], ["R2", "U2", "F2"])
+MINIMAL_FIRST_HTR_SECTION = ([], ["R2"], ["U2","R2"],["F2"], ["U2", "F2"], ["R2", "U2", "F2"])
+MINIMAL_FINAL_HTR_SECTION = ([], ["R2"], ["R2", "U2"],["F2"], ["F2", "U2"], ["R2", "U2", "F2"], ["F2","U2","R2"])
 
 
 def null(centers: list[int]) -> list[int]:
@@ -69,10 +71,13 @@ EDGE_PERMS: dict[tuple, tuple] = {
     ("R2", "U2", "R2"): (("U2", "R2", "U2"), null),
     ("F2", "U2", "F2"): (("U2", "F2", "U2"), null),
     ("F2", "U2", "R2"): (("U2", "R2", "U2", "F2", "U2"), null),
-    ("U2", "R2", "U2", "F2"): (("R2", "U2", "R2", "F2"), null),
+}
+TRAILING_U2: dict[tuple, tuple] = {
+    ("R2", "U2", "F2", "U2"): (("F2", "U2", "R2"), corner_swap),
+    ("U2", "R2", "U2", "F2"): (("R2", "U2", "F2", ), corner_swap),
 }
 CORNER_INVARIANT: dict[
-    tuple, tuple] = D_WIDENINGS | LB_WIDENINGS | RUF_CANCELLATIONS | CORNER_SWAPS | EDGE_PERMS
+    tuple, tuple] = D_WIDENINGS | LB_WIDENINGS | RUF_CANCELLATIONS | CORNER_SWAPS | EDGE_PERMS | TRAILING_U2
 
 
 @dataclass
@@ -87,7 +92,7 @@ class DrSolution:
         return self.corner_skeleton.alg
 
     @cached_property
-    def additions_section_moves(self) -> tuple:
+    def additional_section_moves(self) -> tuple:
         sections = self.leave_slice.htr_sections
         skeleton_sections = self.corner_skeleton.htr_sections
         assert len(sections) == len(skeleton_sections)
@@ -122,27 +127,36 @@ class DrSolution:
 
     @cached_property
     def corner_skeleton(self) -> "DrSolution":
-        skel = normalize(self.alg.split(" "), is_minimal_corner_solution, CORNER_INVARIANT)
-        skel = normalize(skel, has_no_trailing_u2,
-                         {("R2", "U2", "F2", "U2"): (("F2", "U2", "R2"), corner_swap), })
+        skel = self.alg.split(" ")
+        skel = normalize(skel, uses_ruf_only, D_WIDENINGS | LB_WIDENINGS)
+        skel = normalize(skel, is_minimal_corner_solution, CORNER_INVARIANT)
+        skel = normalize(skel, has_no_trailing_u2, TRAILING_U2)
         return DrSolution(" ".join(skel))
 
 
+def uses_ruf_only(moves: list[str]) -> bool:
+    dlb_moves = next((m for m in moves if m not in ("R2", "F2", "U", "U'", "U2")), None)
+    return dlb_moves is None
+
+
 def has_no_trailing_u2(moves: list[str]) -> bool:
-    return moves[-4:] != ["R2", "U2", "F2", "U2"]
+    return moves[-4:] != ["R2", "U2", "F2", "U2"] and moves[:4] != ["U2", "R2","U2","F2"]
+
 
 def has_no_slice_insertions(moves: list[str]) -> bool:
-    moves = [m.replace("'","").replace("D","U") for m in moves]
-    slice_insertions = next((True for a,b in zip(moves,moves[1:]) if (a,b) in (("U","U"),("U","U2"), ("U2","U"))), None)
+    moves = [m.replace("'", "").replace("D", "U") for m in moves]
+    slice_insertions = next((True for a, b in zip(moves, moves[1:]) if
+                             (a, b) in (("U", "U"), ("U", "U2"), ("U2", "U"))), None)
     return slice_insertions is None
+
 
 def is_minimal_corner_solution(moves: list[str]) -> bool:
     sections = DrSolution(" ".join(moves)).htr_sections
-    if sections[0][:1] == ["U2"]:
-        sections[0] = sections[0][1:]
-    if sections[-1][-1:] == ["U2"]:
-        sections[-1] = sections[-1][:-1]
-    not_reduced = next((s for s in sections if s not in MINIMAL_HTR_SECTION), None)
+    if sections[0] not in MINIMAL_FIRST_HTR_SECTION:
+        return False
+    if sections[-1] not in MINIMAL_FINAL_HTR_SECTION:
+        return False
+    not_reduced = next((s for s in sections[1:-1] if s not in MINIMAL_MIDDLE_HTR_SECTION), None)
     return not_reduced is None
 
 
@@ -151,7 +165,7 @@ def is_minimal_htr_section(moves: list[str]) -> bool:
         moves = moves[1:]
     if moves[-1:] == ["U2"]:
         moves = moves[:-1]
-    return moves in MINIMAL_HTR_SECTION
+    return not moves or moves in MINIMAL_MIDDLE_HTR_SECTION
 
 
 def normalize(moves: list[str], has_normal_form: Callable[[list[str]], bool],
