@@ -1,7 +1,7 @@
 import sys
 import subprocess
 import skeleton
-from skeleton import DrAlgorithm, DrSolutionBreakdown
+from skeleton import DrSolution
 
 if __name__ == "__main__":
     count = int(sys.argv[1]) if len(sys.argv) > 1 else 1
@@ -20,10 +20,12 @@ if __name__ == "__main__":
             alg = alg.strip()
             if not alg:
                 continue
-            sol = DrSolutionBreakdown.parse(alg)
-            if sol.minimal_corner_solution.alg not in skels:
-                skels.add(sol.minimal_corner_solution.alg)
-                print(sol.report)
+            sol = DrSolution(alg)
+            if sol.corner_skeleton.alg not in skels:
+                skels.add(sol.corner_skeleton.alg)
+                print(sol)
+                print(f"{sol.corner_skeleton.alg}: {sol.additions_section_moves}")
+                print("--")
 
 
 
