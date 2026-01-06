@@ -5,8 +5,10 @@ from typing import Callable
 
 DR_MOVES = ["F2", "R2", "B2", "L2", "U", "U'", "U2", "D", "D'", "D2"]
 MINIMAL_MIDDLE_HTR_SECTION = (["R2"], ["F2"], ["R2", "U2", "F2"])
-MINIMAL_FIRST_HTR_SECTION = ([], ["R2"], ["U2","R2"],["F2"], ["U2", "F2"], ["R2", "U2", "F2"])
-MINIMAL_FINAL_HTR_SECTION = ([], ["R2"], ["R2", "U2"],["F2"], ["F2", "U2"], ["R2", "U2", "F2"], ["F2","U2","R2"])
+MINIMAL_FIRST_HTR_SECTION = ([], ["R2"], ["U2", "R2"], ["F2"], ["U2", "F2"],
+                             ["R2", "U2", "F2"], ["U2", "R2","U2","F2"])
+MINIMAL_FINAL_HTR_SECTION = ([], ["R2"], ["R2", "U2"], ["F2"], ["F2", "U2"],
+                             ["R2", "U2", "F2"], ["R2","U2","F2","U2"])
 
 
 def null(centers: list[int]) -> list[int]:
@@ -72,12 +74,12 @@ EDGE_PERMS: dict[tuple, tuple] = {
     ("F2", "U2", "F2"): (("U2", "F2", "U2"), null),
     ("F2", "U2", "R2"): (("U2", "R2", "U2", "F2", "U2"), null),
 }
-TRAILING_U2: dict[tuple, tuple] = {
+FR_FINISH: dict[tuple, tuple] = {
     ("R2", "U2", "F2", "U2"): (("F2", "U2", "R2"), corner_swap),
-    ("U2", "R2", "U2", "F2"): (("R2", "U2", "F2", ), corner_swap),
+    ("U2", "R2", "U2", "F2"): (("R2", "U2", "F2",), corner_swap),
 }
-CORNER_INVARIANT: dict[
-    tuple, tuple] = D_WIDENINGS | LB_WIDENINGS | RUF_CANCELLATIONS | CORNER_SWAPS | EDGE_PERMS | TRAILING_U2
+CORNER_INVARIANT: dict[tuple, tuple] = (
+        D_WIDENINGS | LB_WIDENINGS | RUF_CANCELLATIONS | CORNER_SWAPS | EDGE_PERMS)
 
 
 @dataclass
@@ -85,16 +87,28 @@ class DrSolution:
     alg: str
 
     @cached_property
+    def moves(self) -> list[str]:
+        return self.alg.split(" ")
+
+    @cached_property
     def annotated_corner_skeleton(self) -> str:
-        sections = self.leave_slice.htr_sections
-        skeleton_sections = self.corner_skeleton.htr_sections
-        assert len(sections) == len(skeleton_sections)
-        return self.corner_skeleton.alg
+        skel = DrSolution(self.corner_skeleton)
+        ls = DrSolution(self.leave_slice)
+        s = ""
+        for i in range(len(skel.htr_sections)):
+            if len(ls.htr_sections[i]) == len(skel.htr_sections[i]):
+                s += f" {' '.join(skel.htr_sections[i])}"
+            else:
+                s += f" {' '.join(skel.htr_sections[i])} [+{len(ls.htr_sections[i])-len(skel.htr_sections[i])}]"
+            if i < len(skel.qt_positions):
+                s += f" {skel.moves[skel.qt_positions[i]]}"
+            s = s.strip()
+        return f"{s} ({len(skel.moves)}+{len(ls.moves)-len(skel.moves)})"
 
     @cached_property
     def additional_section_moves(self) -> tuple:
-        sections = self.leave_slice.htr_sections
-        skeleton_sections = self.corner_skeleton.htr_sections
+        sections = DrSolution(self.leave_slice).htr_sections
+        skeleton_sections = DrSolution(self.corner_skeleton).htr_sections
         assert len(sections) == len(skeleton_sections)
         return tuple(len(s) - len(ss) for s, ss in zip(sections, skeleton_sections))
 
@@ -120,18 +134,17 @@ class DrSolution:
         return sections
 
     @cached_property
-    def leave_slice(self) -> "DrSolution":
+    def leave_slice(self) -> str:
         moves = self.alg.split(" ")
         moves = normalize(moves, has_no_slice_insertions, D_WIDENINGS | RUF_CANCELLATIONS)
-        return DrSolution(" ".join(moves))
+        return " ".join(moves)
 
     @cached_property
-    def corner_skeleton(self) -> "DrSolution":
-        skel = self.alg.split(" ")
-        skel = normalize(skel, uses_ruf_only, D_WIDENINGS | LB_WIDENINGS)
+    def corner_skeleton(self) -> str:
+        skel = normalize(self.alg.split(" "), uses_ruf_only, D_WIDENINGS | LB_WIDENINGS)
         skel = normalize(skel, is_minimal_corner_solution, CORNER_INVARIANT)
-        skel = normalize(skel, has_no_trailing_u2, TRAILING_U2)
-        return DrSolution(" ".join(skel))
+        skel = normalize(skel, has_minimal_fr_finish, FR_FINISH | RUF_CANCELLATIONS)
+        return " ".join(skel)
 
 
 def uses_ruf_only(moves: list[str]) -> bool:
@@ -139,8 +152,8 @@ def uses_ruf_only(moves: list[str]) -> bool:
     return dlb_moves is None
 
 
-def has_no_trailing_u2(moves: list[str]) -> bool:
-    return moves[-4:] != ["R2", "U2", "F2", "U2"] and moves[:4] != ["U2", "R2","U2","F2"]
+def has_minimal_fr_finish(moves: list[str]) -> bool:
+    return moves[-4:] != ["R2", "U2", "F2", "U2"] and moves[:4] != ["U2", "R2", "U2", "F2"]
 
 
 def has_no_slice_insertions(moves: list[str]) -> bool:
@@ -151,13 +164,22 @@ def has_no_slice_insertions(moves: list[str]) -> bool:
 
 
 def is_minimal_corner_solution(moves: list[str]) -> bool:
-    sections = DrSolution(" ".join(moves)).htr_sections
-    if sections[0] not in MINIMAL_FIRST_HTR_SECTION:
+    sections = []
+    current_section = []
+    for m in moves:
+        if m in ("U", "U'", "D", "D'"):
+            if not sections and current_section not in MINIMAL_FIRST_HTR_SECTION:
+                return False
+            if sections and current_section not in MINIMAL_MIDDLE_HTR_SECTION:
+                return False
+            sections.append(current_section)
+            current_section = []
+        else:
+            current_section.append(m)
+    if current_section not in MINIMAL_FINAL_HTR_SECTION:
         return False
-    if sections[-1] not in MINIMAL_FINAL_HTR_SECTION:
-        return False
-    not_reduced = next((s for s in sections[1:-1] if s not in MINIMAL_MIDDLE_HTR_SECTION), None)
-    return not_reduced is None
+    sections.append(current_section)
+    return True
 
 
 def is_minimal_htr_section(moves: list[str]) -> bool:
@@ -196,8 +218,19 @@ def normalize(moves: list[str], has_normal_form: Callable[[list[str]], bool],
 
 
 if __name__ == "__main__":
-    alg = sys.argv[1] if len(sys.argv) == 2 else " ".join(sys.argv[1:])
-    print(alg)
-    sol = DrSolution(alg)
-    skeleton = sol.corner_skeleton
-    print(skeleton.alg)
+    if len(sys.argv) > 1:
+        lines = [sys.argv[1].split("(")[0].strip()]
+    else:
+        lines = [l.split("(")[0].strip() for l in sys.stdin.readlines()]
+    skeletons = set()
+    for line in lines:
+        if next((m for m in line.split(" ") if m not in DR_MOVES), None):
+            continue
+        sol = DrSolution(line)
+        if sol.corner_skeleton not in skeletons:
+            skeletons.add(sol.corner_skeleton)
+            print(f"{sol.leave_slice} ({len(sol.leave_slice.split(' '))})")
+            # print(f" = {sol.corner_skeleton} ({len(sol.corner_skeleton.split(' '))} + {','.join(str(n) for n in sol.additional_section_moves)})")
+            print(f" = {sol.annotated_corner_skeleton}")
+            print("")
+
