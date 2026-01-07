@@ -25,9 +25,9 @@ if __name__ == "__main__":
             alg = alg.strip()
             if not alg:
                 continue
-            sol = DrSolution(alg)
-            if sol.corner_skeleton not in skels:
-                skels.add(sol.corner_skeleton)
+            sol = DrSolution(alg.split(" "))
+            if sol.corner_skeleton.alg not in skels:
+                skels.add(sol.corner_skeleton.alg)
                 print(f"{sol.alg} ({len(sol.moves)})")
                 print(f"{sol.annotated_corner_skeleton}")
                 print("--")

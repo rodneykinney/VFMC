@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import sys
 from functools import cached_property
 from typing import Callable
@@ -84,16 +84,21 @@ CORNER_INVARIANT: dict[tuple, tuple] = (
 
 @dataclass
 class DrSolution:
-    alg: str
+    moves: list[str]
+    centers: list[str] = field(default_factory=lambda: DR_MOVES)
+
+    @staticmethod
+    def parse(alg: str) -> "DrSolution":
+        return DrSolution(alg.split(" "))
 
     @cached_property
-    def moves(self) -> list[str]:
-        return self.alg.split(" ")
+    def alg(self):
+        return " ".join(self.moves)
 
     @cached_property
     def annotated_corner_skeleton(self) -> str:
-        skel = DrSolution(self.corner_skeleton)
-        ls = DrSolution(self.leave_slice)
+        skel = self.corner_skeleton
+        ls = self.leave_slice
         s = ""
         for i in range(len(skel.htr_sections)):
             if len(ls.htr_sections[i]) == len(skel.htr_sections[i]):
@@ -107,19 +112,19 @@ class DrSolution:
 
     @cached_property
     def additional_section_moves(self) -> tuple:
-        sections = DrSolution(self.leave_slice).htr_sections
-        skeleton_sections = DrSolution(self.corner_skeleton).htr_sections
+        sections = self.leave_slice.htr_sections
+        skeleton_sections = self.corner_skeleton.htr_sections
         assert len(sections) == len(skeleton_sections)
         return tuple(len(s) - len(ss) for s, ss in zip(sections, skeleton_sections))
 
     @cached_property
     def qt_positions(self) -> tuple:
-        moves = self.alg.split(" ")
+        moves = self.moves
         pos = []
         for i in range(len(moves)):
             if moves[i] in ("U", "U'", "D", "D'"):
-                if pos and normalize(moves[pos[-1] + 1:i], is_minimal_htr_section,
-                                     CORNER_INVARIANT) in ([], ["U2"]):
+                if pos and normalize(DrSolution(moves[pos[-1] + 1:i]), is_minimal_htr_section,
+                                     CORNER_INVARIANT).moves in ([], ["U2"]):
                     pos = pos[:-1]
                 else:
                     pos.append(i)
@@ -134,17 +139,16 @@ class DrSolution:
         return sections
 
     @cached_property
-    def leave_slice(self) -> str:
-        moves = self.alg.split(" ")
-        moves = normalize(moves, has_no_slice_insertions, D_WIDENINGS | RUF_CANCELLATIONS)
-        return " ".join(moves)
+    def leave_slice(self) -> "DrSolution":
+        ls = normalize(self, has_no_slice_insertions, D_WIDENINGS | RUF_CANCELLATIONS)
+        return ls
 
     @cached_property
-    def corner_skeleton(self) -> str:
-        skel = normalize(self.alg.split(" "), uses_ruf_only, D_WIDENINGS | LB_WIDENINGS)
+    def corner_skeleton(self) -> "DrSolution":
+        skel = normalize(self, uses_ruf_only, D_WIDENINGS | LB_WIDENINGS)
         skel = normalize(skel, is_minimal_corner_solution, CORNER_INVARIANT)
         skel = normalize(skel, has_minimal_fr_finish, FR_FINISH | RUF_CANCELLATIONS)
-        return " ".join(skel)
+        return skel
 
 
 def uses_ruf_only(moves: list[str]) -> bool:
@@ -190,31 +194,32 @@ def is_minimal_htr_section(moves: list[str]) -> bool:
     return not moves or moves in MINIMAL_MIDDLE_HTR_SECTION
 
 
-def normalize(moves: list[str], has_normal_form: Callable[[list[str]], bool],
-              substitutions: dict[tuple, tuple]) -> list[str]:
-    norm_moves = moves
+def normalize(sol: DrSolution, has_normal_form: Callable[[list[str]], bool],
+              substitutions: dict[tuple, tuple]) -> DrSolution:
+    norm_moves = list(sol.moves)
     sequence_lengths = set(len(k) for k in substitutions.keys())
     seen = set()
+    centers = DR_MOVES
     while not has_normal_form(norm_moves):
         m = tuple(norm_moves)
         if m in seen:
             raise Exception("Not converging")
         seen.add(m)
-        move_names = DR_MOVES
+        centers = DR_MOVES
         for i in range(len(norm_moves)):
             sub, n = None, min(sequence_lengths)
             while sub is None and n <= max(sequence_lengths):
                 sub = substitutions.get(tuple(norm_moves[i - n + 1:i + 1]))
                 if sub:
                     replacement_seq, center_transform = sub
-                    move_names = center_transform(move_names)
+                    centers = center_transform(centers)
                     before = norm_moves[:i - n + 1] + [m for m in replacement_seq]
-                    after = [move_names[DR_MOVES.index(m)] for m in norm_moves[i + 1:]]
+                    after = [centers[DR_MOVES.index(m)] for m in norm_moves[i + 1:]]
                     norm_moves = before + after
                 n += 1
             if sub:
                 break
-    return norm_moves
+    return DrSolution(norm_moves, centers)
 
 
 if __name__ == "__main__":
