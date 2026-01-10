@@ -3,11 +3,15 @@ import sys
 from functools import cached_property
 from typing import Callable
 
+import skeleton
+
 DR_MOVES = ["F2", "R2", "B2", "L2", "U", "U'", "U2", "D", "D'", "D2"]
-MINIMAL_FIRST_HTR_SECTION = ([], ["R2"], ["U2", "R2"], ["F2"], ["U2", "F2"],
+MINIMAL_FIRST_HTR_SECTION = ([], ["R2"], ["F2"],
+                             ["U2", "R2"], ["U2", "F2"],
                              ["R2", "U2", "F2"])
 MINIMAL_MIDDLE_HTR_SECTION = (["R2"], ["F2"], ["R2", "U2", "F2"])
-MINIMAL_FINAL_HTR_SECTION = ([], ["R2"], ["R2", "U2"], ["F2"], ["F2", "U2"],
+MINIMAL_FINAL_HTR_SECTION = ([], ["R2"], ["F2"],
+                             ["R2", "U2"], ["F2", "U2"],
                              ["R2", "U2", "F2"])
 
 
@@ -81,8 +85,11 @@ FR_FINISH_WITH_CORNER_SWAP: dict[tuple, tuple] = {
 FR_FINISH_NO_CORNER_SWAP: dict[tuple, tuple] = {
     ("R2", "U2", "F2", "U2"): (("U2", "F2", "U2", "R2"), null),
 }
-CORNER_SWAP_ELIMINATION: dict[tuple, tuple] = {
+CORNER_SWAP_ELIMINATION_MIDDLE: dict[tuple, tuple] = {
     ("R2", "U2", "F2"): (("F2", "U2", "R2", "U2"), corner_swap),
+}
+CORNER_SWAP_ELIMINATION_FINAL: dict[tuple, tuple] = {
+    ("R2", "U2", "F2"): (("U2", "R2", "U2", "F2"), corner_swap),
 }
 CORNER_INVARIANT: dict[tuple, tuple] = (
         D_WIDENINGS | LB_WIDENINGS | RUF_CANCELLATIONS | CORNER_SWAPS | EDGE_PERMS)
@@ -162,19 +169,16 @@ class DrSolution:
 
     @cached_property
     def corner_skeleton(self) -> "DrSolution":
-        skel_ruf = normalize(self, uses_ruf_only, D_WIDENINGS | LB_WIDENINGS)
-        skel = skel_ruf
-        skel_min = normalize(skel, is_minimal_corner_solution(
+        skel = normalize(self, uses_ruf_only, D_WIDENINGS | LB_WIDENINGS)
+        skel = normalize(skel, is_minimal_corner_solution(
             final=MINIMAL_FINAL_HTR_SECTION + (["R2", "U2", "F2", "U2"],)), CORNER_INVARIANT)
-        skel = skel_min
-        if not has_minimal_fr_finish(skel_min):
-            skel_fr = normalize(
+        if not has_minimal_fr_finish(skel):
+            skel = normalize(
                 skel,
                 is_minimal_corner_solution(final=MINIMAL_FINAL_HTR_SECTION + (["F2", "U2", "R2"],)),
                 (
-                    FR_FINISH_WITH_CORNER_SWAP if skel_min.corner_swap_parity else FR_FINISH_NO_CORNER_SWAP) | RUF_CANCELLATIONS
+                    FR_FINISH_WITH_CORNER_SWAP if skel.corner_swap_parity else FR_FINISH_NO_CORNER_SWAP) | RUF_CANCELLATIONS
             )
-            skel = skel_fr
         if skel.corner_swap_parity and "R2 U2 F2" in skel.alg:
             skel = normalize(
                 skel,
@@ -182,7 +186,7 @@ class DrSolution:
                     first=MINIMAL_FIRST_HTR_SECTION + (["F2", "U2", "R2"],),
                     middle=MINIMAL_MIDDLE_HTR_SECTION + (["F2", "U2", "R2"],),
                     final=MINIMAL_FINAL_HTR_SECTION + (["F2", "U2", "R2"],))(sol),
-                CORNER_SWAP_ELIMINATION | RUF_CANCELLATIONS
+                RUF_CANCELLATIONS | (CORNER_SWAP_ELIMINATION_FINAL if skel.alg.endswith("R2 U2 F2") else CORNER_SWAP_ELIMINATION_MIDDLE)
             )
         return skel
 
@@ -282,11 +286,15 @@ if __name__ == "__main__":
         lines = [l.split("(")[0].strip() for l in sys.stdin.readlines()]
     skeletons = set()
     for line in lines:
+        # print(line)
         if next((m for m in line.split(" ") if m not in DR_MOVES), None):
             continue
         sol = DrSolution(line.split(" "))
         if sol.corner_skeleton.alg not in skeletons:
             skeletons.add(sol.corner_skeleton.alg)
-            print(f"{sol.leave_slice.alg} ({len(sol.leave_slice.moves)})")
+            print(f"{sol.alg} ({len(sol.moves)})")
+            if len(sol.leave_slice.moves) < len(sol.moves):
+                print(
+                    f"\t{sol.leave_slice.alg} ({len(sol.leave_slice.moves)}) +{len(sol.moves) - len(sol.leave_slice.moves)}")
             print(
-                f"\t{sol.corner_skeleton_alg} ({len(sol.corner_skeleton.moves)} + {'+'.join((str(n) for n in sol.additional_section_moves))})")
+                f"\t{sol.corner_skeleton_alg} ({len(sol.corner_skeleton.moves)}) +{'+'.join((str(n) for n in sol.additional_section_moves))}")
