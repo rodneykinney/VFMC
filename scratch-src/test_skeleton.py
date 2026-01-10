@@ -49,8 +49,9 @@ class TestSkeleton(unittest.TestCase):
         self.assertEqual("F2 U' F2 U F2 U R2 U F2", DrSolution.parse("R2 L2 F2 D' L2 D R2 D L2 B2 D' F2 R2").corner_skeleton.alg)
         self.assertEqual("F2 U2 R2 U' R2 U'", DrSolution.parse("U R2 F2 R2 B2 R2 F2 U B2 U2 R2 U L2 U'").corner_skeleton_alg)
         self.assertEqual("U' F2 U' F2 U R2 U2", DrSolution.parse("D R2 D2 R2 F2 B2 U R2 U B2 L2 B2 L2 D2").corner_skeleton.alg)
-        self.assertEqual("F2 U F2 U F2 U2 R2 U' F2 U R2", DrSolution.parse("L2 B2 U F2 B2 U2 F2 D' B2 D2 R2 D L2 U R2").corner_skeleton_alg)
+        self.assertEqual("F2 U F2 U' R2 U2 F2 U F2 U R2", DrSolution.parse("L2 B2 U F2 B2 U2 F2 D' B2 D2 R2 D L2 U R2").corner_skeleton_alg)
         self.assertEqual("U2 F2 U' R2 U R2 U2 F2", DrSolution.parse("U' L2 B2 L2 U L2 F2 B2 D L2 D F2 D2 R2").corner_skeleton_alg)
+        self.assertEqual("U' R2 U2 F2 U' R2 U2 F2 U' R2 U' F2", DrSolution.parse("U R2 B2 U2 B2 D L2 D2 B2 U' R2 F2 D' F2").corner_skeleton_alg)
 
     def test_debug(self):
         pass

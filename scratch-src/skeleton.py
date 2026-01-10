@@ -85,8 +85,11 @@ FR_FINISH_WITH_CORNER_SWAP: dict[tuple, tuple] = {
 FR_FINISH_NO_CORNER_SWAP: dict[tuple, tuple] = {
     ("R2", "U2", "F2", "U2"): (("U2", "F2", "U2", "R2"), null),
 }
-CORNER_SWAP_ELIMINATION_MIDDLE: dict[tuple, tuple] = {
+CORNER_SWAP_ELIMINATION_FIRST: dict[tuple, tuple] = {
     ("R2", "U2", "F2"): (("F2", "U2", "R2", "U2"), corner_swap),
+}
+CORNER_SWAP_ELIMINATION_MIDDLE: dict[tuple, tuple] = {
+    ("R2", "U2", "F2"): (("U2", "R2", "U2", "F2"), corner_swap),
 }
 CORNER_SWAP_ELIMINATION_FINAL: dict[tuple, tuple] = {
     ("R2", "U2", "F2"): (("U2", "R2", "U2", "F2"), corner_swap),
@@ -99,6 +102,13 @@ CORNER_INVARIANT: dict[tuple, tuple] = (
 class DrSolution:
     moves: list[str]
     centers: list[str] = field(default_factory=lambda: DR_MOVES)
+
+    def replace(self, start_pos: int, end_pos: int, replacement: tuple, center_transform: Callable) -> "DrSolution":
+        transformed_centers = center_transform(DR_MOVES)
+        before = self.moves[:start_pos] + [m for m in replacement]
+        after = [transformed_centers[DR_MOVES.index(m)] for m in self.moves[end_pos:]]
+        return DrSolution(before + after, center_transform(self.centers))
+
 
     @staticmethod
     def parse(alg: str) -> "DrSolution":
@@ -172,7 +182,8 @@ class DrSolution:
         skel = normalize(self, uses_ruf_only, D_WIDENINGS | LB_WIDENINGS)
         skel = normalize(skel, is_minimal_corner_solution(
             final=MINIMAL_FINAL_HTR_SECTION + (["R2", "U2", "F2", "U2"],)), CORNER_INVARIANT)
-        if not has_minimal_fr_finish(skel):
+        if skel.alg.endswith("R2 U2 F2 U2"):
+            # Eliminate trailing U2 and fix corner swap parity
             skel = normalize(
                 skel,
                 is_minimal_corner_solution(final=MINIMAL_FINAL_HTR_SECTION + (["F2", "U2", "R2"],)),
@@ -180,13 +191,22 @@ class DrSolution:
                     FR_FINISH_WITH_CORNER_SWAP if skel.corner_swap_parity else FR_FINISH_NO_CORNER_SWAP) | RUF_CANCELLATIONS
             )
         if skel.corner_swap_parity and "R2 U2 F2" in skel.alg:
+            # Fix corner swap parity
+            i = 0
+            while i < len(skel.htr_sections):
+                section = skel.htr_sections[i]
+                if section == ["R2", "U2", "F2"] and skel.corner_swap_parity:
+                    if i == 0:
+                        skel = skel.replace(0, 3, ("F2","U2","R2", "U2"), corner_swap)
+                    else:
+                        skel = skel.replace(skel.qt_positions[i-1]+1, skel.qt_positions[i-1]+4, ("U2", "R2", "U2", "F2"), corner_swap)
+                elif section == ["F2", "U2", "R2"]:
+                    skel = skel.replace(skel.qt_positions[i-1]+1, skel.qt_positions[i-1]+4, ("U2", "R2", "U2", "F2", "U2"), null)
+                i += 1
             skel = normalize(
                 skel,
-                lambda sol: not sol.corner_swap_parity and is_minimal_corner_solution(
-                    first=MINIMAL_FIRST_HTR_SECTION + (["F2", "U2", "R2"],),
-                    middle=MINIMAL_MIDDLE_HTR_SECTION + (["F2", "U2", "R2"],),
-                    final=MINIMAL_FINAL_HTR_SECTION + (["F2", "U2", "R2"],))(sol),
-                RUF_CANCELLATIONS | (CORNER_SWAP_ELIMINATION_FINAL if skel.alg.endswith("R2 U2 F2") else CORNER_SWAP_ELIMINATION_MIDDLE)
+                is_minimal_corner_solution(first=MINIMAL_FIRST_HTR_SECTION + (["F2", "U2", "R2"],)),
+                RUF_CANCELLATIONS
             )
         return skel
 
@@ -261,18 +281,13 @@ def normalize(sol: DrSolution, has_normal_form: Callable[[DrSolution], bool],
         if norm_sol.alg in seen:
             raise Exception("Not converging")
         seen.add(norm_sol.alg)
-        centers = DR_MOVES
         for i in range(len(norm_sol.moves)):
             sub, n = None, min(sequence_lengths)
             while sub is None and n <= max(sequence_lengths):
                 sub = substitutions.get(tuple(norm_sol.moves[i - n + 1:i + 1]))
                 if sub:
                     replacement_seq, center_transform = sub
-                    centers = center_transform(centers)
-                    norm_sol.centers = center_transform(norm_sol.centers)
-                    before = norm_sol.moves[:i - n + 1] + [m for m in replacement_seq]
-                    after = [centers[DR_MOVES.index(m)] for m in norm_sol.moves[i + 1:]]
-                    norm_sol = DrSolution(before + after, norm_sol.centers)
+                    norm_sol = norm_sol.replace(i-n+1, i+1, replacement_seq, center_transform)
                 n += 1
             if sub:
                 break
