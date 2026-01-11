@@ -1,18 +1,10 @@
 from dataclasses import dataclass, field
 import sys
+import re
 from functools import cached_property
 from typing import Callable
 
-import skeleton
-
 DR_MOVES = ["F2", "R2", "B2", "L2", "U", "U'", "U2", "D", "D'", "D2"]
-MINIMAL_FIRST_HTR_SECTION = ([], ["R2"], ["F2"],
-                             ["U2", "R2"], ["U2", "F2"],
-                             ["R2", "U2", "F2"])
-MINIMAL_MIDDLE_HTR_SECTION = (["R2"], ["F2"], ["R2", "U2", "F2"])
-MINIMAL_FINAL_HTR_SECTION = ([], ["R2"], ["F2"],
-                             ["R2", "U2"], ["F2", "U2"],
-                             ["R2", "U2", "F2"])
 
 
 def null(centers: list[int]) -> list[int]:
@@ -78,21 +70,16 @@ EDGE_PERMS: dict[tuple, tuple] = {
     ("F2", "U2", "F2"): (("U2", "F2", "U2"), null),
     ("F2", "U2", "R2"): (("R2", "U2", "F2", "U2"), corner_swap),
     ("U2", "R2", "U2", "F2"): (("R2", "U2", "F2",), corner_swap),
+    ("U'", "R2", "U2", "F2"): (("U", "R2", "U2", "F2"), corner_swap),
 }
-FR_FINISH_WITH_CORNER_SWAP: dict[tuple, tuple] = {
-    ("R2", "U2", "F2", "U2"): (("F2", "U2", "R2"), corner_swap),
+FR_FINISH: dict[tuple, tuple] = {
+    ("U", "R2", "U2", "F2", "U2"): (("U", "F2", "U2", "R2"), corner_swap),
 }
-FR_FINISH_NO_CORNER_SWAP: dict[tuple, tuple] = {
-    ("R2", "U2", "F2", "U2"): (("U2", "F2", "U2", "R2"), null),
-}
-CORNER_SWAP_ELIMINATION_FIRST: dict[tuple, tuple] = {
-    ("R2", "U2", "F2"): (("F2", "U2", "R2", "U2"), corner_swap),
-}
-CORNER_SWAP_ELIMINATION_MIDDLE: dict[tuple, tuple] = {
-    ("R2", "U2", "F2"): (("U2", "R2", "U2", "F2"), corner_swap),
-}
-CORNER_SWAP_ELIMINATION_FINAL: dict[tuple, tuple] = {
-    ("R2", "U2", "F2"): (("U2", "R2", "U2", "F2"), corner_swap),
+CORNER_SWAP_ELIMINATION: dict[tuple, tuple] = {
+    ("R2", "U2", "F2", "U"): (("F2", "U2", "R2", "U"), corner_swap),
+    ("R2", "U2", "F2", "U'"): (("F2", "U2", "R2", "U'"), corner_swap),
+    ("U", "R2", "U2", "F2"): (("U'", "R2", "U2", "F2"), corner_swap),
+    ("U", "F2", "U2", "R2"): (("U'", "F2", "U2", "R2"), corner_swap),
 }
 CORNER_INVARIANT: dict[tuple, tuple] = (
         D_WIDENINGS | LB_WIDENINGS | RUF_CANCELLATIONS | CORNER_SWAPS | EDGE_PERMS)
@@ -103,12 +90,34 @@ class DrSolution:
     moves: list[str]
     centers: list[str] = field(default_factory=lambda: DR_MOVES)
 
-    def replace(self, start_pos: int, end_pos: int, replacement: tuple, center_transform: Callable) -> "DrSolution":
+    def replace(self, start_pos: int, end_pos: int, replacement: tuple,
+                center_transform: Callable) -> "DrSolution":
         transformed_centers = center_transform(DR_MOVES)
         before = self.moves[:start_pos] + [m for m in replacement]
         after = [transformed_centers[DR_MOVES.index(m)] for m in self.moves[end_pos:]]
         return DrSolution(before + after, center_transform(self.centers))
 
+    def normalize(self, has_normal_form: Callable[["DrSolution"], bool],
+                  substitutions: dict[tuple, tuple]) -> "DrSolution":
+        norm = DrSolution(list(self.moves), self.centers)
+        sequence_lengths = set(len(k) for k in substitutions.keys())
+        seen = set()
+        while not has_normal_form(norm):
+            if norm.alg in seen:
+                raise Exception("Not converging")
+            seen.add(norm.alg)
+            for i in range(len(norm.moves)):
+                sub, n = None, min(sequence_lengths)
+                while sub is None and n <= max(sequence_lengths):
+                    sub = substitutions.get(tuple(norm.moves[i - n + 1:i + 1]))
+                    if sub:
+                        replacement_seq, center_transform = sub
+                        norm = norm.replace(i - n + 1, i + 1, replacement_seq,
+                                            center_transform)
+                    n += 1
+                if sub:
+                    break
+        return norm
 
     @staticmethod
     def parse(alg: str) -> "DrSolution":
@@ -119,26 +128,8 @@ class DrSolution:
         return " ".join(self.moves)
 
     @cached_property
-    def annotated_corner_skeleton(self) -> str:
-        skel = self.corner_skeleton
-        ls = self.leave_slice
-        sections = []
-        for i in range(len(skel.htr_sections)):
-            if len(ls.htr_sections[i]) == len(skel.htr_sections[i]):
-                sections.append(' '.join(skel.htr_sections[i]))
-            else:
-                sections.append(
-                    f"{' '.join(skel.htr_sections[i])} [+{len(ls.htr_sections[i]) - len(skel.htr_sections[i])}]")
-            if i < len(skel.qt_positions):
-                sections.append(f"{skel.moves[skel.qt_positions[i]]}")
-        if skel.corner_swap_parity:
-            # ends with corner swap
-            sections.append("[R2 F2 R2]")
-        return f"{' '.join(sections)} ({len(skel.moves)}+{len(ls.moves) - len(skel.moves)})"
-
-    @cached_property
-    def corner_skeleton_alg(self) -> str:
-        return f"{self.corner_skeleton.alg}{' [R2 F2 R2]' if self.corner_skeleton.corner_swap_parity else ''}"
+    def annotated_alg(self) -> str:
+        return f"{self.alg}{' [R2 F2 R2]' if self.corner_swap_parity else ''}"
 
     @cached_property
     def corner_swap_parity(self) -> bool:
@@ -147,7 +138,7 @@ class DrSolution:
     @cached_property
     def additional_section_moves(self) -> tuple:
         sections = self.leave_slice.htr_sections
-        skeleton_sections = self.corner_skeleton.htr_sections
+        skeleton_sections = self.normalized_corner_skeleton.htr_sections
         assert len(sections) == len(skeleton_sections)
         return tuple(len(s) - len(ss) for s, ss in zip(sections, skeleton_sections))
 
@@ -157,8 +148,9 @@ class DrSolution:
         pos = []
         for i in range(len(moves)):
             if moves[i] in ("U", "U'", "D", "D'"):
-                if pos and normalize(DrSolution(moves[pos[-1] + 1:i]), is_minimal_htr_section,
-                                     CORNER_INVARIANT).moves in ([], ["U2"]):
+                if pos and DrSolution(moves[pos[-1] + 1:i]).normalize(is_minimal_htr_section,
+                                                                      CORNER_INVARIANT).moves in (
+                        [], ["U2"]):
                     pos = pos[:-1]
                 else:
                     pos.append(i)
@@ -174,58 +166,27 @@ class DrSolution:
 
     @cached_property
     def leave_slice(self) -> "DrSolution":
-        ls = normalize(self, has_no_slice_insertions, D_WIDENINGS | RUF_CANCELLATIONS)
+        ls = self.normalize(has_no_slice_insertions, D_WIDENINGS | RUF_CANCELLATIONS)
         return ls
 
     @cached_property
-    def corner_skeleton(self) -> "DrSolution":
-        skel = normalize(self, uses_ruf_only, D_WIDENINGS | LB_WIDENINGS)
-        skel = normalize(skel, is_minimal_corner_solution(
-            final=MINIMAL_FINAL_HTR_SECTION + (["R2", "U2", "F2", "U2"],)), CORNER_INVARIANT)
-        if skel.alg.endswith("R2 U2 F2 U2"):
-            # Eliminate trailing U2 and fix corner swap parity
-            skel = normalize(
-                skel,
-                is_minimal_corner_solution(final=MINIMAL_FINAL_HTR_SECTION + (["F2", "U2", "R2"],)),
-                (
-                    FR_FINISH_WITH_CORNER_SWAP if skel.corner_swap_parity else FR_FINISH_NO_CORNER_SWAP) | RUF_CANCELLATIONS
-            )
-        if skel.corner_swap_parity and "R2 U2 F2" in skel.alg:
-            # Fix corner swap parity
-            i = 0
-            while i < len(skel.htr_sections):
-                section = skel.htr_sections[i]
-                if section == ["R2", "U2", "F2"] and skel.corner_swap_parity:
-                    if i == 0:
-                        skel = skel.replace(0, 3, ("F2","U2","R2", "U2"), corner_swap)
-                    else:
-                        skel = skel.replace(skel.qt_positions[i-1]+1, skel.qt_positions[i-1]+4, ("U2", "R2", "U2", "F2"), corner_swap)
-                elif section == ["F2", "U2", "R2"]:
-                    skel = skel.replace(skel.qt_positions[i-1]+1, skel.qt_positions[i-1]+4, ("U2", "R2", "U2", "F2", "U2"), null)
-                i += 1
-            skel = normalize(
-                skel,
-                is_minimal_corner_solution(first=MINIMAL_FIRST_HTR_SECTION + (["F2", "U2", "R2"],)),
-                RUF_CANCELLATIONS
-            )
+    def normalized_corner_skeleton(self) -> "DrSolution":
+        skel = self.normalize(uses_ruf_only, D_WIDENINGS | LB_WIDENINGS)
+        skel = skel.normalize(is_normal_corner_solution, CORNER_INVARIANT)
         return skel
 
-
-def has_no_unnecessary_corner_swaps(sol: DrSolution) -> bool:
-    if sol.corner_swap_parity:
-        current_section = []
-        for m in sol.moves:
-            if m in ("U", "U'", "D", "D'"):
-                if current_section in (["R2", "U2", "F2"], ["F2", "U2", "R2"]):
-                    return True
-                current_section = []
-            else:
-                current_section.append(m)
-    return False
-
-
-def has_minimal_fr_finish(sol: DrSolution) -> bool:
-    return sol.moves[-4:] != ["R2", "U2", "F2", "U2"]
+    @cached_property
+    def minimal_corner_skeleton(self) -> "DrSolution":
+        skel = self.normalized_corner_skeleton
+        if "R2 U2 F2" not in skel.alg:
+            return skel
+        if skel.alg.endswith("R2 U2 F2 U2"):
+            skel = skel.normalize(is_minimal_corner_solution, FR_FINISH)
+        if skel.corner_swap_parity:
+            skel = skel.normalize(
+                lambda sol: is_minimal_corner_solution(sol) and not sol.corner_swap_parity,
+                CORNER_SWAP_ELIMINATION)
+        return skel
 
 
 def uses_ruf_only(sol: DrSolution) -> bool:
@@ -240,58 +201,20 @@ def has_no_slice_insertions(sol: DrSolution) -> bool:
     return slice_insertions is None
 
 
-def is_minimal_corner_solution(first=MINIMAL_FIRST_HTR_SECTION, middle=MINIMAL_MIDDLE_HTR_SECTION,
-                               final=MINIMAL_FINAL_HTR_SECTION):
-    def f(sol: DrSolution) -> bool:
-        sections = []
-        current_section = []
-        for m in sol.moves:
-            if m in ("U", "U'", "D", "D'"):
-                if current_section not in first:
-                    return False
-                if sections and current_section not in middle:
-                    return False
-                sections.append(current_section)
-                current_section = []
-            else:
-                current_section.append(m)
-        if current_section not in final:
-            return False
-        sections.append(current_section)
-        return True
+def is_minimal_corner_solution(sol: DrSolution) -> bool:
+    return re.match(
+        r"""^(R2|F2|U2R2|U2F2|R2U2F2|F2U2R2)?((U|U')(R2|F2|R2U2F2|F2U2R2))*((U|U')(R2|R2U2|F2|F2U2|R2U2F2|F2U2R2)?)?$""",
+        "".join(sol.moves)) is not None
 
-    return f
+
+def is_normal_corner_solution(sol: DrSolution) -> bool:
+    return re.match(
+        r"""^(R2|F2|U2R2|U2F2|R2U2F2)?(UR2|U'R2|UF2|U'F2|UR2U2F2)*(U|U'|UR2|U'R2|UR2U2|U'R2U2|UF2|U'F2|UF2U2|U'F2U2|UR2U2F2|UR2U2F2U2)?$""",
+        "".join(sol.moves)) is not None
 
 
 def is_minimal_htr_section(sol: DrSolution) -> bool:
-    moves = list(sol.moves)
-    if moves[:1] == ["U2"]:
-        moves = moves[1:]
-    if moves[-1:] == ["U2"]:
-        moves = moves[:-1]
-    return not moves or moves in MINIMAL_MIDDLE_HTR_SECTION
-
-
-def normalize(sol: DrSolution, has_normal_form: Callable[[DrSolution], bool],
-              substitutions: dict[tuple, tuple]) -> DrSolution:
-    norm_sol = DrSolution(list(sol.moves), sol.centers)
-    sequence_lengths = set(len(k) for k in substitutions.keys())
-    seen = set()
-    while not has_normal_form(norm_sol):
-        if norm_sol.alg in seen:
-            raise Exception("Not converging")
-        seen.add(norm_sol.alg)
-        for i in range(len(norm_sol.moves)):
-            sub, n = None, min(sequence_lengths)
-            while sub is None and n <= max(sequence_lengths):
-                sub = substitutions.get(tuple(norm_sol.moves[i - n + 1:i + 1]))
-                if sub:
-                    replacement_seq, center_transform = sub
-                    norm_sol = norm_sol.replace(i-n+1, i+1, replacement_seq, center_transform)
-                n += 1
-            if sub:
-                break
-    return norm_sol
+    return re.match(r"""^(U2)?(R2|F2|R2U2F2)?(U2)?$""", "".join(sol.moves)) is not None
 
 
 if __name__ == "__main__":
@@ -305,11 +228,11 @@ if __name__ == "__main__":
         if next((m for m in line.split(" ") if m not in DR_MOVES), None):
             continue
         sol = DrSolution(line.split(" "))
-        if sol.corner_skeleton.alg not in skeletons:
-            skeletons.add(sol.corner_skeleton.alg)
+        if sol.normalized_corner_skeleton.alg not in skeletons:
+            skeletons.add(sol.normalized_corner_skeleton.alg)
             print(f"{sol.alg} ({len(sol.moves)})")
             if len(sol.leave_slice.moves) < len(sol.moves):
                 print(
                     f"\t{sol.leave_slice.alg} ({len(sol.leave_slice.moves)}) +{len(sol.moves) - len(sol.leave_slice.moves)}")
             print(
-                f"\t{sol.corner_skeleton_alg} ({len(sol.corner_skeleton.moves)}) +{'+'.join((str(n) for n in sol.additional_section_moves))}")
+                f"\t{sol.minimal_corner_skeleton.annotated_alg} ({len(sol.minimal_corner_skeleton.moves)}) +{'+'.join((str(n) for n in sol.additional_section_moves))}")
