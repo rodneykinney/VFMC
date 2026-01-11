@@ -5,11 +5,12 @@ import unittest
 
 class TestSkeleton(unittest.TestCase):
     def test_normalize(self):
-        self.assertEqual(["U2", "F2"],
-                         DrSolution.parse("U D R2 U D'").normalize(is_minimal_htr_section,
-                                                                   CORNER_INVARIANT).moves)
-        self.assertEqual(["F2"], DrSolution.parse("F2 L2 F2 R2").normalize(is_minimal_htr_section,
-                                                                           CORNER_INVARIANT).moves)
+        self.assertEqual("U2 F2",
+                         DrSolution.parse("U D R2 U D'").simplify(is_minimal_htr_section,
+                                                                  CORNER_INVARIANT).alg)
+        self.assertEqual("F2",
+                         DrSolution.parse("F2 L2 F2 R2").simplify(is_minimal_htr_section,
+                                                                  CORNER_INVARIANT).alg)
 
     def test_qt_positions(self):
         self.assertEqual((6, 11),
@@ -38,7 +39,7 @@ class TestSkeleton(unittest.TestCase):
         self.assertEqual("U2 F2 B2 U' F2 L2 F2 R2 D' F2 D2 R2 F2 R2 B2", DrSolution.parse(
             "U D R2 U D' B2 U' F2 L2 F2 R2 D' F2 D2 R2 F2 R2 B2").leave_slice.alg)
 
-    def test_corner_skeleton(self):
+    def test_normal_corner_skeleton(self):
         self.assertTrue(is_normal_corner_solution((DrSolution.parse("U R2 U R2 U2 F2"))))
         self.assertTrue(is_normal_corner_solution((DrSolution.parse("U F2 U F2 U' F2 U F2 U F2"))))
         self.assertFalse(
@@ -71,6 +72,7 @@ class TestSkeleton(unittest.TestCase):
         self.assertEqual("U R2 U2 F2 U R2 U2 F2 U R2 U' F2", DrSolution.parse(
             "U R2 B2 U2 B2 D L2 D2 B2 U' R2 F2 D' F2").normalized_corner_skeleton.alg)
 
+    def test_minimal_corner_skeleton(self):
         self.assertTrue(is_minimal_corner_solution((DrSolution.parse("U R2 U R2 U2 F2"))))
         self.assertTrue(is_minimal_corner_solution((DrSolution.parse("U F2 U F2 U' F2 U F2 U F2"))))
         self.assertFalse(
