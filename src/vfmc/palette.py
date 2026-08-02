@@ -111,6 +111,11 @@ class Palette:
             p.opacity = 255
             p.edge_visibility_mask = Visibility.BadPiece
             p.colors = dict((FaceletColors(i), (0, 0, 0)) for i in range(6))
+            p.colors.update({
+                FaceletColors.WHITE: p.hidden_color,
+                FaceletColors.YELLOW: p.hidden_color,
+                    FaceletColors.RED: p.hidden_color,
+            })
         elif name == "cp-case":
             p.center_visibility_mask = 0
             p.opacity = 255

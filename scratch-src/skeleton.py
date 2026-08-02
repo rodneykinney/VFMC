@@ -121,6 +121,10 @@ class DrSolution:
         return tuple(pos)
 
     @cached_property
+    def qt_count(self) -> int:
+        return sum(1 for m in self.moves if m in ("U", "U'", "D", "D'"))
+
+    @cached_property
     def htr_sections(self) -> list[list[str]]:
         """The HTR sequences of moves in between each quarter turn"""
         moves = self.alg.split(" ")
@@ -302,10 +306,21 @@ if __name__ == "__main__":
         else:
             skeletons.append((sol.normalized_corner_skeleton.alg, [sol]))
 
+    count = 0
+    min_moves = len(skeletons[0][1][0].moves)
+    min_qt = min(l[0].qt_count for _,l in skeletons)
     for norm, l in skeletons:
-        sorted = l.sort(key=lambda sol: (len(sol.moves), sol.entropy))
-        print(
-            f"{l[0].minimal_corner_skeleton.annotated_alg} ({len(l[0].minimal_corner_skeleton.moves)})")
-        for sol in l:
-            print(
-                f"\t{sol.alg} ({len(sol.moves)}) +{'+'.join((str(n) for n in sol.additional_section_moves))}{'' if len(sol.leave_slice.moves) == len(sol.moves) else f' E-slice +{len(sol.moves) - len(sol.leave_slice.moves)}'}")
+        if l[0].qt_count == min_qt or \
+                (len(l[0].moves) == min_moves):
+            sorted = l.sort(key=lambda sol: (len(sol.moves), sol.entropy))
+            sol = l[0]
+            print(f"  {sol.alg} ({len(sol.moves)}) +{'+'.join((str(n) for n in sol.additional_section_moves))}{'' if len(sol.leave_slice.moves) == len(sol.moves) else f' E-slice +{len(sol.moves) - len(sol.leave_slice.moves)}'}")
+            count += 1
+        if count >= 5:
+            break
+#        print(
+#            f"{l[0].minimal_corner_skeleton.annotated_alg} ({len(l[0].minimal_corner_skeleton.moves)})")
+#        for sol in l:
+#            print(
+#                f"\t{sol.alg} ({len(sol.moves)}) +{'+'.join((str(n) for n in sol.additional_section_moves))}{'' if len(sol.leave_slice.moves) == len(sol.moves) else f' E-slice +{len(sol.moves) - len(sol.leave_slice.moves)}'}")
+#
