@@ -307,6 +307,8 @@ if __name__ == "__main__":
             skeletons.append((sol.normalized_corner_skeleton.alg, [sol]))
 
     count = 0
+    if not skeletons:
+        exit(0)
     min_moves = len(skeletons[0][1][0].moves)
     min_qt = min(l[0].qt_count for _,l in skeletons)
     for norm, l in skeletons:
